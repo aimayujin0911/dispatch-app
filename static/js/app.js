@@ -1,33 +1,25 @@
 // ===== グローバル =====
 const API = '/api';
 let map = null;
+let mapMarkers = [];
 let currentPage = 'dashboard';
+let calendarDate = new Date();
+let dragState = null;
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
-    // 日付表示
     const today = new Date();
     document.getElementById('currentDate').textContent =
         today.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
 
-    // 配車フィルター初期値
-    document.getElementById('dispatch-date-filter').value = today.toISOString().split('T')[0];
-    document.getElementById('dispatch-date-filter').addEventListener('change', loadDispatches);
-
-    // ナビゲーション
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const page = item.dataset.page;
-            navigateTo(page);
-        });
+        item.addEventListener('click', () => navigateTo(item.dataset.page));
     });
 
-    // モバイルメニュー
     document.getElementById('menuToggle').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('open');
     });
 
-    // 初期読み込み
     loadDashboard();
 });
 
@@ -46,77 +38,51 @@ function navigateTo(page) {
     };
     document.getElementById('pageTitle').textContent = titles[page] || '';
 
-    // ページ別読み込み
     const loaders = {
-        dashboard: loadDashboard, dispatches: loadDispatches, shipments: loadShipments,
+        dashboard: loadDashboard, dispatches: loadDispatchCalendar, shipments: loadShipments,
         vehicles: loadVehicles, drivers: loadDrivers, map: initMap,
         revenue: loadRevenue, reports: loadReports
     };
     if (loaders[page]) loaders[page]();
-
-    // モバイルでサイドバーを閉じる
     document.getElementById('sidebar').classList.remove('open');
 }
 
 // ===== API ヘルパー =====
-async function apiGet(url) {
-    const res = await fetch(API + url);
-    return res.json();
-}
-
+async function apiGet(url) { return (await fetch(API + url)).json(); }
 async function apiPost(url, data) {
-    const res = await fetch(API + url, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-    });
-    return res.json();
+    return (await fetch(API + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json();
 }
-
 async function apiPut(url, data) {
-    const res = await fetch(API + url, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-    });
-    return res.json();
+    return (await fetch(API + url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json();
 }
-
-async function apiDelete(url) {
-    const res = await fetch(API + url, { method: 'DELETE' });
-    return res.json();
-}
+async function apiDelete(url) { return (await fetch(API + url, { method: 'DELETE' })).json(); }
 
 // ===== ダッシュボード =====
 async function loadDashboard() {
     const data = await apiGet('/dashboard');
-
     document.getElementById('stat-today-dispatches').textContent = data.today_dispatches;
     document.getElementById('stat-unassigned').textContent = data.unassigned_shipments;
-    document.getElementById('stat-vehicles-active').innerHTML =
-        `${data.vehicles.active}<small>/${data.vehicles.total}</small>`;
+    document.getElementById('stat-vehicles-active').innerHTML = `${data.vehicles.active}<small>/${data.vehicles.total}</small>`;
     document.getElementById('stat-monthly-revenue').textContent = `¥${data.monthly_revenue.toLocaleString()}`;
 
-    // 車両ステータスバー
     const vTotal = data.vehicles.total || 1;
     document.getElementById('vehicle-status-bars').innerHTML = `
         ${statusBar('稼働中', data.vehicles.active, vTotal, 'blue')}
         ${statusBar('空車', data.vehicles.empty, vTotal, 'green')}
-        ${statusBar('整備中', data.vehicles.maintenance, vTotal, 'orange')}
-    `;
+        ${statusBar('整備中', data.vehicles.maintenance, vTotal, 'orange')}`;
 
-    // ドライバーステータスバー
     const dTotal = data.drivers.total || 1;
     document.getElementById('driver-status-bars').innerHTML = `
         ${statusBar('運行中', data.drivers.active, dTotal, 'blue')}
-        ${statusBar('待機中', data.drivers.standby, dTotal, 'green')}
-    `;
+        ${statusBar('待機中', data.drivers.standby, dTotal, 'green')}`;
 
-    // 売上チャート
     const maxRev = Math.max(...data.revenue_trend.map(r => r.revenue), 1);
     document.getElementById('revenue-chart').innerHTML = data.revenue_trend.map(r => {
         const h = Math.max((r.revenue / maxRev) * 160, 2);
-        const dateLabel = r.date.slice(5);
         return `<div class="chart-bar-wrapper">
             <div class="chart-value">${r.revenue > 0 ? '¥' + (r.revenue / 1000).toFixed(0) + 'k' : ''}</div>
             <div class="chart-bar" style="height:${h}px"></div>
-            <div class="chart-label">${dateLabel}</div>
+            <div class="chart-label">${r.date.slice(5)}</div>
         </div>`;
     }).join('');
 }
@@ -127,6 +93,291 @@ function statusBar(label, count, total, color) {
         <div class="status-bar-label"><span>${label}</span><span>${count}台</span></div>
         <div class="status-bar-track"><div class="status-bar-fill ${color}" style="width:${pct}%"></div></div>
     </div>`;
+}
+
+// ===== 配車表（カレンダー形式） =====
+async function loadDispatchCalendar() {
+    const weekStart = getWeekStart(calendarDate);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const [dispatches, vehicles] = await Promise.all([
+        apiGet(`/dispatches?week_start=${fmt(weekStart)}`),
+        apiGet('/vehicles'),
+    ]);
+
+    // フィルター用の車種リスト
+    const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
+    const filterType = document.getElementById('cal-filter-type')?.value || '';
+
+    const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
+    const filteredDispatches = filterType
+        ? dispatches.filter(d => filteredVehicles.some(v => v.id === d.vehicle_id))
+        : dispatches;
+
+    // ヘッダー
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        days.push(d);
+    }
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+    const calContainer = document.getElementById('dispatch-calendar');
+    calContainer.innerHTML = `
+        <div class="cal-controls">
+            <button class="btn btn-sm" onclick="changeWeek(-1)">◀ 前週</button>
+            <span class="cal-week-label">${fmt(weekStart)} 〜 ${fmt(weekEnd)}</span>
+            <button class="btn btn-sm" onclick="changeWeek(1)">翌週 ▶</button>
+            <button class="btn btn-sm" onclick="calendarDate=new Date();loadDispatchCalendar()">今週</button>
+            <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
+                <option value="">全車種</option>
+                ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+        </div>
+        <div class="cal-grid">
+            <div class="cal-header cal-time-col">時間</div>
+            ${days.map((d, i) => `<div class="cal-header ${isToday(d) ? 'cal-today' : ''} ${i === 0 || i === 6 ? 'cal-weekend' : ''}">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</div>`).join('')}
+            ${buildTimeRows(days, filteredDispatches, filteredVehicles)}
+        </div>`;
+}
+
+function buildTimeRows(days, dispatches, vehicles) {
+    let html = '';
+    for (let h = 5; h <= 22; h++) {
+        const timeLabel = `${String(h).padStart(2, '0')}:00`;
+        html += `<div class="cal-time-cell cal-time-col">${timeLabel}</div>`;
+        for (let di = 0; di < 7; di++) {
+            const dayStr = fmt(days[di]);
+            const cellDispatches = dispatches.filter(d => {
+                if (d.date !== dayStr) return false;
+                const startH = parseInt(d.start_time.split(':')[0]);
+                return startH === h;
+            });
+            const cellId = `cell-${dayStr}-${h}`;
+            html += `<div class="cal-cell ${isToday(days[di]) ? 'cal-today' : ''}" id="${cellId}"
+                data-date="${dayStr}" data-hour="${h}"
+                onmousedown="startDrag(event, '${dayStr}', ${h})"
+                onmouseover="onDragOver(event, '${dayStr}', ${h})"
+                onmouseup="endDrag(event, '${dayStr}', ${h})">`;
+            cellDispatches.forEach(d => {
+                const duration = calcDuration(d.start_time, d.end_time);
+                const color = getDispatchColor(d.status);
+                html += `<div class="cal-event ${color}" style="height:${Math.max(duration * 40 / 60, 24)}px"
+                    onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.vehicle_number} ${d.driver_name}">
+                    <div class="cal-event-time">${d.start_time}-${d.end_time}</div>
+                    <div class="cal-event-title">${d.vehicle_number}</div>
+                    <div class="cal-event-detail">${d.driver_name} ${d.pickup_address ? d.pickup_address + '→' + d.delivery_address : ''}</div>
+                </div>`;
+            });
+            html += '</div>';
+        }
+    }
+    return html;
+}
+
+function calcDuration(start, end) {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    return (eh * 60 + em) - (sh * 60 + sm);
+}
+
+function getDispatchColor(status) {
+    return { '予定': 'ev-blue', '運行中': 'ev-green', '完了': 'ev-gray', 'キャンセル': 'ev-red' }[status] || 'ev-blue';
+}
+
+function changeWeek(dir) {
+    calendarDate.setDate(calendarDate.getDate() + dir * 7);
+    loadDispatchCalendar();
+}
+
+function getWeekStart(d) {
+    const result = new Date(d);
+    const day = result.getDay();
+    result.setDate(result.getDate() - day + 1); // 月曜始まり
+    result.setHours(0, 0, 0, 0);
+    return result;
+}
+
+function isToday(d) {
+    const t = new Date();
+    return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
+function fmt(d) {
+    return d.toISOString ? d.toISOString().split('T')[0] : d;
+}
+
+// ドラッグで配車作成
+function startDrag(e, dateStr, hour) {
+    if (e.button !== 0) return;
+    dragState = { dateStr, startHour: hour, endHour: hour + 1 };
+    highlightDrag();
+}
+
+function onDragOver(e, dateStr, hour) {
+    if (!dragState || dragState.dateStr !== dateStr) return;
+    dragState.endHour = Math.max(hour + 1, dragState.startHour + 1);
+    highlightDrag();
+}
+
+function highlightDrag() {
+    document.querySelectorAll('.cal-cell.dragging').forEach(c => c.classList.remove('dragging'));
+    if (!dragState) return;
+    for (let h = dragState.startHour; h < dragState.endHour; h++) {
+        const cell = document.getElementById(`cell-${dragState.dateStr}-${h}`);
+        if (cell) cell.classList.add('dragging');
+    }
+}
+
+function endDrag(e, dateStr, hour) {
+    if (!dragState) return;
+    const startH = String(dragState.startHour).padStart(2, '0') + ':00';
+    const endH = String(Math.max(dragState.endHour, dragState.startHour + 1)).padStart(2, '0') + ':00';
+    const date = dragState.dateStr;
+    dragState = null;
+    document.querySelectorAll('.cal-cell.dragging').forEach(c => c.classList.remove('dragging'));
+    openQuickDispatchModal(date, startH, endH);
+}
+
+async function openQuickDispatchModal(date, startTime, endTime) {
+    const [vehicles, drivers, shipments] = await Promise.all([
+        apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
+    ]);
+    const availableVehicles = vehicles.filter(v => v.status !== '整備中');
+    const availableDrivers = drivers.filter(d => d.status !== '非番');
+    const unassigned = shipments.filter(s => s.status === '未配車');
+
+    document.getElementById('modal-title').textContent = `配車作成 (${date})`;
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row">
+            <div class="form-group">
+                <label>開始時刻</label>
+                <input type="time" id="f-qd-start" value="${startTime}">
+            </div>
+            <div class="form-group">
+                <label>終了時刻</label>
+                <input type="time" id="f-qd-end" value="${endTime}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>車両</label>
+            <select id="f-qd-vehicle">
+                <option value="">-- 選択 --</option>
+                ${availableVehicles.map(v => `<option value="${v.id}">${v.number} (${v.type}) [${v.status}]</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>ドライバー</label>
+            <select id="f-qd-driver">
+                <option value="">-- 選択 --</option>
+                ${availableDrivers.map(d => `<option value="${d.id}">${d.name} (${d.license_type}) [${d.status}]</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>案件（既存から選択）</label>
+            <select id="f-qd-shipment" onchange="toggleManualAddress()">
+                <option value="">-- 手動入力 --</option>
+                ${unassigned.map(s => `<option value="${s.id}">${s.client_name}: ${s.pickup_address} → ${s.delivery_address}</option>`).join('')}
+            </select>
+        </div>
+        <div id="manual-address">
+            <div class="form-group">
+                <label>荷主名</label>
+                <input type="text" id="f-qd-client" placeholder="荷主名">
+            </div>
+            <div class="form-group">
+                <label>積地</label>
+                <input type="text" id="f-qd-pickup" placeholder="東京都大田区...">
+            </div>
+            <div class="form-group">
+                <label>卸地</label>
+                <input type="text" id="f-qd-delivery" placeholder="神奈川県横浜市...">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>備考</label>
+            <textarea id="f-qd-notes"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveQuickDispatch('${date}')">配車する</button>
+        </div>`;
+    showModal();
+}
+
+function toggleManualAddress() {
+    const shipmentId = document.getElementById('f-qd-shipment').value;
+    document.getElementById('manual-address').style.display = shipmentId ? 'none' : 'block';
+}
+
+async function saveQuickDispatch(date) {
+    const vehicleId = parseInt(document.getElementById('f-qd-vehicle').value);
+    const driverId = parseInt(document.getElementById('f-qd-driver').value);
+    if (!vehicleId || !driverId) return alert('車両とドライバーを選択してください');
+
+    const shipmentId = document.getElementById('f-qd-shipment').value;
+    const data = {
+        vehicle_id: vehicleId,
+        driver_id: driverId,
+        date: date,
+        start_time: document.getElementById('f-qd-start').value,
+        end_time: document.getElementById('f-qd-end').value,
+        notes: document.getElementById('f-qd-notes').value,
+    };
+
+    if (shipmentId) {
+        data.shipment_id = parseInt(shipmentId);
+    } else {
+        data.pickup_address = document.getElementById('f-qd-pickup').value;
+        data.delivery_address = document.getElementById('f-qd-delivery').value;
+        data.client_name = document.getElementById('f-qd-client').value;
+    }
+
+    await apiPost('/dispatches', data);
+    closeModal();
+    loadDispatchCalendar();
+}
+
+async function showDispatchDetail(id) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === id);
+    if (!d) return;
+
+    document.getElementById('modal-title').textContent = '配車詳細';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:grid;gap:12px">
+            <div><strong>日付:</strong> ${d.date}</div>
+            <div><strong>時間:</strong> ${d.start_time} 〜 ${d.end_time}</div>
+            <div><strong>車両:</strong> ${d.vehicle_number}</div>
+            <div><strong>ドライバー:</strong> ${d.driver_name}</div>
+            <div><strong>荷主:</strong> ${d.client_name || '-'}</div>
+            <div><strong>積地:</strong> ${d.pickup_address || '-'}</div>
+            <div><strong>卸地:</strong> ${d.delivery_address || '-'}</div>
+            <div><strong>ステータス:</strong> ${statusBadge(d.status)}</div>
+            <div><strong>備考:</strong> ${d.notes || '-'}</div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
+            <button class="btn btn-success" onclick="completeDispatch(${d.id})">完了</button>
+            <button class="btn" onclick="closeModal()">閉じる</button>
+        </div>`;
+    showModal();
+}
+
+async function completeDispatch(id) {
+    if (!confirm('この配車を完了にしますか？')) return;
+    await apiPut(`/dispatches/${id}`, { status: '完了' });
+    closeModal();
+    loadDispatchCalendar();
+}
+
+async function deleteDispatch(id) {
+    if (!confirm('この配車を削除しますか？')) return;
+    await apiDelete(`/dispatches/${id}`);
+    closeModal();
+    loadDispatchCalendar();
 }
 
 // ===== 車両管理 =====
@@ -195,10 +446,8 @@ async function saveVehicle(id) {
         notes: document.getElementById('f-v-notes').value,
     };
     if (!data.number) return alert('車両番号を入力してください');
-    if (id) await apiPut(`/vehicles/${id}`, data);
-    else await apiPost('/vehicles', data);
-    closeModal();
-    loadVehicles();
+    if (id) await apiPut(`/vehicles/${id}`, data); else await apiPost('/vehicles', data);
+    closeModal(); loadVehicles();
 }
 
 async function editVehicle(id) {
@@ -209,8 +458,7 @@ async function editVehicle(id) {
 
 async function deleteVehicle(id) {
     if (!confirm('この車両を削除しますか？')) return;
-    await apiDelete(`/vehicles/${id}`);
-    loadVehicles();
+    await apiDelete(`/vehicles/${id}`); loadVehicles();
 }
 
 // ===== ドライバー管理 =====
@@ -279,10 +527,8 @@ async function saveDriver(id) {
         notes: document.getElementById('f-d-notes').value,
     };
     if (!data.name) return alert('名前を入力してください');
-    if (id) await apiPut(`/drivers/${id}`, data);
-    else await apiPost('/drivers', data);
-    closeModal();
-    loadDrivers();
+    if (id) await apiPut(`/drivers/${id}`, data); else await apiPost('/drivers', data);
+    closeModal(); loadDrivers();
 }
 
 async function editDriver(id) {
@@ -293,8 +539,7 @@ async function editDriver(id) {
 
 async function deleteDriver(id) {
     if (!confirm('このドライバーを削除しますか？')) return;
-    await apiDelete(`/drivers/${id}`);
-    loadDrivers();
+    await apiDelete(`/drivers/${id}`); loadDrivers();
 }
 
 // ===== 案件管理 =====
@@ -339,11 +584,11 @@ function openShipmentModal(shipment = null) {
         </div>
         <div class="form-group">
             <label>積地</label>
-            <input type="text" id="f-s-pickup" value="${shipment?.pickup_address || ''}" placeholder="東京都大田区...">
+            <input type="text" id="f-s-pickup" value="${shipment?.pickup_address || ''}">
         </div>
         <div class="form-group">
             <label>卸地</label>
-            <input type="text" id="f-s-delivery" value="${shipment?.delivery_address || ''}" placeholder="神奈川県横浜市...">
+            <input type="text" id="f-s-delivery" value="${shipment?.delivery_address || ''}">
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -392,13 +637,9 @@ async function saveShipment(id) {
         status: document.getElementById('f-s-status').value,
         notes: document.getElementById('f-s-notes').value,
     };
-    if (!data.client_name || !data.pickup_address || !data.delivery_address) {
-        return alert('荷主名、積地、卸地は必須です');
-    }
-    if (id) await apiPut(`/shipments/${id}`, data);
-    else await apiPost('/shipments', data);
-    closeModal();
-    loadShipments();
+    if (!data.client_name || !data.pickup_address || !data.delivery_address) return alert('荷主名、積地、卸地は必須です');
+    if (id) await apiPut(`/shipments/${id}`, data); else await apiPost('/shipments', data);
+    closeModal(); loadShipments();
 }
 
 async function editShipment(id) {
@@ -409,111 +650,50 @@ async function editShipment(id) {
 
 async function deleteShipment(id) {
     if (!confirm('この案件を削除しますか？')) return;
-    await apiDelete(`/shipments/${id}`);
-    loadShipments();
+    await apiDelete(`/shipments/${id}`); loadShipments();
 }
 
-// ===== 配車表 =====
-async function loadDispatches() {
-    const dateFilter = document.getElementById('dispatch-date-filter').value;
-    const url = dateFilter ? `/dispatches?target_date=${dateFilter}` : '/dispatches';
-    const dispatches = await apiGet(url);
-    document.getElementById('dispatches-table').innerHTML = dispatches.map(d => `
-        <tr>
-            <td>${d.date}</td>
-            <td>${d.vehicle_number}</td>
-            <td>${d.driver_name}</td>
-            <td>${d.client_name}</td>
-            <td>${d.pickup_address}</td>
-            <td>${d.delivery_address}</td>
-            <td>${statusBadge(d.status)}</td>
-            <td>
-                <button class="btn btn-sm btn-success" onclick="completeDispatch(${d.id})">完了</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
-            </td>
-        </tr>
-    `).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">配車データがありません</td></tr>';
-}
+// ===== 地図表示（積地・卸地マーカー） =====
+// 主要都市の座標マッピング
+const GEOCODE_CACHE = {
+    '東京都': [35.6812, 139.7671], '東京都大田区': [35.5614, 139.7160], '東京都大田区平和島': [35.5780, 139.7390],
+    '東京都江東区': [35.6729, 139.8172], '東京都江東区有明': [35.6340, 139.7886],
+    '東京都品川区': [35.6091, 139.7300], '東京都品川区東品川': [35.6100, 139.7480],
+    '東京都新宿区': [35.6938, 139.7034], '東京都渋谷区': [35.6640, 139.6982],
+    '東京都中央区': [35.6709, 139.7719], '東京都墨田区': [35.7107, 139.8015],
+    '神奈川県横浜市': [35.4437, 139.6380], '神奈川県横浜市港北区': [35.5310, 139.6324],
+    '神奈川県横浜市鶴見区': [35.5085, 139.6770], '神奈川県川崎市': [35.5308, 139.7030],
+    '神奈川県藤沢市': [35.3390, 139.4896],
+    '埼玉県さいたま市': [35.8617, 139.6455], '埼玉県さいたま市大宮区': [35.9064, 139.6260],
+    '千葉県千葉市': [35.6074, 140.1065], '千葉県千葉市美浜区': [35.6372, 140.0594],
+    '千葉県船橋市': [35.6946, 139.9828],
+    '茨城県つくば市': [36.0835, 140.0765],
+    '静岡県浜松市': [34.7108, 137.7261], '静岡県浜松市中区': [34.7108, 137.7261],
+    '静岡県沼津市': [35.0955, 138.8626],
+    '群馬県高崎市': [36.3219, 139.0032],
+};
 
-async function openDispatchModal() {
-    const [vehicles, drivers, shipments] = await Promise.all([
-        apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
-    ]);
-    const today = new Date().toISOString().split('T')[0];
-    const availableVehicles = vehicles.filter(v => v.status !== '整備中');
-    const availableDrivers = drivers.filter(d => d.status !== '非番');
-    const unassigned = shipments.filter(s => s.status === '未配車');
-
-    document.getElementById('modal-title').textContent = '新規配車';
-    document.getElementById('modal-body').innerHTML = `
-        <div class="form-group">
-            <label>車両</label>
-            <select id="f-dp-vehicle">
-                <option value="">-- 選択 --</option>
-                ${availableVehicles.map(v => `<option value="${v.id}">${v.number} (${v.type}) [${v.status}]</option>`).join('')}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>ドライバー</label>
-            <select id="f-dp-driver">
-                <option value="">-- 選択 --</option>
-                ${availableDrivers.map(d => `<option value="${d.id}">${d.name} (${d.license_type}) [${d.status}]</option>`).join('')}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>案件</label>
-            <select id="f-dp-shipment">
-                <option value="">-- 選択 --</option>
-                ${unassigned.map(s => `<option value="${s.id}">${s.client_name}: ${s.pickup_address} → ${s.delivery_address}</option>`).join('')}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>配車日</label>
-            <input type="date" id="f-dp-date" value="${today}">
-        </div>
-        <div class="form-group">
-            <label>備考</label>
-            <textarea id="f-dp-notes"></textarea>
-        </div>
-        <div class="form-actions">
-            <button class="btn" onclick="closeModal()">キャンセル</button>
-            <button class="btn btn-primary" onclick="saveDispatch()">配車する</button>
-        </div>`;
-    showModal();
-}
-
-async function saveDispatch() {
-    const data = {
-        vehicle_id: parseInt(document.getElementById('f-dp-vehicle').value),
-        driver_id: parseInt(document.getElementById('f-dp-driver').value),
-        shipment_id: parseInt(document.getElementById('f-dp-shipment').value),
-        date: document.getElementById('f-dp-date').value,
-        notes: document.getElementById('f-dp-notes').value,
-    };
-    if (!data.vehicle_id || !data.driver_id || !data.shipment_id) {
-        return alert('車両、ドライバー、案件を選択してください');
+function simpleGeocode(address) {
+    if (!address) return null;
+    // 最長一致で検索
+    let bestMatch = null;
+    let bestLen = 0;
+    for (const [key, coords] of Object.entries(GEOCODE_CACHE)) {
+        if (address.includes(key) && key.length > bestLen) {
+            bestMatch = coords;
+            bestLen = key.length;
+        }
     }
-    await apiPost('/dispatches', data);
-    closeModal();
-    loadDispatches();
+    if (bestMatch) {
+        // 少しずらして重なりを防止
+        return [bestMatch[0] + (Math.random() - 0.5) * 0.005, bestMatch[1] + (Math.random() - 0.5) * 0.005];
+    }
+    return null;
 }
 
-async function completeDispatch(id) {
-    if (!confirm('この配車を完了にしますか？')) return;
-    await apiPut(`/dispatches/${id}`, { status: '完了' });
-    loadDispatches();
-}
-
-async function deleteDispatch(id) {
-    if (!confirm('この配車を削除しますか？')) return;
-    await apiDelete(`/dispatches/${id}`);
-    loadDispatches();
-}
-
-// ===== 地図 =====
 function initMap() {
     if (!map) {
-        map = L.map('map').setView([35.6812, 139.7671], 10);
+        map = L.map('map').setView([35.6812, 139.7671], 9);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
@@ -523,28 +703,52 @@ function initMap() {
 }
 
 async function loadMapMarkers() {
-    // 配車中の案件をマーカー表示（デモ用に東京周辺のランダム座標）
     const dispatches = await apiGet('/dispatches');
-    // 既存マーカーをクリア
-    map.eachLayer(layer => {
-        if (layer instanceof L.Marker) map.removeLayer(layer);
-    });
+    // 既存マーカー・ライン削除
+    mapMarkers.forEach(m => map.removeLayer(m));
+    mapMarkers = [];
 
     if (dispatches.length === 0) {
-        L.marker([35.6812, 139.7671]).addTo(map)
-            .bindPopup('<strong>配車データなし</strong><br>配車を作成するとここに表示されます')
-            .openPopup();
+        const m = L.marker([35.6812, 139.7671]).addTo(map)
+            .bindPopup('<strong>配車データなし</strong><br>配車を作成するとここに表示されます').openPopup();
+        mapMarkers.push(m);
         return;
     }
 
-    dispatches.forEach((d, i) => {
-        // 実際にはジオコーディングAPIで住所→座標変換が必要
-        // デモとして東京周辺にランダム配置
-        const lat = 35.6 + Math.random() * 0.3;
-        const lng = 139.5 + Math.random() * 0.5;
-        L.marker([lat, lng]).addTo(map)
-            .bindPopup(`<strong>${d.driver_name}</strong><br>${d.vehicle_number}<br>${d.pickup_address} → ${d.delivery_address}<br>ステータス: ${d.status}`);
+    const pickupIcon = L.divIcon({ className: 'map-icon pickup-icon', html: '📦', iconSize: [28, 28] });
+    const deliveryIcon = L.divIcon({ className: 'map-icon delivery-icon', html: '🏁', iconSize: [28, 28] });
+    const bounds = [];
+
+    dispatches.forEach(d => {
+        if (!d.pickup_address && !d.delivery_address) return;
+        const pickupCoords = simpleGeocode(d.pickup_address);
+        const deliveryCoords = simpleGeocode(d.delivery_address);
+
+        if (pickupCoords) {
+            const m = L.marker(pickupCoords, { icon: pickupIcon }).addTo(map)
+                .bindPopup(`<strong>📦 積地</strong><br>${d.pickup_address}<br>${d.vehicle_number} / ${d.driver_name}<br>${d.start_time}〜${d.end_time}`);
+            mapMarkers.push(m);
+            bounds.push(pickupCoords);
+        }
+        if (deliveryCoords) {
+            const m = L.marker(deliveryCoords, { icon: deliveryIcon }).addTo(map)
+                .bindPopup(`<strong>🏁 卸地</strong><br>${d.delivery_address}<br>${d.vehicle_number} / ${d.driver_name}`);
+            mapMarkers.push(m);
+            bounds.push(deliveryCoords);
+        }
+        // ルート線
+        if (pickupCoords && deliveryCoords) {
+            const line = L.polyline([pickupCoords, deliveryCoords], {
+                color: '#2563eb', weight: 3, opacity: 0.7, dashArray: '8, 6'
+            }).addTo(map);
+            line.bindPopup(`${d.vehicle_number}: ${d.pickup_address} → ${d.delivery_address}`);
+            mapMarkers.push(line);
+        }
     });
+
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+    }
 }
 
 // ===== 売上管理 =====
@@ -552,12 +756,10 @@ async function loadRevenue() {
     const data = await apiGet('/dashboard');
     const shipments = await apiGet('/shipments');
     const completed = shipments.filter(s => s.status === '完了');
-
     document.getElementById('rev-monthly').textContent = `¥${data.monthly_revenue.toLocaleString()}`;
     document.getElementById('rev-completed').textContent = data.monthly_completed;
     const avg = data.monthly_completed > 0 ? Math.round(data.monthly_revenue / data.monthly_completed) : 0;
     document.getElementById('rev-avg').textContent = `¥${avg.toLocaleString()}`;
-
     document.getElementById('revenue-table').innerHTML = completed.map(s => `
         <tr>
             <td>${s.client_name}</td>
@@ -581,9 +783,7 @@ async function loadReports() {
             <td>${r.distance_km}</td>
             <td>${r.fuel_liters}</td>
             <td>${r.notes || '-'}</td>
-            <td>
-                <button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">削除</button>
-            </td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">削除</button></td>
         </tr>
     `).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">日報がありません</td></tr>';
 }
@@ -600,34 +800,16 @@ async function openReportModal() {
                 ${drivers.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
             </select>
         </div>
-        <div class="form-group">
-            <label>日付</label>
-            <input type="date" id="f-r-date" value="${today}">
+        <div class="form-group"><label>日付</label><input type="date" id="f-r-date" value="${today}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>出発時刻</label><input type="time" id="f-r-start"></div>
+            <div class="form-group"><label>帰着時刻</label><input type="time" id="f-r-end"></div>
         </div>
         <div class="form-row">
-            <div class="form-group">
-                <label>出発時刻</label>
-                <input type="time" id="f-r-start">
-            </div>
-            <div class="form-group">
-                <label>帰着時刻</label>
-                <input type="time" id="f-r-end">
-            </div>
+            <div class="form-group"><label>走行距離(km)</label><input type="number" id="f-r-distance" value="0" step="0.1"></div>
+            <div class="form-group"><label>給油量(L)</label><input type="number" id="f-r-fuel" value="0" step="0.1"></div>
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>走行距離(km)</label>
-                <input type="number" id="f-r-distance" value="0" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>給油量(L)</label>
-                <input type="number" id="f-r-fuel" value="0" step="0.1">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>備考</label>
-            <textarea id="f-r-notes"></textarea>
-        </div>
+        <div class="form-group"><label>備考</label><textarea id="f-r-notes"></textarea></div>
         <div class="form-actions">
             <button class="btn" onclick="closeModal()">キャンセル</button>
             <button class="btn btn-primary" onclick="saveReport()">保存</button>
@@ -646,33 +828,23 @@ async function saveReport() {
         notes: document.getElementById('f-r-notes').value,
     };
     if (!data.driver_id) return alert('ドライバーを選択してください');
-    await apiPost('/reports', data);
-    closeModal();
-    loadReports();
+    await apiPost('/reports', data); closeModal(); loadReports();
 }
 
 async function deleteReport(id) {
     if (!confirm('この日報を削除しますか？')) return;
-    await apiDelete(`/reports/${id}`);
-    loadReports();
+    await apiDelete(`/reports/${id}`); loadReports();
 }
 
-// ===== ステータスバッジ =====
+// ===== ユーティリティ =====
 function statusBadge(status) {
     const colors = {
         '空車': 'green', '稼働中': 'blue', '整備中': 'orange',
         '待機中': 'green', '運行中': 'blue', '休憩中': 'orange', '非番': 'gray',
-        '未配車': 'orange', '配車済': 'blue', '完了': 'green', 'キャンセル': 'red',
-        '予定': 'purple',
+        '未配車': 'orange', '配車済': 'blue', '完了': 'green', 'キャンセル': 'red', '予定': 'purple',
     };
     return `<span class="badge badge-${colors[status] || 'gray'}">${status}</span>`;
 }
 
-// ===== モーダル =====
-function showModal() {
-    document.getElementById('modal-overlay').classList.add('active');
-}
-
-function closeModal() {
-    document.getElementById('modal-overlay').classList.remove('active');
-}
+function showModal() { document.getElementById('modal-overlay').classList.add('active'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }

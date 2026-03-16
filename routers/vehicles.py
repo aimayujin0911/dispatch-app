@@ -25,8 +25,11 @@ class VehicleUpdate(BaseModel):
 
 
 @router.get("")
-def list_vehicles(db: Session = Depends(get_db)):
-    return db.query(Vehicle).order_by(Vehicle.id.desc()).all()
+def list_vehicles(type: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Vehicle)
+    if type:
+        query = query.filter(Vehicle.type == type)
+    return query.order_by(Vehicle.id.desc()).all()
 
 
 @router.post("")

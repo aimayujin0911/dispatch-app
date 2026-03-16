@@ -12,8 +12,13 @@ router = APIRouter()
 class DispatchCreate(BaseModel):
     vehicle_id: int
     driver_id: int
-    shipment_id: int
+    shipment_id: Optional[int] = None
     date: date
+    start_time: str = "08:00"
+    end_time: str = "17:00"
+    pickup_address: str = ""
+    delivery_address: str = ""
+    client_name: str = ""
     status: str = "予定"
     notes: str = ""
 
@@ -23,12 +28,14 @@ class DispatchUpdate(BaseModel):
     driver_id: Optional[int] = None
     shipment_id: Optional[int] = None
     date: Optional[date] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
 
 
 @router.get("")
-def list_dispatches(target_date: Optional[str] = None, db: Session = Depends(get_db)):
+def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(Dispatch).options(
         joinedload(Dispatch.vehicle),
         joinedload(Dispatch.driver),
@@ -36,7 +43,12 @@ def list_dispatches(target_date: Optional[str] = None, db: Session = Depends(get
     )
     if target_date:
         query = query.filter(Dispatch.date == target_date)
-    dispatches = query.order_by(Dispatch.date.desc()).all()
+    elif week_start:
+        from datetime import timedelta
+        start = date.fromisoformat(week_start)
+        end = start + timedelta(days=6)
+        query = query.filter(Dispatch.date >= start, Dispatch.date <= end)
+    dispatches = query.order_by(Dispatch.date, Dispatch.start_time).all()
     result = []
     for d in dispatches:
         result.append({
@@ -45,9 +57,13 @@ def list_dispatches(target_date: Optional[str] = None, db: Session = Depends(get
             "driver_id": d.driver_id,
             "shipment_id": d.shipment_id,
             "date": str(d.date),
+            "start_time": d.start_time or "08:00",
+            "end_time": d.end_time or "17:00",
             "status": d.status,
             "notes": d.notes,
             "vehicle_number": d.vehicle.number if d.vehicle else "",
+            "vehicle_type": d.vehicle.type if d.vehicle else "",
+            "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,
             "driver_name": d.driver.name if d.driver else "",
             "client_name": d.shipment.client_name if d.shipment else "",
             "pickup_address": d.shipment.pickup_address if d.shipment else "",
@@ -59,20 +75,38 @@ def list_dispatches(target_date: Optional[str] = None, db: Session = Depends(get
 
 @router.post("")
 def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
-    dispatch = Dispatch(**data.model_dump())
+    dispatch_data = {
+        "vehicle_id": data.vehicle_id,
+        "driver_id": data.driver_id,
+        "date": data.date,
+        "start_time": data.start_time,
+        "end_time": data.end_time,
+        "status": data.status,
+        "notes": data.notes,
+    }
+    # 案件が指定されていればリンク
+    if data.shipment_id:
+        dispatch_data["shipment_id"] = data.shipment_id
+        shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id).first()
+        if shipment:
+            shipment.status = "配車済"
+    else:
+        # 案件なしの場合、簡易案件を自動作成
+        if data.pickup_address and data.delivery_address:
+            shipment = Shipment(
+                client_name=data.client_name or "直接入力",
+                pickup_address=data.pickup_address,
+                delivery_address=data.delivery_address,
+                pickup_date=data.date,
+                delivery_date=data.date,
+                status="配車済",
+            )
+            db.add(shipment)
+            db.flush()
+            dispatch_data["shipment_id"] = shipment.id
+
+    dispatch = Dispatch(**dispatch_data)
     db.add(dispatch)
-    # 案件ステータスを「配車済」に更新
-    shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id).first()
-    if shipment:
-        shipment.status = "配車済"
-    # 車両ステータスを「稼働中」に更新
-    vehicle = db.query(Vehicle).filter(Vehicle.id == data.vehicle_id).first()
-    if vehicle:
-        vehicle.status = "稼働中"
-    # ドライバーステータスを「運行中」に更新
-    driver = db.query(Driver).filter(Driver.id == data.driver_id).first()
-    if driver:
-        driver.status = "運行中"
     db.commit()
     db.refresh(dispatch)
     return dispatch
@@ -85,7 +119,6 @@ def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="配車が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(dispatch, key, value)
-    # ステータスが「完了」になったら関連も更新
     if data.status == "完了":
         shipment = db.query(Shipment).filter(Shipment.id == dispatch.shipment_id).first()
         if shipment:

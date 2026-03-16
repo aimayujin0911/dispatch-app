@@ -479,6 +479,130 @@ body {
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
+/* カレンダー配車表 */
+.cal-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.cal-week-label {
+    font-weight: 700;
+    font-size: 1rem;
+    min-width: 200px;
+    text-align: center;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.cal-header {
+    background: var(--sidebar-bg);
+    color: #fff;
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.cal-header.cal-today {
+    background: var(--primary);
+}
+
+.cal-header.cal-weekend {
+    background: #374151;
+}
+
+.cal-time-col {
+    background: #f8fafc;
+    color: var(--text-light);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.cal-time-cell {
+    padding: 8px 4px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+}
+
+.cal-cell {
+    min-height: 40px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+    overflow: hidden;
+}
+
+.cal-cell:hover {
+    background: #f0f7ff;
+}
+
+.cal-cell.cal-today {
+    background: #eff6ff;
+}
+
+.cal-cell.dragging {
+    background: #dbeafe;
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.cal-event {
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    overflow: hidden;
+    margin-bottom: 1px;
+    line-height: 1.3;
+}
+
+.cal-event.ev-blue { background: #dbeafe; color: #1e40af; border-left: 3px solid #2563eb; }
+.cal-event.ev-green { background: #dcfce7; color: #166534; border-left: 3px solid #22c55e; }
+.cal-event.ev-gray { background: #f1f5f9; color: #475569; border-left: 3px solid #94a3b8; }
+.cal-event.ev-red { background: #fee2e2; color: #991b1b; border-left: 3px solid #ef4444; }
+
+.cal-event-time {
+    font-weight: 700;
+    font-size: 0.65rem;
+}
+
+.cal-event-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-event-detail {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+}
+
+/* 地図アイコン */
+.map-icon {
+    font-size: 22px;
+    text-align: center;
+    line-height: 28px;
+}
+
 /* レスポンシブ */
 @media (max-width: 768px) {
     .sidebar {

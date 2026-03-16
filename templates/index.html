@@ -85,29 +85,9 @@
             </div>
         </section>
 
-        <!-- 配車表 -->
+        <!-- 配車表（カレンダー形式） -->
         <section class="page" id="page-dispatches">
-            <div class="page-actions">
-                <input type="date" id="dispatch-date-filter" class="input">
-                <button class="btn btn-primary" onclick="openDispatchModal()">+ 新規配車</button>
-            </div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>車両</th>
-                            <th>ドライバー</th>
-                            <th>荷主</th>
-                            <th>積地</th>
-                            <th>卸地</th>
-                            <th>ステータス</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dispatches-table"></tbody>
-                </table>
-            </div>
+            <div id="dispatch-calendar"></div>
         </section>
 
         <!-- 案件管理 -->

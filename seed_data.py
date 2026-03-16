@@ -74,9 +74,13 @@ def seed():
     # 配車(本日分)
     dispatches_data = [
         Dispatch(vehicle_id=vehicles[0].id, driver_id=drivers[0].id, shipment_id=shipments[0].id,
-                 date=today, status="運行中", notes="午前中配達希望"),
+                 date=today, start_time="06:00", end_time="12:00", status="運行中", notes="午前中配達希望"),
         Dispatch(vehicle_id=vehicles[3].id, driver_id=drivers[1].id, shipment_id=shipments[1].id,
-                 date=today, status="予定", notes="冷蔵車使用"),
+                 date=today, start_time="08:00", end_time="16:00", status="予定", notes="冷蔵車使用"),
+        Dispatch(vehicle_id=vehicles[1].id, driver_id=drivers[2].id, shipment_id=shipments[2].id,
+                 date=today + timedelta(days=1), start_time="07:00", end_time="15:00", status="予定", notes="建材配送"),
+        Dispatch(vehicle_id=vehicles[2].id, driver_id=drivers[3].id, shipment_id=shipments[3].id,
+                 date=today + timedelta(days=1), start_time="09:00", end_time="18:00", status="予定", notes="精密機器取扱注意"),
     ]
     db.add_all(dispatches_data)
     db.flush()
