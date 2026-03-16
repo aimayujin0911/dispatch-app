@@ -208,13 +208,23 @@ function startGanttDrag(e, dispatchId, vehicleId) {
         id: dispatchId,
         vehicleId: vehicleId,
         bar: bar,
+        barLeft: bar.style.left,
+        barWidth: bar.style.width,
         startX: e.clientX,
         startY: e.clientY,
         dragging: false,
         targetVehicleId: null,
+        ghost: null,
     };
     document.addEventListener('mousemove', onGanttDragMove);
     document.addEventListener('mouseup', onGanttDragEnd);
+}
+
+function removeGhost() {
+    if (dragState && dragState.ghost) {
+        dragState.ghost.remove();
+        dragState.ghost = null;
+    }
 }
 
 function onGanttDragMove(e) {
@@ -239,10 +249,24 @@ function onGanttDragMove(e) {
         const vid = parseInt(timeline.dataset.vehicleId);
         if (vid !== dragState.vehicleId) {
             timeline.classList.add('drag-over');
+            // ゴーストバーを表示（同じ時間位置）
+            if (!dragState.ghost || dragState.ghost.parentElement !== timeline) {
+                removeGhost();
+                const ghost = document.createElement('div');
+                ghost.className = 'gantt-bar gantt-bar-ghost';
+                ghost.style.left = dragState.barLeft;
+                ghost.style.width = dragState.barWidth;
+                ghost.style.pointerEvents = 'none';
+                timeline.appendChild(ghost);
+                dragState.ghost = ghost;
+            }
+        } else {
+            removeGhost();
         }
         dragState.targetVehicleId = vid;
     } else {
         dragState.targetVehicleId = null;
+        removeGhost();
     }
 }
 
@@ -251,6 +275,7 @@ async function onGanttDragEnd(e) {
     document.removeEventListener('mouseup', onGanttDragEnd);
     document.body.style.cursor = '';
     document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+    removeGhost();
 
     if (!dragState) return;
     const { id, vehicleId, dragging, targetVehicleId, bar } = dragState;
@@ -258,7 +283,6 @@ async function onGanttDragEnd(e) {
     dragState = null;
 
     if (!dragging) {
-        // ドラッグなし = クリック → 詳細表示
         showDispatchDetail(id);
         return;
     }
