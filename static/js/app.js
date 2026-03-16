@@ -134,7 +134,7 @@ async function loadDispatchCalendar() {
 
     // 時間ヘッダー
     const hours = [];
-    for (let h = HOUR_START; h <= HOUR_END; h++) hours.push(h);
+    for (let h = HOUR_START; h < HOUR_END; h++) hours.push(h);
 
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
@@ -142,6 +142,7 @@ async function loadDispatchCalendar() {
             <button class="btn btn-sm" onclick="changeDays(-${CAL_DAYS})">◀ 前</button>
             <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
             <button class="btn btn-sm" onclick="changeDays(${CAL_DAYS})">次 ▶</button>
+            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()">
             <div class="cal-day-tabs">
                 ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
             </div>
@@ -188,7 +189,8 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const color = getDispatchColor(d.status);
             html += `<div class="gantt-bar ${color}" data-id="${d.id}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
-            html += `<span class="gantt-bar-label">${d.start_time}-${d.end_time} ${d.driver_name || ''}</span>`;
+            html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
+            html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `</div>`;
         });
@@ -245,7 +247,10 @@ function onGanttResizeMove(e) {
         const width = ((endMin - startMin) / totalMin) * 100;
         bar.style.left = Math.max(left, 0) + '%';
         bar.style.width = Math.min(width, 100 - left) + '%';
-        bar.querySelector('.gantt-bar-label').textContent = `${resizeState.newStart}-${resizeState.newEnd}`;
+        const startEl = bar.querySelector('.gantt-bar-start');
+        const endEl = bar.querySelector('.gantt-bar-end');
+        if (startEl) startEl.textContent = resizeState.newStart;
+        if (endEl) endEl.textContent = resizeState.newEnd;
     }
 }
 

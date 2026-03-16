@@ -480,6 +480,14 @@ body {
 }
 
 /* カレンダー配車表 */
+.input-date {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
 .cal-controls {
     display: flex;
     align-items: center;
@@ -653,6 +661,21 @@ body {
 .gantt-bar.ev-green { background: #dcfce7; color: #166534; border-left: 3px solid #22c55e; }
 .gantt-bar.ev-gray { background: #f1f5f9; color: #475569; border-left: 3px solid #94a3b8; }
 .gantt-bar.ev-red { background: #fee2e2; color: #991b1b; border-left: 3px solid #ef4444; }
+
+.gantt-bar-start, .gantt-bar-end {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 45%;
+    pointer-events: none;
+}
+.gantt-bar-start { left: 6px; }
+.gantt-bar-end { right: 6px; text-align: right; }
 
 .gantt-bar-label {
     font-size: 0.7rem;
