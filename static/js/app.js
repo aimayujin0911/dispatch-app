@@ -35,7 +35,7 @@ function navigateTo(page) {
     const titles = {
         dashboard: 'ダッシュボード', dispatches: '配車表', shipments: '案件管理',
         vehicles: '車両管理', drivers: 'ドライバー管理', map: '地図表示',
-        revenue: '売上管理', reports: '日報'
+        revenue: '売上・請求管理', reports: '日報'
     };
     document.getElementById('pageTitle').textContent = titles[page] || '';
 
@@ -107,12 +107,12 @@ async function loadDispatchCalendar() {
     const baseDate = new Date(calendarDate);
     baseDate.setHours(0, 0, 0, 0);
 
-    const [dispatches, vehicles] = await Promise.all([
+    const [dispatches, vehicles, shipments] = await Promise.all([
         apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         apiGet('/vehicles'),
+        apiGet('/shipments'),
     ]);
 
-    // 表示日の配列
     const days = [];
     const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
     for (let i = 0; i < CAL_DAYS; i++) {
@@ -122,17 +122,14 @@ async function loadDispatchCalendar() {
     }
     const dayStrs = days.map(d => fmt(d));
 
-    // フィルター
     const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
     const filterType = document.getElementById('cal-filter-type')?.value || '';
     const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
 
-    // 選択日の配車
     if (selectedDayIndex >= CAL_DAYS) selectedDayIndex = 0;
     const activeDayStr = dayStrs[selectedDayIndex];
     const dayDispatches = dispatches.filter(d => d.date === activeDayStr);
 
-    // 時間ヘッダー
     const hours = [];
     for (let h = HOUR_START; h < HOUR_END; h++) hours.push(h);
 
@@ -146,18 +143,36 @@ async function loadDispatchCalendar() {
             <div class="cal-day-tabs">
                 ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
             </div>
+            <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
             <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
                 <option value="">全車種</option>
                 ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
         </div>
-        <div class="gantt-wrapper">
+        <div class="gantt-wrapper" id="gantt-print-area">
             <div class="gantt-grid" style="grid-template-columns: 140px repeat(${HOUR_COUNT}, 1fr);">
                 <div class="cal-header cal-vehicle-col">車両</div>
                 ${hours.map(h => `<div class="cal-header gantt-hour-header">${String(h).padStart(2, '0')}</div>`).join('')}
                 ${buildGanttRows(activeDayStr, dayDispatches, filteredVehicles)}
             </div>
         </div>`;
+
+    // 【機能3】未配車案件パネル
+    const unassigned = shipments.filter(s => s.status === '未配車');
+    const panel = document.getElementById('unassigned-panel');
+    if (unassigned.length > 0) {
+        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 (${unassigned.length}件)</h3>
+            <div class="unassigned-list">
+                ${unassigned.map(s => `<div class="unassigned-item" onclick="openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})">
+                    <strong>${s.client_name}</strong>
+                    <span>${s.pickup_address} → ${s.delivery_address}</span>
+                    <span class="badge badge-orange">未配車</span>
+                    <span>¥${s.price.toLocaleString()}</span>
+                </div>`).join('')}
+            </div>`;
+    } else {
+        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件</h3><p style="color:var(--text-light);font-size:0.85rem">全ての案件が配車済みです</p>`;
+    }
 }
 
 function buildGanttRows(dayStr, dispatches, vehicles) {
@@ -169,16 +184,13 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type}</div>`;
         html += `</div>`;
 
-        // 時間帯のタイムライン行
         html += `<div class="gantt-timeline" data-vehicle-id="${v.id}" style="grid-column: 2 / -1;" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
 
-        // 時間グリッド線
         for (let h = HOUR_START; h <= HOUR_END; h++) {
             const left = ((h - HOUR_START) / HOUR_COUNT) * 100;
             html += `<div class="gantt-gridline" style="left:${left}%"></div>`;
         }
 
-        // 配車バー
         const vDispatches = dispatches.filter(d => d.vehicle_id === v.id);
         vDispatches.forEach(d => {
             const startMin = timeToMinutes(d.start_time);
@@ -187,7 +199,9 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
             const width = ((endMin - startMin) / totalMin) * 100;
             const color = getDispatchColor(d.status);
-            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
+            // 【機能8】積載効率バッジ
+            const capBadge = (d.weight > 0 && d.vehicle_capacity > 0) ? ` [${Math.round(d.weight / d.vehicle_capacity * 100)}%]` : '';
+            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
             html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
@@ -197,6 +211,11 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         html += `</div>`;
     });
     return html;
+}
+
+// 【機能9】印刷用配車表
+function printDispatchTable() {
+    window.print();
 }
 
 // ===== ガントバー ドラッグ＆ドロップ（車両＋時間移動） =====
@@ -243,7 +262,6 @@ function calcDragTime(dx) {
     const step = 15;
     const deltaMins = Math.round(dx / pxPerMin / step) * step;
     let newStartMin = timeToMinutes(dragState.origStart) + deltaMins;
-    // 範囲制限
     newStartMin = Math.max(HOUR_START * 60, Math.min(newStartMin, HOUR_END * 60 - dragState.duration));
     const newEndMin = newStartMin + dragState.duration;
     return { newStart: minutesToTime(newStartMin), newEnd: minutesToTime(newEndMin), newStartMin, newEndMin };
@@ -271,27 +289,20 @@ function onGanttDragMove(e) {
     }
     if (!dragState.dragging) return;
 
-    // 時間計算
     const { newStart, newEnd, newStartMin, newEndMin } = calcDragTime(dx);
     dragState.newStart = newStart;
     dragState.newEnd = newEnd;
 
-    // ハイライト解除
     document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
 
-    // カーソル下のタイムライン行を検出
     const elements = document.elementsFromPoint(e.clientX, e.clientY);
     const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
 
     if (timeline) {
         const vid = parseInt(timeline.dataset.vehicleId);
         dragState.targetVehicleId = vid;
+        if (vid !== dragState.vehicleId) timeline.classList.add('drag-over');
 
-        if (vid !== dragState.vehicleId) {
-            timeline.classList.add('drag-over');
-        }
-
-        // ゴーストバーを表示・更新
         if (!dragState.ghost || dragState.ghost.parentElement !== timeline) {
             removeGhost();
             const ghost = document.createElement('div');
@@ -319,10 +330,7 @@ async function onGanttDragEnd(e) {
     if (bar) bar.classList.remove('dragging');
     dragState = null;
 
-    if (!dragging) {
-        showDispatchDetail(id);
-        return;
-    }
+    if (!dragging) { showDispatchDetail(id); return; }
 
     const vehicleChanged = targetVehicleId && targetVehicleId !== vehicleId;
     const timeChanged = newStart !== origStart || newEnd !== origEnd;
@@ -340,14 +348,10 @@ async function onGanttDragEnd(e) {
 function startGanttResize(e, dispatchId, edge, startTime, endTime) {
     const timeline = e.target.closest('.gantt-timeline');
     resizeState = {
-        id: dispatchId,
-        edge: edge,
-        startX: e.clientX,
+        id: dispatchId, edge: edge, startX: e.clientX,
         timelineWidth: timeline.offsetWidth,
-        origStart: startTime,
-        origEnd: endTime,
-        newStart: startTime,
-        newEnd: endTime,
+        origStart: startTime, origEnd: endTime,
+        newStart: startTime, newEnd: endTime,
     };
     document.addEventListener('mousemove', onGanttResizeMove);
     document.addEventListener('mouseup', onGanttResizeEnd);
@@ -374,10 +378,8 @@ function onGanttResizeMove(e) {
         resizeState.newEnd = resizeState.origEnd;
     }
 
-    // プレビュー
     const bar = document.querySelector(`.gantt-bar[data-id="${resizeState.id}"]`);
     if (bar) {
-        const totalMin = HOUR_COUNT * 60;
         const startMin = timeToMinutes(resizeState.newStart);
         const endMin = timeToMinutes(resizeState.newEnd);
         const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
@@ -403,12 +405,6 @@ async function onGanttResizeEnd() {
     loadDispatchCalendar();
 }
 
-function calcDuration(start, end) {
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    return (eh * 60 + em) - (sh * 60 + sm);
-}
-
 function getDispatchColor(status) {
     return { '予定': 'ev-blue', '運行中': 'ev-green', 'キャンセル': 'ev-red' }[status] || 'ev-blue';
 }
@@ -431,7 +427,6 @@ function fmt(d) {
     return `${y}-${m}-${day}`;
 }
 
-
 function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
@@ -444,7 +439,12 @@ function minutesToTime(mins) {
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
-async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId) {
+function calcDuration(start, end) {
+    return timeToMinutes(end) - timeToMinutes(start);
+}
+
+// ===== 配車作成モーダル =====
+async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId, preselectedShipmentId) {
     const [vehicles, drivers, shipments] = await Promise.all([
         apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
     ]);
@@ -459,9 +459,7 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
                 <label>日付</label>
                 <input type="date" id="f-qd-date" value="${date}">
             </div>
-            <div class="form-group" style="display:flex;flex-direction:column">
-                <label>&nbsp;</label>
-            </div>
+            <div class="form-group"></div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -491,10 +489,10 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
             <label>案件（既存から選択）</label>
             <select id="f-qd-shipment" onchange="toggleManualAddress()">
                 <option value="">-- 手動入力 --</option>
-                ${unassigned.map(s => `<option value="${s.id}">${s.client_name}: ${s.pickup_address} → ${s.delivery_address}</option>`).join('')}
+                ${unassigned.map(s => `<option value="${s.id}" ${preselectedShipmentId === s.id ? 'selected' : ''}>${s.client_name}: ${s.pickup_address} → ${s.delivery_address} (¥${s.price.toLocaleString()})</option>`).join('')}
             </select>
         </div>
-        <div id="manual-address">
+        <div id="manual-address" ${preselectedShipmentId ? 'style="display:none"' : ''}>
             <div class="form-group">
                 <label>荷主名</label>
                 <input type="text" id="f-qd-client" placeholder="荷主名">
@@ -528,15 +526,12 @@ async function saveQuickDispatch() {
     const vehicleId = parseInt(document.getElementById('f-qd-vehicle').value);
     const driverId = parseInt(document.getElementById('f-qd-driver').value);
     if (!vehicleId || !driverId) return alert('車両とドライバーを選択してください');
-
     const date = document.getElementById('f-qd-date').value;
     if (!date) return alert('日付を選択してください');
 
     const shipmentId = document.getElementById('f-qd-shipment').value;
     const data = {
-        vehicle_id: vehicleId,
-        driver_id: driverId,
-        date: date,
+        vehicle_id: vehicleId, driver_id: driverId, date: date,
         start_time: document.getElementById('f-qd-start').value,
         end_time: document.getElementById('f-qd-end').value,
         notes: document.getElementById('f-qd-notes').value,
@@ -555,10 +550,15 @@ async function saveQuickDispatch() {
     loadDispatchCalendar();
 }
 
+// ===== 配車詳細・編集 =====
 async function showDispatchDetail(id) {
     const dispatches = await apiGet('/dispatches');
     const d = dispatches.find(x => x.id === id);
     if (!d) return;
+
+    // 【機能8】積載効率
+    const capInfo = (d.weight > 0 && d.vehicle_capacity > 0) ? `<div><strong>積載効率:</strong> ${d.weight.toLocaleString()}kg / ${d.vehicle_capacity.toLocaleString()}kg (${Math.round(d.weight / d.vehicle_capacity * 100)}%)</div>` : '';
+    const priceInfo = d.price > 0 ? `<div><strong>運賃:</strong> ¥${d.price.toLocaleString()}</div>` : '';
 
     document.getElementById('modal-title').textContent = '配車詳細';
     document.getElementById('modal-body').innerHTML = `
@@ -570,15 +570,68 @@ async function showDispatchDetail(id) {
             <div><strong>荷主:</strong> ${d.client_name || '-'}</div>
             <div><strong>積地:</strong> ${d.pickup_address || '-'}</div>
             <div><strong>卸地:</strong> ${d.delivery_address || '-'}</div>
+            ${capInfo}${priceInfo}
             <div><strong>ステータス:</strong> ${statusBadge(d.status)}</div>
             <div><strong>備考:</strong> ${d.notes || '-'}</div>
         </div>
         <div class="form-actions">
             <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
+            <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="指示書印刷">🖨 指示書</button>
+            <button class="btn btn-sm" onclick="autoReportFromDispatch(${d.id})" title="日報自動作成">📝 日報作成</button>
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
     showModal();
+}
+
+// 【機能4】配車指示書印刷
+async function printDispatchInstruction(id) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === id);
+    if (!d) return;
+    const printWin = window.open('', '_blank', 'width=600,height=800');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>配車指示書</title>
+        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
+        h1{font-size:1.5rem;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse;margin:16px 0}
+        th,td{border:1px solid #ccc;padding:10px 14px;text-align:left}
+        th{background:#f5f5f5;width:120px;font-size:0.9rem}
+        td{font-size:0.95rem}
+        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
+        </style></head><body>
+        <h1>配車指示書</h1>
+        <table>
+            <tr><th>日付</th><td>${d.date}</td></tr>
+            <tr><th>時間</th><td>${d.start_time} 〜 ${d.end_time}</td></tr>
+            <tr><th>車両</th><td>${d.vehicle_number} (${d.vehicle_type})</td></tr>
+            <tr><th>ドライバー</th><td>${d.driver_name}</td></tr>
+            <tr><th>荷主</th><td>${d.client_name || '-'}</td></tr>
+            <tr><th>積地</th><td>${d.pickup_address || '-'}</td></tr>
+            <tr><th>卸地</th><td>${d.delivery_address || '-'}</td></tr>
+            <tr><th>荷物</th><td>${d.cargo_description || '-'}</td></tr>
+            <tr><th>備考</th><td>${d.notes || '-'}</td></tr>
+        </table>
+        <div class="footer">配車管理システム - 印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
+        <script>window.print();</script></body></html>`);
+}
+
+// 【機能7】配車から日報自動生成
+async function autoReportFromDispatch(id) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === id);
+    if (!d) return;
+    if (!confirm(`${d.driver_name}の日報を${d.date}分で自動作成しますか？`)) return;
+    await apiPost('/reports', {
+        driver_id: d.driver_id,
+        date: d.date,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        distance_km: 0,
+        fuel_liters: 0,
+        notes: `自動生成: ${d.vehicle_number} ${d.pickup_address || ''} → ${d.delivery_address || ''}`,
+    });
+    alert('日報を作成しました');
+    closeModal();
 }
 
 async function editDispatch(id) {
@@ -597,9 +650,7 @@ async function editDispatch(id) {
                 <label>日付</label>
                 <input type="date" id="f-ed-date" value="${d.date}">
             </div>
-            <div class="form-group" style="display:flex;flex-direction:column">
-                <label>&nbsp;</label>
-            </div>
+            <div class="form-group"></div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -745,22 +796,69 @@ async function deleteVehicle(id) {
     await apiDelete(`/vehicles/${id}`); loadVehicles();
 }
 
-// ===== ドライバー管理 =====
+// ===== ドライバー管理（【機能1】労働時間管理付き） =====
 async function loadDrivers() {
-    const drivers = await apiGet('/drivers');
-    document.getElementById('drivers-table').innerHTML = drivers.map(d => `
-        <tr>
+    const [drivers, dispatches] = await Promise.all([
+        apiGet('/drivers'), apiGet('/dispatches')
+    ]);
+
+    // 月間稼働時間計算
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const monthEnd = fmt(now);
+    const yearStart = `${now.getFullYear()}-01-01`;
+
+    const driverHours = {};
+    const driverYearHours = {};
+    dispatches.forEach(d => {
+        const mins = calcDuration(d.start_time, d.end_time);
+        if (d.date >= monthStart && d.date <= monthEnd) {
+            driverHours[d.driver_id] = (driverHours[d.driver_id] || 0) + mins;
+        }
+        if (d.date >= yearStart && d.date <= monthEnd) {
+            driverYearHours[d.driver_id] = (driverYearHours[d.driver_id] || 0) + mins;
+        }
+    });
+
+    // 【機能1】年間労働時間アラート
+    const yearLimit = 960 * 60; // 960時間 = 57600分
+    let alertHtml = '';
+    drivers.forEach(dr => {
+        const yearMins = driverYearHours[dr.id] || 0;
+        const yearHours = Math.round(yearMins / 60);
+        const pct = Math.round(yearMins / yearLimit * 100);
+        if (pct >= 80) {
+            const cls = pct >= 95 ? 'red' : 'orange';
+            alertHtml += `<div class="alert alert-${cls}">⚠ ${dr.name}: 年間${yearHours}h / 960h (${pct}%) ${pct >= 95 ? '- 上限間近！' : ''}</div>`;
+        }
+    });
+    document.getElementById('driver-work-hours').innerHTML = alertHtml;
+
+    document.getElementById('drivers-table').innerHTML = drivers.map(d => {
+        const monthMins = driverHours[d.id] || 0;
+        const monthH = Math.floor(monthMins / 60);
+        const monthM = monthMins % 60;
+        const yearMins = driverYearHours[d.id] || 0;
+        const yearH = Math.round(yearMins / 60);
+        const pct = Math.round(yearMins / yearLimit * 100);
+        const barColor = pct >= 95 ? 'red' : pct >= 80 ? 'orange' : 'blue';
+        return `<tr>
             <td><strong>${d.name}</strong></td>
             <td>${d.phone || '-'}</td>
             <td>${d.license_type}</td>
             <td>${statusBadge(d.status)}</td>
+            <td>
+                <div style="font-size:0.8rem">${monthH}h${monthM > 0 ? String(monthM).padStart(2,'0') + 'm' : ''}/月</div>
+                <div class="mini-bar"><div class="mini-bar-fill ${barColor}" style="width:${Math.min(pct, 100)}%"></div></div>
+                <div style="font-size:0.7rem;color:var(--text-light)">年間 ${yearH}h/960h</div>
+            </td>
             <td>${d.notes || '-'}</td>
             <td>
                 <button class="btn btn-sm btn-edit" onclick="editDriver(${d.id})">編集</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteDriver(${d.id})">削除</button>
             </td>
-        </tr>
-    `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">ドライバーが登録されていません</td></tr>';
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">ドライバーが登録されていません</td></tr>';
 }
 
 function openDriverModal(driver = null) {
@@ -937,7 +1035,7 @@ async function deleteShipment(id) {
     await apiDelete(`/shipments/${id}`); loadShipments();
 }
 
-// ===== 地図表示（積地・卸地マーカー） =====
+// ===== 【機能6】地図表示（GPS動態管理） =====
 const GEOCODE_CACHE = {
     '東京都': [35.6812, 139.7671], '東京都大田区': [35.5614, 139.7160], '東京都大田区平和島': [35.5780, 139.7390],
     '東京都江東区': [35.6729, 139.8172], '東京都江東区有明': [35.6340, 139.7886],
@@ -988,69 +1086,126 @@ async function loadMapMarkers() {
     mapMarkers.forEach(m => map.removeLayer(m));
     mapMarkers = [];
 
-    if (dispatches.length === 0) {
+    // 今日の配車のみ表示
+    const today = fmt(new Date());
+    const todayDispatches = dispatches.filter(d => d.date === today);
+    const statusEl = document.getElementById('map-status');
+    if (statusEl) statusEl.textContent = `本日の配車: ${todayDispatches.length}件`;
+
+    if (todayDispatches.length === 0) {
         const m = L.marker([35.6812, 139.7671]).addTo(map)
-            .bindPopup('<strong>配車データなし</strong><br>配車を作成するとここに表示されます').openPopup();
+            .bindPopup('<strong>本日の配車なし</strong><br>配車を作成するとここに表示されます').openPopup();
         mapMarkers.push(m);
         return;
     }
 
-    const pickupIcon = L.divIcon({ className: 'map-icon pickup-icon', html: '📦', iconSize: [28, 28] });
-    const deliveryIcon = L.divIcon({ className: 'map-icon delivery-icon', html: '🏁', iconSize: [28, 28] });
     const bounds = [];
-
-    dispatches.forEach(d => {
+    todayDispatches.forEach(d => {
         if (!d.pickup_address && !d.delivery_address) return;
+        const statusColor = d.status === '運行中' ? '#22c55e' : d.status === '予定' ? '#2563eb' : '#94a3b8';
+        const statusLabel = d.status === '運行中' ? '🟢' : d.status === '予定' ? '🔵' : '⚪';
+
         const pickupCoords = simpleGeocode(d.pickup_address);
         const deliveryCoords = simpleGeocode(d.delivery_address);
 
         if (pickupCoords) {
-            const m = L.marker(pickupCoords, { icon: pickupIcon }).addTo(map)
-                .bindPopup(`<strong>📦 積地</strong><br>${d.pickup_address}<br>${d.vehicle_number} / ${d.driver_name}<br>${d.start_time}〜${d.end_time}`);
+            const icon = L.divIcon({ className: 'map-icon', html: `<div style="font-size:20px">${statusLabel}📦</div>`, iconSize: [36, 36] });
+            const m = L.marker(pickupCoords, { icon }).addTo(map)
+                .bindPopup(`<strong>${statusLabel} ${d.vehicle_number}</strong><br>${d.driver_name}<br>📦 ${d.pickup_address}<br>${d.start_time}〜${d.end_time}<br>${statusBadgeHtml(d.status)}`);
             mapMarkers.push(m);
             bounds.push(pickupCoords);
         }
         if (deliveryCoords) {
-            const m = L.marker(deliveryCoords, { icon: deliveryIcon }).addTo(map)
+            const icon = L.divIcon({ className: 'map-icon', html: `<div style="font-size:20px">🏁</div>`, iconSize: [28, 28] });
+            const m = L.marker(deliveryCoords, { icon }).addTo(map)
                 .bindPopup(`<strong>🏁 卸地</strong><br>${d.delivery_address}<br>${d.vehicle_number} / ${d.driver_name}`);
             mapMarkers.push(m);
             bounds.push(deliveryCoords);
         }
         if (pickupCoords && deliveryCoords) {
             const line = L.polyline([pickupCoords, deliveryCoords], {
-                color: '#2563eb', weight: 3, opacity: 0.7, dashArray: '8, 6'
+                color: statusColor, weight: 3, opacity: 0.7, dashArray: '8, 6'
             }).addTo(map);
             line.bindPopup(`${d.vehicle_number}: ${d.pickup_address} → ${d.delivery_address}`);
             mapMarkers.push(line);
         }
     });
 
-    if (bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [40, 40] });
-    }
+    if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
 }
 
-// ===== 売上管理 =====
+function statusBadgeHtml(status) {
+    const colors = { '予定': 'blue', '運行中': 'green', '完了': 'gray', 'キャンセル': 'red' };
+    return `<span style="background:${colors[status] === 'blue' ? '#dbeafe' : colors[status] === 'green' ? '#dcfce7' : '#f1f5f9'};padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:600">${status}</span>`;
+}
+
+// ===== 【機能2,5】売上・請求管理 =====
 async function loadRevenue() {
-    const data = await apiGet('/dashboard');
-    const shipments = await apiGet('/shipments');
+    const [data, shipments, dispatches] = await Promise.all([
+        apiGet('/dashboard'), apiGet('/shipments'), apiGet('/dispatches')
+    ]);
     const completed = shipments.filter(s => s.status === '完了');
     document.getElementById('rev-monthly').textContent = `¥${data.monthly_revenue.toLocaleString()}`;
     document.getElementById('rev-completed').textContent = data.monthly_completed;
     const avg = data.monthly_completed > 0 ? Math.round(data.monthly_revenue / data.monthly_completed) : 0;
     document.getElementById('rev-avg').textContent = `¥${avg.toLocaleString()}`;
-    document.getElementById('revenue-table').innerHTML = completed.map(s => `
-        <tr>
+
+    // 【機能2】車両別売上
+    const vehicleRevenue = {};
+    dispatches.forEach(d => {
+        if (d.price > 0) {
+            const key = d.vehicle_number || '不明';
+            vehicleRevenue[key] = (vehicleRevenue[key] || 0) + d.price;
+        }
+    });
+    const maxVRev = Math.max(...Object.values(vehicleRevenue), 1);
+    document.getElementById('rev-by-vehicle').innerHTML = Object.entries(vehicleRevenue)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, rev]) => `<div class="rev-bar-row">
+            <span class="rev-bar-label">${name}</span>
+            <div class="rev-bar-track"><div class="rev-bar-fill" style="width:${(rev / maxVRev) * 100}%"></div></div>
+            <span class="rev-bar-value">¥${rev.toLocaleString()}</span>
+        </div>`).join('') || '<p style="color:var(--text-light);font-size:0.85rem">データなし</p>';
+
+    // 荷主別売上
+    const clientRevenue = {};
+    completed.forEach(s => {
+        if (s.price > 0) {
+            clientRevenue[s.client_name] = (clientRevenue[s.client_name] || 0) + s.price;
+        }
+    });
+    const maxCRev = Math.max(...Object.values(clientRevenue), 1);
+    document.getElementById('rev-by-client').innerHTML = Object.entries(clientRevenue)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, rev]) => `<div class="rev-bar-row">
+            <span class="rev-bar-label">${name}</span>
+            <div class="rev-bar-track"><div class="rev-bar-fill green" style="width:${(rev / maxCRev) * 100}%"></div></div>
+            <span class="rev-bar-value">¥${rev.toLocaleString()}</span>
+        </div>`).join('') || '<p style="color:var(--text-light);font-size:0.85rem">データなし</p>';
+
+    // 【機能5】請求一覧テーブル
+    let totalInvoice = 0;
+    document.getElementById('revenue-table').innerHTML = completed.map(s => {
+        totalInvoice += s.price;
+        return `<tr>
             <td>${s.client_name}</td>
             <td>${s.cargo_description || '-'}</td>
             <td>${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.delivery_date}</td>
             <td><strong>¥${s.price.toLocaleString()}</strong></td>
-        </tr>
-    `).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">完了済み案件がありません</td></tr>';
+        </tr>`;
+    }).join('') + (completed.length > 0 ? `<tr style="background:#f8fafc;font-weight:700">
+        <td colspan="4" style="text-align:right">合計</td>
+        <td>¥${totalInvoice.toLocaleString()}</td>
+    </tr>` : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">完了済み案件がありません</td></tr>');
 }
 
-// ===== 日報 =====
+// 【機能5】請求一覧印刷
+function printInvoiceList() {
+    window.print();
+}
+
+// ===== 【機能7】日報（自動生成機能付き） =====
 async function loadReports() {
     const reports = await apiGet('/reports');
     document.getElementById('reports-table').innerHTML = reports.map(r => `
@@ -1065,6 +1220,30 @@ async function loadReports() {
             <td><button class="btn btn-sm btn-danger" onclick="deleteReport(${r.id})">削除</button></td>
         </tr>
     `).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">日報がありません</td></tr>';
+}
+
+// 【機能7】配車データから日報一括自動生成
+async function autoGenerateReports() {
+    const today = fmt(new Date());
+    const dispatches = await apiGet(`/dispatches?target_date=${today}`);
+    if (dispatches.length === 0) return alert('本日の配車データがありません');
+    if (!confirm(`本日(${today})の配車 ${dispatches.length}件から日報を自動生成しますか？`)) return;
+
+    let created = 0;
+    for (const d of dispatches) {
+        await apiPost('/reports', {
+            driver_id: d.driver_id,
+            date: d.date,
+            start_time: d.start_time,
+            end_time: d.end_time,
+            distance_km: 0,
+            fuel_liters: 0,
+            notes: `自動生成: ${d.vehicle_number} ${d.pickup_address || ''} → ${d.delivery_address || ''}`,
+        });
+        created++;
+    }
+    alert(`${created}件の日報を作成しました`);
+    loadReports();
 }
 
 async function openReportModal() {

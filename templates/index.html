@@ -32,7 +32,7 @@
                 <span class="nav-icon">🗺️</span> 地図表示
             </li>
             <li class="nav-item" data-page="revenue">
-                <span class="nav-icon">💰</span> 売上管理
+                <span class="nav-icon">💰</span> 売上・請求
             </li>
             <li class="nav-item" data-page="reports">
                 <span class="nav-icon">📝</span> 日報
@@ -85,9 +85,10 @@
             </div>
         </section>
 
-        <!-- 配車表（カレンダー形式） -->
+        <!-- 配車表（ガントチャート） -->
         <section class="page" id="page-dispatches">
             <div id="dispatch-calendar"></div>
+            <div class="card" style="margin-top:16px" id="unassigned-panel"></div>
         </section>
 
         <!-- 案件管理 -->
@@ -142,6 +143,7 @@
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openDriverModal()">+ ドライバー追加</button>
             </div>
+            <div id="driver-work-hours"></div>
             <div class="table-container">
                 <table class="data-table">
                     <thead>
@@ -150,6 +152,7 @@
                             <th>電話番号</th>
                             <th>免許種別</th>
                             <th>ステータス</th>
+                            <th>月間稼働</th>
                             <th>備考</th>
                             <th>操作</th>
                         </tr>
@@ -161,12 +164,16 @@
 
         <!-- 地図表示 -->
         <section class="page" id="page-map">
+            <div class="page-actions">
+                <button class="btn btn-sm" onclick="loadMapMarkers()">🔄 更新</button>
+                <span id="map-status" style="color:var(--text-light);font-size:0.85rem"></span>
+            </div>
             <div class="map-wrapper">
                 <div id="map" style="height: 600px; border-radius: 8px;"></div>
             </div>
         </section>
 
-        <!-- 売上管理 -->
+        <!-- 売上・請求管理 -->
         <section class="page" id="page-revenue">
             <div class="stats-grid">
                 <div class="stat-card green">
@@ -182,10 +189,23 @@
                     <div class="stat-value" id="rev-avg">¥0</div>
                 </div>
             </div>
-            <div class="card">
-                <h3>完了済み案件一覧</h3>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h3>車両別売上</h3>
+                    <div id="rev-by-vehicle"></div>
+                </div>
+                <div class="card">
+                    <h3>荷主別売上</h3>
+                    <div id="rev-by-client"></div>
+                </div>
+            </div>
+            <div class="card" style="margin-top:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 style="margin:0">完了済み案件一覧（請求管理）</h3>
+                    <button class="btn btn-sm btn-primary" onclick="printInvoiceList()">🖨 請求一覧印刷</button>
+                </div>
                 <div class="table-container">
-                    <table class="data-table">
+                    <table class="data-table" id="invoice-table">
                         <thead>
                             <tr>
                                 <th>荷主</th>
@@ -205,6 +225,7 @@
         <section class="page" id="page-reports">
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openReportModal()">+ 日報作成</button>
+                <button class="btn btn-sm" onclick="autoGenerateReports()">⚡ 配車から自動生成</button>
             </div>
             <div class="table-container">
                 <table class="data-table">
@@ -236,6 +257,9 @@
             <div class="modal-body" id="modal-body"></div>
         </div>
     </div>
+
+    <!-- 印刷用オーバーレイ -->
+    <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>

@@ -32,6 +32,8 @@ class DispatchUpdate(BaseModel):
     end_time: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    pickup_address: Optional[str] = None
+    delivery_address: Optional[str] = None
 
 
 @router.get("")
@@ -69,6 +71,8 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "pickup_address": d.shipment.pickup_address if d.shipment else "",
             "delivery_address": d.shipment.delivery_address if d.shipment else "",
             "cargo_description": d.shipment.cargo_description if d.shipment else "",
+            "weight": d.shipment.weight if d.shipment else 0,
+            "price": d.shipment.price if d.shipment else 0,
         })
     return result
 
@@ -117,8 +121,19 @@ def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depend
     dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id).first()
     if not dispatch:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    # pickup_address/delivery_addressはshipmentに保存
+    pickup_addr = update_data.pop("pickup_address", None)
+    delivery_addr = update_data.pop("delivery_address", None)
+    for key, value in update_data.items():
         setattr(dispatch, key, value)
+    if (pickup_addr is not None or delivery_addr is not None) and dispatch.shipment_id:
+        shipment = db.query(Shipment).filter(Shipment.id == dispatch.shipment_id).first()
+        if shipment:
+            if pickup_addr is not None:
+                shipment.pickup_address = pickup_addr
+            if delivery_addr is not None:
+                shipment.delivery_address = delivery_addr
     if data.status == "完了":
         shipment = db.query(Shipment).filter(Shipment.id == dispatch.shipment_id).first()
         if shipment:

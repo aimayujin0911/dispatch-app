@@ -741,11 +741,111 @@ body {
     white-space: nowrap;
 }
 
-.cal-event-detail {
+/* 未配車案件パネル */
+.unassigned-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.unassigned-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s;
+}
+
+.unassigned-item:hover {
+    background: #fef3c7;
+}
+
+/* ドライバー労働時間バー */
+.mini-bar {
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 2px 0;
+}
+
+.mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s;
+}
+
+.mini-bar-fill.blue { background: var(--blue); }
+.mini-bar-fill.orange { background: var(--orange); }
+.mini-bar-fill.red { background: var(--red); }
+
+/* アラート */
+.alert {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.alert-orange {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.alert-red {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+/* 売上バーチャート */
+.rev-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.rev-bar-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 100px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.8;
+}
+
+.rev-bar-track {
+    flex: 1;
+    height: 18px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.rev-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.5s;
+}
+
+.rev-bar-fill.green {
+    background: var(--green);
+}
+
+.rev-bar-value {
+    font-size: 0.8rem;
+    font-weight: 700;
+    min-width: 80px;
+    text-align: right;
 }
 
 /* 地図アイコン */
@@ -780,4 +880,24 @@ body {
     .form-row {
         grid-template-columns: 1fr;
     }
+}
+
+/* 印刷スタイル */
+@media print {
+    .sidebar, .topbar, .cal-controls, .page-actions,
+    .modal-overlay, .menu-toggle, #unassigned-panel,
+    .btn, button { display: none !important; }
+
+    .content { margin-left: 0 !important; }
+
+    .page { display: block !important; padding: 0 !important; }
+    .page:not(.active) { display: none !important; }
+
+    .gantt-wrapper { overflow: visible !important; }
+    .gantt-grid { min-width: auto !important; }
+
+    .data-table { box-shadow: none !important; }
+    .card { box-shadow: none !important; border: 1px solid #ddd; }
+
+    body { background: #fff; }
 }
