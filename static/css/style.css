@@ -710,9 +710,10 @@ body {
 }
 
 .gantt-bar.dragging {
-    opacity: 0.5;
+    opacity: 0.4;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     z-index: 10;
+    pointer-events: none;
 }
 
 .gantt-timeline.drag-over {
