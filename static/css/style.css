@@ -729,6 +729,16 @@ body {
     border-radius: 4px;
     z-index: 5;
     pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gantt-ghost-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #1e40af;
+    white-space: nowrap;
 }
 
 .cal-event-detail {

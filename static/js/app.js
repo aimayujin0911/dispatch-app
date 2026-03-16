@@ -187,7 +187,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
             const width = ((endMin - startMin) / totalMin) * 100;
             const color = getDispatchColor(d.status);
-            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
+            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
             html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
@@ -199,21 +199,31 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
     return html;
 }
 
-// ===== ガントバー ドラッグ＆ドロップ（車両間移動） =====
+// ===== ガントバー ドラッグ＆ドロップ（車両＋時間移動） =====
 function startGanttDrag(e, dispatchId, vehicleId) {
     if (e.target.classList.contains('gantt-bar-resize')) return;
     e.preventDefault();
     const bar = e.target.closest('.gantt-bar');
+    const timeline = bar.closest('.gantt-timeline');
+    const origStart = bar.dataset.start;
+    const origEnd = bar.dataset.end;
+    const duration = timeToMinutes(origEnd) - timeToMinutes(origStart);
     dragState = {
         id: dispatchId,
         vehicleId: vehicleId,
         bar: bar,
         barLeft: bar.style.left,
         barWidth: bar.style.width,
+        origStart: origStart,
+        origEnd: origEnd,
+        duration: duration,
+        newStart: origStart,
+        newEnd: origEnd,
         startX: e.clientX,
         startY: e.clientY,
+        timelineWidth: timeline.offsetWidth,
         dragging: false,
-        targetVehicleId: null,
+        targetVehicleId: vehicleId,
         ghost: null,
     };
     document.addEventListener('mousemove', onGanttDragMove);
@@ -227,17 +237,44 @@ function removeGhost() {
     }
 }
 
+function calcDragTime(dx) {
+    const totalMin = HOUR_COUNT * 60;
+    const pxPerMin = dragState.timelineWidth / totalMin;
+    const step = 15;
+    const deltaMins = Math.round(dx / pxPerMin / step) * step;
+    let newStartMin = timeToMinutes(dragState.origStart) + deltaMins;
+    // 範囲制限
+    newStartMin = Math.max(HOUR_START * 60, Math.min(newStartMin, HOUR_END * 60 - dragState.duration));
+    const newEndMin = newStartMin + dragState.duration;
+    return { newStart: minutesToTime(newStartMin), newEnd: minutesToTime(newEndMin), newStartMin, newEndMin };
+}
+
+function updateGhostPosition(ghost, newStartMin, newEndMin) {
+    const totalMin = HOUR_COUNT * 60;
+    const left = ((newStartMin - HOUR_START * 60) / totalMin) * 100;
+    const width = ((newEndMin - newStartMin) / totalMin) * 100;
+    ghost.style.left = Math.max(left, 0) + '%';
+    ghost.style.width = Math.min(width, 100 - left) + '%';
+    ghost.innerHTML = `<span class="gantt-ghost-label">${minutesToTime(newStartMin)} - ${minutesToTime(newEndMin)}</span>`;
+}
+
 function onGanttDragMove(e) {
     if (!dragState) return;
-    const dx = Math.abs(e.clientX - dragState.startX);
+    const dx = e.clientX - dragState.startX;
     const dy = Math.abs(e.clientY - dragState.startY);
+    const absDx = Math.abs(dx);
 
-    if (!dragState.dragging && (dx > 5 || dy > 5)) {
+    if (!dragState.dragging && (absDx > 5 || dy > 5)) {
         dragState.dragging = true;
         dragState.bar.classList.add('dragging');
         document.body.style.cursor = 'grabbing';
     }
     if (!dragState.dragging) return;
+
+    // 時間計算
+    const { newStart, newEnd, newStartMin, newEndMin } = calcDragTime(dx);
+    dragState.newStart = newStart;
+    dragState.newEnd = newEnd;
 
     // ハイライト解除
     document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
@@ -245,25 +282,25 @@ function onGanttDragMove(e) {
     // カーソル下のタイムライン行を検出
     const elements = document.elementsFromPoint(e.clientX, e.clientY);
     const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
+
     if (timeline) {
         const vid = parseInt(timeline.dataset.vehicleId);
+        dragState.targetVehicleId = vid;
+
         if (vid !== dragState.vehicleId) {
             timeline.classList.add('drag-over');
-            // ゴーストバーを表示（同じ時間位置）
-            if (!dragState.ghost || dragState.ghost.parentElement !== timeline) {
-                removeGhost();
-                const ghost = document.createElement('div');
-                ghost.className = 'gantt-bar gantt-bar-ghost';
-                ghost.style.left = dragState.barLeft;
-                ghost.style.width = dragState.barWidth;
-                ghost.style.pointerEvents = 'none';
-                timeline.appendChild(ghost);
-                dragState.ghost = ghost;
-            }
-        } else {
-            removeGhost();
         }
-        dragState.targetVehicleId = vid;
+
+        // ゴーストバーを表示・更新
+        if (!dragState.ghost || dragState.ghost.parentElement !== timeline) {
+            removeGhost();
+            const ghost = document.createElement('div');
+            ghost.className = 'gantt-bar gantt-bar-ghost';
+            ghost.style.pointerEvents = 'none';
+            timeline.appendChild(ghost);
+            dragState.ghost = ghost;
+        }
+        updateGhostPosition(dragState.ghost, newStartMin, newEndMin);
     } else {
         dragState.targetVehicleId = null;
         removeGhost();
@@ -278,7 +315,7 @@ async function onGanttDragEnd(e) {
     removeGhost();
 
     if (!dragState) return;
-    const { id, vehicleId, dragging, targetVehicleId, bar } = dragState;
+    const { id, vehicleId, dragging, targetVehicleId, bar, origStart, origEnd, newStart, newEnd } = dragState;
     if (bar) bar.classList.remove('dragging');
     dragState = null;
 
@@ -287,8 +324,14 @@ async function onGanttDragEnd(e) {
         return;
     }
 
-    if (targetVehicleId && targetVehicleId !== vehicleId) {
-        await apiPut(`/dispatches/${id}`, { vehicle_id: targetVehicleId });
+    const vehicleChanged = targetVehicleId && targetVehicleId !== vehicleId;
+    const timeChanged = newStart !== origStart || newEnd !== origEnd;
+
+    if (vehicleChanged || timeChanged) {
+        const update = {};
+        if (vehicleChanged) update.vehicle_id = targetVehicleId;
+        if (timeChanged) { update.start_time = newStart; update.end_time = newEnd; }
+        await apiPut(`/dispatches/${id}`, update);
         loadDispatchCalendar();
     }
 }
