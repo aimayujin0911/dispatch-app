@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配車管理システム</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>🚛 配車管理</h2>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-page="dashboard">
+                <span class="nav-icon">📊</span> ダッシュボード
+            </li>
+            <li class="nav-item" data-page="dispatches">
+                <span class="nav-icon">📋</span> 配車表
+            </li>
+            <li class="nav-item" data-page="shipments">
+                <span class="nav-icon">📦</span> 案件管理
+            </li>
+            <li class="nav-item" data-page="vehicles">
+                <span class="nav-icon">🚚</span> 車両管理
+            </li>
+            <li class="nav-item" data-page="drivers">
+                <span class="nav-icon">👤</span> ドライバー管理
+            </li>
+            <li class="nav-item" data-page="map">
+                <span class="nav-icon">🗺️</span> 地図表示
+            </li>
+            <li class="nav-item" data-page="revenue">
+                <span class="nav-icon">💰</span> 売上管理
+            </li>
+            <li class="nav-item" data-page="reports">
+                <span class="nav-icon">📝</span> 日報
+            </li>
+        </ul>
+    </nav>
+
+    <main class="content">
+        <header class="topbar">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <h1 id="pageTitle">ダッシュボード</h1>
+            <div class="topbar-right">
+                <span id="currentDate"></span>
+            </div>
+        </header>
+
+        <!-- ダッシュボード -->
+        <section class="page active" id="page-dashboard">
+            <div class="stats-grid">
+                <div class="stat-card blue">
+                    <div class="stat-label">本日の配車</div>
+                    <div class="stat-value" id="stat-today-dispatches">0</div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-label">未配車案件</div>
+                    <div class="stat-value" id="stat-unassigned">0</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-label">稼働車両</div>
+                    <div class="stat-value" id="stat-vehicles-active">0<small id="stat-vehicles-total">/0</small></div>
+                </div>
+                <div class="stat-card purple">
+                    <div class="stat-label">月間売上</div>
+                    <div class="stat-value" id="stat-monthly-revenue">¥0</div>
+                </div>
+            </div>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h3>車両ステータス</h3>
+                    <div class="status-bars" id="vehicle-status-bars"></div>
+                </div>
+                <div class="card">
+                    <h3>ドライバーステータス</h3>
+                    <div class="status-bars" id="driver-status-bars"></div>
+                </div>
+                <div class="card wide">
+                    <h3>直近7日間の売上推移</h3>
+                    <div class="chart-container" id="revenue-chart"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 配車表 -->
+        <section class="page" id="page-dispatches">
+            <div class="page-actions">
+                <input type="date" id="dispatch-date-filter" class="input">
+                <button class="btn btn-primary" onclick="openDispatchModal()">+ 新規配車</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>車両</th>
+                            <th>ドライバー</th>
+                            <th>荷主</th>
+                            <th>積地</th>
+                            <th>卸地</th>
+                            <th>ステータス</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dispatches-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 案件管理 -->
+        <section class="page" id="page-shipments">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openShipmentModal()">+ 新規案件</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>荷主</th>
+                            <th>荷物</th>
+                            <th>積地</th>
+                            <th>卸地</th>
+                            <th>集荷日</th>
+                            <th>配達日</th>
+                            <th>運賃</th>
+                            <th>ステータス</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shipments-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 車両管理 -->
+        <section class="page" id="page-vehicles">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openVehicleModal()">+ 車両追加</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>車両番号</th>
+                            <th>車種</th>
+                            <th>積載量(kg)</th>
+                            <th>ステータス</th>
+                            <th>備考</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vehicles-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ドライバー管理 -->
+        <section class="page" id="page-drivers">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openDriverModal()">+ ドライバー追加</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>名前</th>
+                            <th>電話番号</th>
+                            <th>免許種別</th>
+                            <th>ステータス</th>
+                            <th>備考</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="drivers-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 地図表示 -->
+        <section class="page" id="page-map">
+            <div class="map-wrapper">
+                <div id="map" style="height: 600px; border-radius: 8px;"></div>
+            </div>
+        </section>
+
+        <!-- 売上管理 -->
+        <section class="page" id="page-revenue">
+            <div class="stats-grid">
+                <div class="stat-card green">
+                    <div class="stat-label">月間売上</div>
+                    <div class="stat-value" id="rev-monthly">¥0</div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-label">月間完了件数</div>
+                    <div class="stat-value" id="rev-completed">0</div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-label">平均単価</div>
+                    <div class="stat-value" id="rev-avg">¥0</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>完了済み案件一覧</h3>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>荷主</th>
+                                <th>荷物</th>
+                                <th>積地 → 卸地</th>
+                                <th>配達日</th>
+                                <th>運賃</th>
+                            </tr>
+                        </thead>
+                        <tbody id="revenue-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 日報 -->
+        <section class="page" id="page-reports">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openReportModal()">+ 日報作成</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>ドライバー</th>
+                            <th>出発時刻</th>
+                            <th>帰着時刻</th>
+                            <th>走行距離(km)</th>
+                            <th>給油量(L)</th>
+                            <th>備考</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-table"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- モーダル -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">新規追加</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
