@@ -709,6 +709,18 @@ body {
     border-radius: 2px;
 }
 
+.gantt-bar.dragging {
+    opacity: 0.5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+.gantt-timeline.drag-over {
+    background: #dbeafe !important;
+    outline: 2px dashed var(--primary);
+    outline-offset: -2px;
+}
+
 .cal-event-detail {
     white-space: nowrap;
     overflow: hidden;

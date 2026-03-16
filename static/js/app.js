@@ -170,7 +170,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         html += `</div>`;
 
         // 時間帯のタイムライン行
-        html += `<div class="gantt-timeline" style="grid-column: 2 / -1;" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
+        html += `<div class="gantt-timeline" data-vehicle-id="${v.id}" style="grid-column: 2 / -1;" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
 
         // 時間グリッド線
         for (let h = HOUR_START; h <= HOUR_END; h++) {
@@ -187,7 +187,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
             const width = ((endMin - startMin) / totalMin) * 100;
             const color = getDispatchColor(d.status);
-            html += `<div class="gantt-bar ${color}" data-id="${d.id}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
+            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
             html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
@@ -199,7 +199,77 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
     return html;
 }
 
-// ガントバーリサイズ
+// ===== ガントバー ドラッグ＆ドロップ（車両間移動） =====
+function startGanttDrag(e, dispatchId, vehicleId) {
+    if (e.target.classList.contains('gantt-bar-resize')) return;
+    e.preventDefault();
+    const bar = e.target.closest('.gantt-bar');
+    dragState = {
+        id: dispatchId,
+        vehicleId: vehicleId,
+        bar: bar,
+        startX: e.clientX,
+        startY: e.clientY,
+        dragging: false,
+        targetVehicleId: null,
+    };
+    document.addEventListener('mousemove', onGanttDragMove);
+    document.addEventListener('mouseup', onGanttDragEnd);
+}
+
+function onGanttDragMove(e) {
+    if (!dragState) return;
+    const dx = Math.abs(e.clientX - dragState.startX);
+    const dy = Math.abs(e.clientY - dragState.startY);
+
+    if (!dragState.dragging && (dx > 5 || dy > 5)) {
+        dragState.dragging = true;
+        dragState.bar.classList.add('dragging');
+        document.body.style.cursor = 'grabbing';
+    }
+    if (!dragState.dragging) return;
+
+    // ハイライト解除
+    document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    // カーソル下のタイムライン行を検出
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
+    if (timeline) {
+        const vid = parseInt(timeline.dataset.vehicleId);
+        if (vid !== dragState.vehicleId) {
+            timeline.classList.add('drag-over');
+        }
+        dragState.targetVehicleId = vid;
+    } else {
+        dragState.targetVehicleId = null;
+    }
+}
+
+async function onGanttDragEnd(e) {
+    document.removeEventListener('mousemove', onGanttDragMove);
+    document.removeEventListener('mouseup', onGanttDragEnd);
+    document.body.style.cursor = '';
+    document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    if (!dragState) return;
+    const { id, vehicleId, dragging, targetVehicleId, bar } = dragState;
+    if (bar) bar.classList.remove('dragging');
+    dragState = null;
+
+    if (!dragging) {
+        // ドラッグなし = クリック → 詳細表示
+        showDispatchDetail(id);
+        return;
+    }
+
+    if (targetVehicleId && targetVehicleId !== vehicleId) {
+        await apiPut(`/dispatches/${id}`, { vehicle_id: targetVehicleId });
+        loadDispatchCalendar();
+    }
+}
+
+// ===== ガントバーリサイズ =====
 function startGanttResize(e, dispatchId, edge, startTime, endTime) {
     const timeline = e.target.closest('.gantt-timeline');
     resizeState = {
@@ -222,7 +292,7 @@ function onGanttResizeMove(e) {
     const dx = e.clientX - resizeState.startX;
     const totalMin = HOUR_COUNT * 60;
     const pxPerMin = resizeState.timelineWidth / totalMin;
-    const step = 15; // 15分単位
+    const step = 15;
     const deltaMins = Math.round(dx / pxPerMin / step) * step;
 
     if (resizeState.edge === 'right') {
@@ -273,7 +343,7 @@ function calcDuration(start, end) {
 }
 
 function getDispatchColor(status) {
-    return { '予定': 'ev-blue', '運行中': 'ev-green', '完了': 'ev-gray', 'キャンセル': 'ev-red' }[status] || 'ev-blue';
+    return { '予定': 'ev-blue', '運行中': 'ev-green', 'キャンセル': 'ev-red' }[status] || 'ev-blue';
 }
 
 function changeDays(dir) {
@@ -315,8 +385,17 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
     const availableDrivers = drivers.filter(d => d.status !== '非番');
     const unassigned = shipments.filter(s => s.status === '未配車');
 
-    document.getElementById('modal-title').textContent = `配車作成 (${date})`;
+    document.getElementById('modal-title').textContent = '配車作成';
     document.getElementById('modal-body').innerHTML = `
+        <div class="form-row">
+            <div class="form-group">
+                <label>日付</label>
+                <input type="date" id="f-qd-date" value="${date}">
+            </div>
+            <div class="form-group" style="display:flex;flex-direction:column">
+                <label>&nbsp;</label>
+            </div>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label>開始時刻</label>
@@ -368,7 +447,7 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
         </div>
         <div class="form-actions">
             <button class="btn" onclick="closeModal()">キャンセル</button>
-            <button class="btn btn-primary" onclick="saveQuickDispatch('${date}')">配車する</button>
+            <button class="btn btn-primary" onclick="saveQuickDispatch()">配車する</button>
         </div>`;
     showModal();
 }
@@ -378,10 +457,13 @@ function toggleManualAddress() {
     document.getElementById('manual-address').style.display = shipmentId ? 'none' : 'block';
 }
 
-async function saveQuickDispatch(date) {
+async function saveQuickDispatch() {
     const vehicleId = parseInt(document.getElementById('f-qd-vehicle').value);
     const driverId = parseInt(document.getElementById('f-qd-driver').value);
     if (!vehicleId || !driverId) return alert('車両とドライバーを選択してください');
+
+    const date = document.getElementById('f-qd-date').value;
+    if (!date) return alert('日付を選択してください');
 
     const shipmentId = document.getElementById('f-qd-shipment').value;
     const data = {
@@ -426,15 +508,84 @@ async function showDispatchDetail(id) {
         </div>
         <div class="form-actions">
             <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
-            <button class="btn btn-success" onclick="completeDispatch(${d.id})">完了</button>
+            <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
     showModal();
 }
 
-async function completeDispatch(id) {
-    if (!confirm('この配車を完了にしますか？')) return;
-    await apiPut(`/dispatches/${id}`, { status: '完了' });
+async function editDispatch(id) {
+    const [dispatches, vehicles, drivers] = await Promise.all([
+        apiGet('/dispatches'), apiGet('/vehicles'), apiGet('/drivers')
+    ]);
+    const d = dispatches.find(x => x.id === id);
+    if (!d) return;
+    const availableVehicles = vehicles.filter(v => v.status !== '整備中' || v.id === d.vehicle_id);
+    const availableDrivers = drivers.filter(dr => dr.status !== '非番' || dr.id === d.driver_id);
+
+    document.getElementById('modal-title').textContent = '配車編集';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row">
+            <div class="form-group">
+                <label>日付</label>
+                <input type="date" id="f-ed-date" value="${d.date}">
+            </div>
+            <div class="form-group" style="display:flex;flex-direction:column">
+                <label>&nbsp;</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>開始時刻</label>
+                <input type="time" id="f-ed-start" value="${d.start_time}">
+            </div>
+            <div class="form-group">
+                <label>終了時刻</label>
+                <input type="time" id="f-ed-end" value="${d.end_time}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>車両</label>
+            <select id="f-ed-vehicle">
+                ${availableVehicles.map(v => `<option value="${v.id}" ${v.id === d.vehicle_id ? 'selected' : ''}>${v.number} (${v.type})</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>ドライバー</label>
+            <select id="f-ed-driver">
+                ${availableDrivers.map(dr => `<option value="${dr.id}" ${dr.id === d.driver_id ? 'selected' : ''}>${dr.name} (${dr.license_type})</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>積地</label>
+            <input type="text" id="f-ed-pickup" value="${d.pickup_address || ''}">
+        </div>
+        <div class="form-group">
+            <label>卸地</label>
+            <input type="text" id="f-ed-delivery" value="${d.delivery_address || ''}">
+        </div>
+        <div class="form-group">
+            <label>備考</label>
+            <textarea id="f-ed-notes">${d.notes || ''}</textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveEditDispatch(${d.id})">更新</button>
+        </div>`;
+}
+
+async function saveEditDispatch(id) {
+    const data = {
+        date: document.getElementById('f-ed-date').value,
+        start_time: document.getElementById('f-ed-start').value,
+        end_time: document.getElementById('f-ed-end').value,
+        vehicle_id: parseInt(document.getElementById('f-ed-vehicle').value),
+        driver_id: parseInt(document.getElementById('f-ed-driver').value),
+        pickup_address: document.getElementById('f-ed-pickup').value,
+        delivery_address: document.getElementById('f-ed-delivery').value,
+        notes: document.getElementById('f-ed-notes').value,
+    };
+    await apiPut(`/dispatches/${id}`, data);
     closeModal();
     loadDispatchCalendar();
 }
@@ -720,7 +871,6 @@ async function deleteShipment(id) {
 }
 
 // ===== 地図表示（積地・卸地マーカー） =====
-// 主要都市の座標マッピング
 const GEOCODE_CACHE = {
     '東京都': [35.6812, 139.7671], '東京都大田区': [35.5614, 139.7160], '東京都大田区平和島': [35.5780, 139.7390],
     '東京都江東区': [35.6729, 139.8172], '東京都江東区有明': [35.6340, 139.7886],
@@ -741,7 +891,6 @@ const GEOCODE_CACHE = {
 
 function simpleGeocode(address) {
     if (!address) return null;
-    // 最長一致で検索
     let bestMatch = null;
     let bestLen = 0;
     for (const [key, coords] of Object.entries(GEOCODE_CACHE)) {
@@ -751,7 +900,6 @@ function simpleGeocode(address) {
         }
     }
     if (bestMatch) {
-        // 少しずらして重なりを防止
         return [bestMatch[0] + (Math.random() - 0.5) * 0.005, bestMatch[1] + (Math.random() - 0.5) * 0.005];
     }
     return null;
@@ -770,7 +918,6 @@ function initMap() {
 
 async function loadMapMarkers() {
     const dispatches = await apiGet('/dispatches');
-    // 既存マーカー・ライン削除
     mapMarkers.forEach(m => map.removeLayer(m));
     mapMarkers = [];
 
@@ -802,7 +949,6 @@ async function loadMapMarkers() {
             mapMarkers.push(m);
             bounds.push(deliveryCoords);
         }
-        // ルート線
         if (pickupCoords && deliveryCoords) {
             const line = L.polyline([pickupCoords, deliveryCoords], {
                 color: '#2563eb', weight: 3, opacity: 0.7, dashArray: '8, 6'
