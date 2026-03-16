@@ -5,6 +5,7 @@ let mapMarkers = [];
 let currentPage = 'dashboard';
 let calendarDate = new Date();
 let dragState = null;
+let resizeState = null;
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -95,14 +96,17 @@ function statusBar(label, count, total, color) {
     </div>`;
 }
 
-// ===== 配車表（カレンダー形式） =====
+// ===== 配車表（車両×日付形式） =====
+const CAL_DAYS = 3; // 表示日数
+
 async function loadDispatchCalendar() {
-    const weekStart = getWeekStart(calendarDate);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
+    const baseDate = new Date(calendarDate);
+    baseDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(baseDate);
+    endDate.setDate(endDate.getDate() + CAL_DAYS - 1);
 
     const [dispatches, vehicles] = await Promise.all([
-        apiGet(`/dispatches?week_start=${fmt(weekStart)}`),
+        apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         apiGet('/vehicles'),
     ]);
 
@@ -111,69 +115,74 @@ async function loadDispatchCalendar() {
     const filterType = document.getElementById('cal-filter-type')?.value || '';
 
     const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
-    const filteredDispatches = filterType
-        ? dispatches.filter(d => filteredVehicles.some(v => v.id === d.vehicle_id))
-        : dispatches;
 
-    // ヘッダー
+    // 表示日の配列
     const days = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(weekStart);
+    for (let i = 0; i < CAL_DAYS; i++) {
+        const d = new Date(baseDate);
         d.setDate(d.getDate() + i);
         days.push(d);
     }
+    const dayStrs = days.map(d => fmt(d));
     const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+
+    // 表示期間の配車のみ
+    const filteredDispatches = dispatches.filter(d => dayStrs.includes(d.date));
 
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
         <div class="cal-controls">
-            <button class="btn btn-sm" onclick="changeWeek(-1)">◀ 前週</button>
-            <span class="cal-week-label">${fmt(weekStart)} 〜 ${fmt(weekEnd)}</span>
-            <button class="btn btn-sm" onclick="changeWeek(1)">翌週 ▶</button>
-            <button class="btn btn-sm" onclick="calendarDate=new Date();loadDispatchCalendar()">今週</button>
+            <button class="btn btn-sm" onclick="changeDays(-${CAL_DAYS})">◀ 前</button>
+            <span class="cal-week-label">${fmt(baseDate)} 〜 ${fmt(endDate)}</span>
+            <button class="btn btn-sm" onclick="changeDays(${CAL_DAYS})">次 ▶</button>
+            <button class="btn btn-sm" onclick="calendarDate=new Date();loadDispatchCalendar()">今日</button>
             <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
                 <option value="">全車種</option>
                 ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
         </div>
-        <div class="cal-grid">
-            <div class="cal-header cal-time-col">時間</div>
-            ${days.map((d, i) => `<div class="cal-header ${isToday(d) ? 'cal-today' : ''} ${i === 0 || i === 6 ? 'cal-weekend' : ''}">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</div>`).join('')}
-            ${buildTimeRows(days, filteredDispatches, filteredVehicles)}
+        <div class="cal-grid cal-vehicle-grid" style="grid-template-columns: 140px repeat(${CAL_DAYS}, 1fr);">
+            <div class="cal-header cal-vehicle-col">車両</div>
+            ${days.map(d => `<div class="cal-header ${isToday(d) ? 'cal-today' : ''} ${d.getDay() === 0 || d.getDay() === 6 ? 'cal-weekend' : ''}">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</div>`).join('')}
+            ${buildVehicleRows(days, dayStrs, filteredDispatches, filteredVehicles)}
         </div>`;
 }
 
-function buildTimeRows(days, dispatches, vehicles) {
+function buildVehicleRows(days, dayStrs, dispatches, vehicles) {
     let html = '';
-    for (let h = 5; h <= 22; h++) {
-        const timeLabel = `${String(h).padStart(2, '0')}:00`;
-        html += `<div class="cal-time-cell cal-time-col">${timeLabel}</div>`;
-        for (let di = 0; di < 7; di++) {
-            const dayStr = fmt(days[di]);
-            const cellDispatches = dispatches.filter(d => {
-                if (d.date !== dayStr) return false;
-                const startH = parseInt(d.start_time.split(':')[0]);
-                return startH === h;
-            });
-            const cellId = `cell-${dayStr}-${h}`;
-            html += `<div class="cal-cell ${isToday(days[di]) ? 'cal-today' : ''}" id="${cellId}"
-                data-date="${dayStr}" data-hour="${h}"
-                onmousedown="startDrag(event, '${dayStr}', ${h})"
-                onmouseover="onDragOver(event, '${dayStr}', ${h})"
-                onmouseup="endDrag(event, '${dayStr}', ${h})">`;
+    vehicles.forEach(v => {
+        // 車両ラベル
+        const statusCls = v.status === '稼働中' ? 'blue' : v.status === '空車' ? 'green' : 'orange';
+        html += `<div class="cal-vehicle-label">`;
+        html += `<div class="cal-vehicle-name">${v.number}</div>`;
+        html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type}</div>`;
+        html += `</div>`;
+
+        // 日付セル
+        for (let di = 0; di < dayStrs.length; di++) {
+            const dayStr = dayStrs[di];
+            const cellDispatches = dispatches.filter(d => d.date === dayStr && d.vehicle_id === v.id);
+            html += `<div class="cal-cell ${isToday(days[di]) ? 'cal-today' : ''}" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
             cellDispatches.forEach(d => {
-                const duration = calcDuration(d.start_time, d.end_time);
                 const color = getDispatchColor(d.status);
-                html += `<div class="cal-event ${color}" style="height:${Math.max(duration * 40 / 60, 24)}px"
-                    onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.vehicle_number} ${d.driver_name}">
-                    <div class="cal-event-time">${d.start_time}-${d.end_time}</div>
-                    <div class="cal-event-title">${d.vehicle_number}</div>
-                    <div class="cal-event-detail">${d.driver_name} ${d.pickup_address ? d.pickup_address + '→' + d.delivery_address : ''}</div>
-                </div>`;
+                html += `<div class="cal-event cal-event-compact ${color}" data-id="${d.id}" data-start="${d.start_time}" data-end="${d.end_time}" onmousedown="event.stopPropagation()" onmouseup="event.stopPropagation()" onclick="event.stopPropagation();toggleEventExpand(this, ${d.id})" title="${d.driver_name}">`;
+                html += `<div class="cal-resize-handle cal-resize-top" onmousedown="event.stopPropagation();event.preventDefault();startResize(event, ${d.id}, 'top', '${d.start_time}', '${d.end_time}')"></div>`;
+                html += `<div class="cal-event-summary">${d.start_time}-${d.end_time} ${d.driver_name || ''}</div>`;
+                html += `<div class="cal-event-expanded">`;
+                html += `<div class="cal-event-head"><span class="cal-event-time">${d.start_time}-${d.end_time}</span><span class="cal-event-edit" onclick="event.stopPropagation();showDispatchDetail(${d.id})">&#9998;</span></div>`;
+                html += `<div class="cal-event-detail">${d.driver_name || '未割当'}</div>`;
+                html += `<div class="cal-event-detail">${d.pickup_address ? d.pickup_address : ''}</div>`;
+                html += `<div class="cal-event-detail">${d.delivery_address ? '→' + d.delivery_address : ''}</div>`;
+                html += `</div>`;
+                html += `<div class="cal-resize-handle cal-resize-bottom" onmousedown="event.stopPropagation();event.preventDefault();startResize(event, ${d.id}, 'bottom', '${d.start_time}', '${d.end_time}')"></div>`;
+                html += `</div>`;
             });
+            if (cellDispatches.length === 0) {
+                html += `<div class="cal-empty-hint">+</div>`;
+            }
             html += '</div>';
         }
-    }
+    });
     return html;
 }
 
@@ -187,17 +196,9 @@ function getDispatchColor(status) {
     return { '予定': 'ev-blue', '運行中': 'ev-green', '完了': 'ev-gray', 'キャンセル': 'ev-red' }[status] || 'ev-blue';
 }
 
-function changeWeek(dir) {
-    calendarDate.setDate(calendarDate.getDate() + dir * 7);
+function changeDays(dir) {
+    calendarDate.setDate(calendarDate.getDate() + dir);
     loadDispatchCalendar();
-}
-
-function getWeekStart(d) {
-    const result = new Date(d);
-    const day = result.getDay();
-    result.setDate(result.getDate() - day + 1); // 月曜始まり
-    result.setHours(0, 0, 0, 0);
-    return result;
 }
 
 function isToday(d) {
@@ -206,42 +207,110 @@ function isToday(d) {
 }
 
 function fmt(d) {
-    return d.toISOString ? d.toISOString().split('T')[0] : d;
+    if (!d.getFullYear) return d;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
-// ドラッグで配車作成
-function startDrag(e, dateStr, hour) {
-    if (e.button !== 0) return;
-    dragState = { dateStr, startHour: hour, endHour: hour + 1 };
-    highlightDrag();
-}
 
-function onDragOver(e, dateStr, hour) {
-    if (!dragState || dragState.dateStr !== dateStr) return;
-    dragState.endHour = Math.max(hour + 1, dragState.startHour + 1);
-    highlightDrag();
-}
-
-function highlightDrag() {
-    document.querySelectorAll('.cal-cell.dragging').forEach(c => c.classList.remove('dragging'));
-    if (!dragState) return;
-    for (let h = dragState.startHour; h < dragState.endHour; h++) {
-        const cell = document.getElementById(`cell-${dragState.dateStr}-${h}`);
-        if (cell) cell.classList.add('dragging');
+function toggleEventExpand(el, id) {
+    if (resizeState) return; // リサイズ中はトグルしない
+    if (el.classList.contains('cal-event-open')) {
+        el.classList.remove('cal-event-open');
+        el.classList.add('cal-event-compact');
+    } else {
+        document.querySelectorAll('.cal-event-open').forEach(e => {
+            e.classList.remove('cal-event-open');
+            e.classList.add('cal-event-compact');
+        });
+        el.classList.remove('cal-event-compact');
+        el.classList.add('cal-event-open');
     }
 }
 
-function endDrag(e, dateStr, hour) {
-    if (!dragState) return;
-    const startH = String(dragState.startHour).padStart(2, '0') + ':00';
-    const endH = String(Math.max(dragState.endHour, dragState.startHour + 1)).padStart(2, '0') + ':00';
-    const date = dragState.dateStr;
-    dragState = null;
-    document.querySelectorAll('.cal-cell.dragging').forEach(c => c.classList.remove('dragging'));
-    openQuickDispatchModal(date, startH, endH);
+// ===== リサイズで時間変更 =====
+function startResize(e, dispatchId, edge, startTime, endTime) {
+    resizeState = {
+        id: dispatchId,
+        edge: edge,
+        startY: e.clientY,
+        origStart: startTime,
+        origEnd: endTime,
+        newStart: startTime,
+        newEnd: endTime,
+    };
+    document.addEventListener('mousemove', onResizeMove);
+    document.addEventListener('mouseup', onResizeEnd);
+    document.body.style.cursor = 'ns-resize';
 }
 
-async function openQuickDispatchModal(date, startTime, endTime) {
+function timeToMinutes(t) {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+}
+
+function minutesToTime(mins) {
+    mins = Math.max(0, Math.min(mins, 23 * 60 + 30));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function onResizeMove(e) {
+    if (!resizeState) return;
+    const dy = e.clientY - resizeState.startY;
+    const step = 30; // 30分単位
+    const pxPerStep = 20; // 20pxで30分
+    const steps = Math.round(dy / pxPerStep);
+    const deltaMins = steps * step;
+
+    if (resizeState.edge === 'bottom') {
+        const newEnd = timeToMinutes(resizeState.origEnd) + deltaMins;
+        const minEnd = timeToMinutes(resizeState.origStart) + step;
+        resizeState.newEnd = minutesToTime(Math.max(newEnd, minEnd));
+        resizeState.newStart = resizeState.origStart;
+    } else {
+        const newStart = timeToMinutes(resizeState.origStart) + deltaMins;
+        const maxStart = timeToMinutes(resizeState.origEnd) - step;
+        resizeState.newStart = minutesToTime(Math.min(newStart, maxStart));
+        resizeState.newEnd = resizeState.origEnd;
+    }
+
+    // プレビュー更新
+    const el = document.querySelector(`.cal-event[data-id="${resizeState.id}"]`);
+    if (el) {
+        const summary = el.querySelector('.cal-event-summary');
+        const timeSpan = el.querySelector('.cal-event-time');
+        const label = `${resizeState.newStart}-${resizeState.newEnd}`;
+        if (summary) summary.textContent = label + ' ...';
+        if (timeSpan) timeSpan.textContent = label;
+        el.classList.add('cal-event-resizing');
+    }
+}
+
+async function onResizeEnd() {
+    document.removeEventListener('mousemove', onResizeMove);
+    document.removeEventListener('mouseup', onResizeEnd);
+    document.body.style.cursor = '';
+
+    if (!resizeState) return;
+    const { id, newStart, newEnd, origStart, origEnd } = resizeState;
+    resizeState = null;
+
+    // 変更がなければスキップ
+    if (newStart === origStart && newEnd === origEnd) {
+        const el = document.querySelector(`.cal-event[data-id="${id}"]`);
+        if (el) el.classList.remove('cal-event-resizing');
+        return;
+    }
+
+    await apiPut(`/dispatches/${id}`, { start_time: newStart, end_time: newEnd });
+    loadDispatchCalendar();
+}
+
+async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId) {
     const [vehicles, drivers, shipments] = await Promise.all([
         apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
     ]);
@@ -265,7 +334,7 @@ async function openQuickDispatchModal(date, startTime, endTime) {
             <label>車両</label>
             <select id="f-qd-vehicle">
                 <option value="">-- 選択 --</option>
-                ${availableVehicles.map(v => `<option value="${v.id}">${v.number} (${v.type}) [${v.status}]</option>`).join('')}
+                ${availableVehicles.map(v => `<option value="${v.id}" ${preselectedVehicleId === v.id ? 'selected' : ''}>${v.number} (${v.type}) [${v.status}]</option>`).join('')}
             </select>
         </div>
         <div class="form-group">
