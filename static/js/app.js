@@ -96,94 +96,169 @@ function statusBar(label, count, total, color) {
     </div>`;
 }
 
-// ===== 配車表（車両×日付形式） =====
-const CAL_DAYS = 3; // 表示日数
+// ===== 配車表（車両×時間ガントチャート） =====
+const CAL_DAYS = 3;
+const HOUR_START = 5;
+const HOUR_END = 22;
+const HOUR_COUNT = HOUR_END - HOUR_START;
+let selectedDayIndex = 0;
 
 async function loadDispatchCalendar() {
     const baseDate = new Date(calendarDate);
     baseDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(baseDate);
-    endDate.setDate(endDate.getDate() + CAL_DAYS - 1);
 
     const [dispatches, vehicles] = await Promise.all([
         apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         apiGet('/vehicles'),
     ]);
 
-    // フィルター用の車種リスト
-    const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
-    const filterType = document.getElementById('cal-filter-type')?.value || '';
-
-    const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
-
     // 表示日の配列
     const days = [];
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
     for (let i = 0; i < CAL_DAYS; i++) {
         const d = new Date(baseDate);
         d.setDate(d.getDate() + i);
         days.push(d);
     }
     const dayStrs = days.map(d => fmt(d));
-    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 
-    // 表示期間の配車のみ
-    const filteredDispatches = dispatches.filter(d => dayStrs.includes(d.date));
+    // フィルター
+    const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
+    const filterType = document.getElementById('cal-filter-type')?.value || '';
+    const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
+
+    // 選択日の配車
+    if (selectedDayIndex >= CAL_DAYS) selectedDayIndex = 0;
+    const activeDayStr = dayStrs[selectedDayIndex];
+    const dayDispatches = dispatches.filter(d => d.date === activeDayStr);
+
+    // 時間ヘッダー
+    const hours = [];
+    for (let h = HOUR_START; h <= HOUR_END; h++) hours.push(h);
 
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
         <div class="cal-controls">
             <button class="btn btn-sm" onclick="changeDays(-${CAL_DAYS})">◀ 前</button>
-            <span class="cal-week-label">${fmt(baseDate)} 〜 ${fmt(endDate)}</span>
+            <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
             <button class="btn btn-sm" onclick="changeDays(${CAL_DAYS})">次 ▶</button>
-            <button class="btn btn-sm" onclick="calendarDate=new Date();loadDispatchCalendar()">今日</button>
+            <div class="cal-day-tabs">
+                ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
+            </div>
             <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
                 <option value="">全車種</option>
                 ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
         </div>
-        <div class="cal-grid cal-vehicle-grid" style="grid-template-columns: 140px repeat(${CAL_DAYS}, 1fr);">
-            <div class="cal-header cal-vehicle-col">車両</div>
-            ${days.map(d => `<div class="cal-header ${isToday(d) ? 'cal-today' : ''} ${d.getDay() === 0 || d.getDay() === 6 ? 'cal-weekend' : ''}">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</div>`).join('')}
-            ${buildVehicleRows(days, dayStrs, filteredDispatches, filteredVehicles)}
+        <div class="gantt-wrapper">
+            <div class="gantt-grid" style="grid-template-columns: 140px repeat(${HOUR_COUNT}, 1fr);">
+                <div class="cal-header cal-vehicle-col">車両</div>
+                ${hours.map(h => `<div class="cal-header gantt-hour-header">${String(h).padStart(2, '0')}</div>`).join('')}
+                ${buildGanttRows(activeDayStr, dayDispatches, filteredVehicles)}
+            </div>
         </div>`;
 }
 
-function buildVehicleRows(days, dayStrs, dispatches, vehicles) {
+function buildGanttRows(dayStr, dispatches, vehicles) {
     let html = '';
     vehicles.forEach(v => {
-        // 車両ラベル
         const statusCls = v.status === '稼働中' ? 'blue' : v.status === '空車' ? 'green' : 'orange';
         html += `<div class="cal-vehicle-label">`;
         html += `<div class="cal-vehicle-name">${v.number}</div>`;
         html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type}</div>`;
         html += `</div>`;
 
-        // 日付セル
-        for (let di = 0; di < dayStrs.length; di++) {
-            const dayStr = dayStrs[di];
-            const cellDispatches = dispatches.filter(d => d.date === dayStr && d.vehicle_id === v.id);
-            html += `<div class="cal-cell ${isToday(days[di]) ? 'cal-today' : ''}" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
-            cellDispatches.forEach(d => {
-                const color = getDispatchColor(d.status);
-                html += `<div class="cal-event cal-event-compact ${color}" data-id="${d.id}" data-start="${d.start_time}" data-end="${d.end_time}" onmousedown="event.stopPropagation()" onmouseup="event.stopPropagation()" onclick="event.stopPropagation();toggleEventExpand(this, ${d.id})" title="${d.driver_name}">`;
-                html += `<div class="cal-resize-handle cal-resize-top" onmousedown="event.stopPropagation();event.preventDefault();startResize(event, ${d.id}, 'top', '${d.start_time}', '${d.end_time}')"></div>`;
-                html += `<div class="cal-event-summary">${d.start_time}-${d.end_time} ${d.driver_name || ''}</div>`;
-                html += `<div class="cal-event-expanded">`;
-                html += `<div class="cal-event-head"><span class="cal-event-time">${d.start_time}-${d.end_time}</span><span class="cal-event-edit" onclick="event.stopPropagation();showDispatchDetail(${d.id})">&#9998;</span></div>`;
-                html += `<div class="cal-event-detail">${d.driver_name || '未割当'}</div>`;
-                html += `<div class="cal-event-detail">${d.pickup_address ? d.pickup_address : ''}</div>`;
-                html += `<div class="cal-event-detail">${d.delivery_address ? '→' + d.delivery_address : ''}</div>`;
-                html += `</div>`;
-                html += `<div class="cal-resize-handle cal-resize-bottom" onmousedown="event.stopPropagation();event.preventDefault();startResize(event, ${d.id}, 'bottom', '${d.start_time}', '${d.end_time}')"></div>`;
-                html += `</div>`;
-            });
-            if (cellDispatches.length === 0) {
-                html += `<div class="cal-empty-hint">+</div>`;
-            }
-            html += '</div>';
+        // 時間帯のタイムライン行
+        html += `<div class="gantt-timeline" style="grid-column: 2 / -1;" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
+
+        // 時間グリッド線
+        for (let h = HOUR_START; h <= HOUR_END; h++) {
+            const left = ((h - HOUR_START) / HOUR_COUNT) * 100;
+            html += `<div class="gantt-gridline" style="left:${left}%"></div>`;
         }
+
+        // 配車バー
+        const vDispatches = dispatches.filter(d => d.vehicle_id === v.id);
+        vDispatches.forEach(d => {
+            const startMin = timeToMinutes(d.start_time);
+            const endMin = timeToMinutes(d.end_time);
+            const totalMin = HOUR_COUNT * 60;
+            const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
+            const width = ((endMin - startMin) / totalMin) * 100;
+            const color = getDispatchColor(d.status);
+            html += `<div class="gantt-bar ${color}" data-id="${d.id}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.start_time}-${d.end_time} ${d.driver_name}">`;
+            html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
+            html += `<span class="gantt-bar-label">${d.start_time}-${d.end_time} ${d.driver_name || ''}</span>`;
+            html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
+            html += `</div>`;
+        });
+        html += `</div>`;
     });
     return html;
+}
+
+// ガントバーリサイズ
+function startGanttResize(e, dispatchId, edge, startTime, endTime) {
+    const timeline = e.target.closest('.gantt-timeline');
+    resizeState = {
+        id: dispatchId,
+        edge: edge,
+        startX: e.clientX,
+        timelineWidth: timeline.offsetWidth,
+        origStart: startTime,
+        origEnd: endTime,
+        newStart: startTime,
+        newEnd: endTime,
+    };
+    document.addEventListener('mousemove', onGanttResizeMove);
+    document.addEventListener('mouseup', onGanttResizeEnd);
+    document.body.style.cursor = 'ew-resize';
+}
+
+function onGanttResizeMove(e) {
+    if (!resizeState) return;
+    const dx = e.clientX - resizeState.startX;
+    const totalMin = HOUR_COUNT * 60;
+    const pxPerMin = resizeState.timelineWidth / totalMin;
+    const step = 15; // 15分単位
+    const deltaMins = Math.round(dx / pxPerMin / step) * step;
+
+    if (resizeState.edge === 'right') {
+        const newEnd = timeToMinutes(resizeState.origEnd) + deltaMins;
+        const minEnd = timeToMinutes(resizeState.origStart) + step;
+        resizeState.newEnd = minutesToTime(Math.max(newEnd, minEnd));
+        resizeState.newStart = resizeState.origStart;
+    } else {
+        const newStart = timeToMinutes(resizeState.origStart) + deltaMins;
+        const maxStart = timeToMinutes(resizeState.origEnd) - step;
+        resizeState.newStart = minutesToTime(Math.min(Math.max(newStart, HOUR_START * 60), maxStart));
+        resizeState.newEnd = resizeState.origEnd;
+    }
+
+    // プレビュー
+    const bar = document.querySelector(`.gantt-bar[data-id="${resizeState.id}"]`);
+    if (bar) {
+        const totalMin = HOUR_COUNT * 60;
+        const startMin = timeToMinutes(resizeState.newStart);
+        const endMin = timeToMinutes(resizeState.newEnd);
+        const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
+        const width = ((endMin - startMin) / totalMin) * 100;
+        bar.style.left = Math.max(left, 0) + '%';
+        bar.style.width = Math.min(width, 100 - left) + '%';
+        bar.querySelector('.gantt-bar-label').textContent = `${resizeState.newStart}-${resizeState.newEnd}`;
+    }
+}
+
+async function onGanttResizeEnd() {
+    document.removeEventListener('mousemove', onGanttResizeMove);
+    document.removeEventListener('mouseup', onGanttResizeEnd);
+    document.body.style.cursor = '';
+    if (!resizeState) return;
+    const { id, newStart, newEnd, origStart, origEnd } = resizeState;
+    resizeState = null;
+    if (newStart === origStart && newEnd === origEnd) return;
+    await apiPut(`/dispatches/${id}`, { start_time: newStart, end_time: newEnd });
+    loadDispatchCalendar();
 }
 
 function calcDuration(start, end) {
@@ -215,37 +290,6 @@ function fmt(d) {
 }
 
 
-function toggleEventExpand(el, id) {
-    if (resizeState) return; // リサイズ中はトグルしない
-    if (el.classList.contains('cal-event-open')) {
-        el.classList.remove('cal-event-open');
-        el.classList.add('cal-event-compact');
-    } else {
-        document.querySelectorAll('.cal-event-open').forEach(e => {
-            e.classList.remove('cal-event-open');
-            e.classList.add('cal-event-compact');
-        });
-        el.classList.remove('cal-event-compact');
-        el.classList.add('cal-event-open');
-    }
-}
-
-// ===== リサイズで時間変更 =====
-function startResize(e, dispatchId, edge, startTime, endTime) {
-    resizeState = {
-        id: dispatchId,
-        edge: edge,
-        startY: e.clientY,
-        origStart: startTime,
-        origEnd: endTime,
-        newStart: startTime,
-        newEnd: endTime,
-    };
-    document.addEventListener('mousemove', onResizeMove);
-    document.addEventListener('mouseup', onResizeEnd);
-    document.body.style.cursor = 'ns-resize';
-}
-
 function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
@@ -256,58 +300,6 @@ function minutesToTime(mins) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-}
-
-function onResizeMove(e) {
-    if (!resizeState) return;
-    const dy = e.clientY - resizeState.startY;
-    const step = 30; // 30分単位
-    const pxPerStep = 20; // 20pxで30分
-    const steps = Math.round(dy / pxPerStep);
-    const deltaMins = steps * step;
-
-    if (resizeState.edge === 'bottom') {
-        const newEnd = timeToMinutes(resizeState.origEnd) + deltaMins;
-        const minEnd = timeToMinutes(resizeState.origStart) + step;
-        resizeState.newEnd = minutesToTime(Math.max(newEnd, minEnd));
-        resizeState.newStart = resizeState.origStart;
-    } else {
-        const newStart = timeToMinutes(resizeState.origStart) + deltaMins;
-        const maxStart = timeToMinutes(resizeState.origEnd) - step;
-        resizeState.newStart = minutesToTime(Math.min(newStart, maxStart));
-        resizeState.newEnd = resizeState.origEnd;
-    }
-
-    // プレビュー更新
-    const el = document.querySelector(`.cal-event[data-id="${resizeState.id}"]`);
-    if (el) {
-        const summary = el.querySelector('.cal-event-summary');
-        const timeSpan = el.querySelector('.cal-event-time');
-        const label = `${resizeState.newStart}-${resizeState.newEnd}`;
-        if (summary) summary.textContent = label + ' ...';
-        if (timeSpan) timeSpan.textContent = label;
-        el.classList.add('cal-event-resizing');
-    }
-}
-
-async function onResizeEnd() {
-    document.removeEventListener('mousemove', onResizeMove);
-    document.removeEventListener('mouseup', onResizeEnd);
-    document.body.style.cursor = '';
-
-    if (!resizeState) return;
-    const { id, newStart, newEnd, origStart, origEnd } = resizeState;
-    resizeState = null;
-
-    // 変更がなければスキップ
-    if (newStart === origStart && newEnd === origEnd) {
-        const el = document.querySelector(`.cal-event[data-id="${id}"]`);
-        if (el) el.classList.remove('cal-event-resizing');
-        return;
-    }
-
-    await apiPut(`/dispatches/${id}`, { start_time: newStart, end_time: newEnd });
-    loadDispatchCalendar();
 }
 
 async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId) {

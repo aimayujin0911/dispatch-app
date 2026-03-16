@@ -557,137 +557,133 @@ body {
     gap: 4px;
 }
 
-.cal-empty-hint {
-    color: #cbd5e1;
-    text-align: center;
-    font-size: 1.2rem;
-    line-height: 40px;
+/* 日付タブ */
+.cal-day-tabs {
+    display: flex;
+    gap: 4px;
 }
 
-.cal-cell {
-    min-height: 50px;
-    border-bottom: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    padding: 2px;
+.cal-day-tab {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card-bg);
     cursor: pointer;
-    transition: background 0.15s;
-    position: relative;
-    overflow: hidden;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.15s;
 }
 
-.cal-cell:hover {
+.cal-day-tab:hover {
     background: #f0f7ff;
 }
 
-.cal-cell.cal-today {
-    background: #eff6ff;
+.cal-day-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
 }
 
-.cal-event {
-    border-radius: 4px;
-    padding: 2px 6px;
+.cal-day-tab.today:not(.active) {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* ガントチャート */
+.gantt-wrapper {
+    overflow-x: auto;
+}
+
+.gantt-grid {
+    display: grid;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    user-select: none;
+    -webkit-user-select: none;
+    min-width: 800px;
+}
+
+.gantt-hour-header {
     font-size: 0.7rem;
-    cursor: pointer;
-    overflow: visible;
-    margin-bottom: 1px;
-    line-height: 1.3;
-    transition: all 0.2s;
-    position: relative;
+    padding: 8px 2px;
 }
 
-.cal-resize-handle {
+.gantt-timeline {
+    position: relative;
+    min-height: 44px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.gantt-timeline:hover {
+    background: #fafbfc;
+}
+
+.gantt-gridline {
     position: absolute;
-    left: 0;
-    right: 0;
-    height: 6px;
-    cursor: ns-resize;
-    z-index: 5;
-    opacity: 0;
-    transition: opacity 0.15s;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+    pointer-events: none;
 }
 
-.cal-event:hover .cal-resize-handle {
-    opacity: 1;
-}
-
-.cal-resize-top {
-    top: -3px;
-    border-top: 3px solid rgba(0,0,0,0.3);
-    border-radius: 3px 3px 0 0;
-}
-
-.cal-resize-bottom {
-    bottom: -3px;
-    border-bottom: 3px solid rgba(0,0,0,0.3);
-    border-radius: 0 0 3px 3px;
-}
-
-.cal-event-resizing {
-    opacity: 0.8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.cal-event-compact .cal-event-expanded {
-    display: none;
-}
-
-.cal-event-compact .cal-event-summary {
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 600;
-}
-
-.cal-event-open .cal-event-summary {
-    display: none;
-}
-
-.cal-event-open .cal-event-expanded {
-    display: block;
-}
-
-.cal-event-open {
-    z-index: 10;
-    position: relative;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
-.cal-event-head {
+.gantt-bar {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 4px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-}
-
-.cal-event-edit {
-    font-size: 0.85rem;
     cursor: pointer;
-    opacity: 0.7;
-    padding: 0 2px;
-    border-radius: 3px;
-    transition: opacity 0.15s, background 0.15s;
+    transition: box-shadow 0.15s;
+    z-index: 2;
+    min-width: 20px;
 }
 
-.cal-event-edit:hover {
-    opacity: 1;
-    background: rgba(0,0,0,0.1);
+.gantt-bar:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 3;
 }
 
-.cal-event.ev-blue { background: #dbeafe; color: #1e40af; border-left: 3px solid #2563eb; }
-.cal-event.ev-green { background: #dcfce7; color: #166534; border-left: 3px solid #22c55e; }
-.cal-event.ev-gray { background: #f1f5f9; color: #475569; border-left: 3px solid #94a3b8; }
-.cal-event.ev-red { background: #fee2e2; color: #991b1b; border-left: 3px solid #ef4444; }
+.gantt-bar.ev-blue { background: #dbeafe; color: #1e40af; border-left: 3px solid #2563eb; }
+.gantt-bar.ev-green { background: #dcfce7; color: #166534; border-left: 3px solid #22c55e; }
+.gantt-bar.ev-gray { background: #f1f5f9; color: #475569; border-left: 3px solid #94a3b8; }
+.gantt-bar.ev-red { background: #fee2e2; color: #991b1b; border-left: 3px solid #ef4444; }
 
-.cal-event-time {
-    font-weight: 700;
-    font-size: 0.65rem;
-}
-
-.cal-event-title {
+.gantt-bar-label {
+    font-size: 0.7rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 0 6px;
+    pointer-events: none;
+}
+
+.gantt-bar-resize {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 5;
+}
+
+.gantt-bar-resize-left {
+    left: -2px;
+}
+
+.gantt-bar-resize-right {
+    right: -2px;
+}
+
+.gantt-bar-resize:hover {
+    background: rgba(0,0,0,0.1);
+    border-radius: 2px;
 }
 
 .cal-event-detail {
