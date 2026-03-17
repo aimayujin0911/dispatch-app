@@ -876,28 +876,47 @@ async function deleteDispatch(id) {
 // ===== 車両管理 =====
 async function loadVehicles() {
     const vehicles = await apiGet('/vehicles');
-    document.getElementById('vehicles-table').innerHTML = vehicles.map(v => `
-        <tr>
-            <td><strong>${v.number}</strong></td>
-            <td>${v.type}</td>
-            <td>${v.capacity.toLocaleString()}</td>
+    const today = fmt(new Date());
+    document.getElementById('vehicles-table').innerHTML = vehicles.map(v => {
+        // 車検期限アラート
+        let inspBadge = '-';
+        if (v.inspection_expiry) {
+            const daysLeft = Math.ceil((new Date(v.inspection_expiry) - new Date()) / 86400000);
+            if (daysLeft < 0) {
+                inspBadge = `<span class="badge badge-red">期限切れ</span>`;
+            } else if (daysLeft <= 30) {
+                inspBadge = `<span class="badge badge-orange">${v.inspection_expiry} (残${daysLeft}日)</span>`;
+            } else {
+                inspBadge = `${v.inspection_expiry}`;
+            }
+        }
+        return `<tr>
+            <td><strong><a href="#" onclick="event.preventDefault();editVehicle(${v.id})" class="link-cell">${v.number}</a></strong></td>
+            <td style="font-size:0.8rem;font-family:monospace">${v.chassis_number || '-'}</td>
+            <td>${v.type} <span style="font-size:0.8rem;color:var(--text-light)">${v.capacity.toLocaleString()}kg</span></td>
             <td>${statusBadge(v.status)}</td>
-            <td>${v.notes || '-'}</td>
+            <td>${inspBadge}</td>
             <td>
                 <button class="btn btn-sm btn-edit" onclick="editVehicle(${v.id})">編集</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteVehicle(${v.id})">削除</button>
             </td>
-        </tr>
-    `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
 }
 
 function openVehicleModal(vehicle = null) {
     const isEdit = !!vehicle;
     document.getElementById('modal-title').textContent = isEdit ? '車両編集' : '車両追加';
     document.getElementById('modal-body').innerHTML = `
-        <div class="form-group">
-            <label>車両番号</label>
-            <input type="text" id="f-v-number" value="${vehicle?.number || ''}" placeholder="品川 100 あ 1234">
+        <div class="form-row">
+            <div class="form-group">
+                <label>車両番号（ナンバー）</label>
+                <input type="text" id="f-v-number" value="${vehicle?.number || ''}" placeholder="品川 100 あ 1234">
+            </div>
+            <div class="form-group">
+                <label>車台番号</label>
+                <input type="text" id="f-v-chassis" value="${vehicle?.chassis_number || ''}" placeholder="ABC-1234567">
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -919,6 +938,16 @@ function openVehicleModal(vehicle = null) {
                     `<option ${vehicle?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
         </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>初度登録年月</label>
+                <input type="month" id="f-v-first-reg" value="${vehicle?.first_registration || ''}">
+            </div>
+            <div class="form-group">
+                <label>車検有効期限</label>
+                <input type="date" id="f-v-inspection" value="${vehicle?.inspection_expiry || ''}">
+            </div>
+        </div>
         <div class="form-group">
             <label>備考</label>
             <textarea id="f-v-notes">${vehicle?.notes || ''}</textarea>
@@ -933,9 +962,12 @@ function openVehicleModal(vehicle = null) {
 async function saveVehicle(id) {
     const data = {
         number: document.getElementById('f-v-number').value,
+        chassis_number: document.getElementById('f-v-chassis').value,
         type: document.getElementById('f-v-type').value,
         capacity: parseFloat(document.getElementById('f-v-capacity').value),
         status: document.getElementById('f-v-status').value,
+        first_registration: document.getElementById('f-v-first-reg').value,
+        inspection_expiry: document.getElementById('f-v-inspection').value,
         notes: document.getElementById('f-v-notes').value,
     };
     if (!data.number) return alert('車両番号を入力してください');

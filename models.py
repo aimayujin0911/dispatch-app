@@ -9,9 +9,12 @@ class Vehicle(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String(20), unique=True, nullable=False)
+    chassis_number = Column(String(30), default="")
     type = Column(String(50), nullable=False)
     capacity = Column(Float, nullable=False)
     status = Column(String(20), default="空車")
+    first_registration = Column(String(10), default="")
+    inspection_expiry = Column(String(10), default="")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 

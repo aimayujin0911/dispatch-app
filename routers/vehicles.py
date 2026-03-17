@@ -10,17 +10,23 @@ router = APIRouter()
 
 class VehicleCreate(BaseModel):
     number: str
+    chassis_number: str = ""
     type: str
     capacity: float
     status: str = "空車"
+    first_registration: str = ""
+    inspection_expiry: str = ""
     notes: str = ""
 
 
 class VehicleUpdate(BaseModel):
     number: Optional[str] = None
+    chassis_number: Optional[str] = None
     type: Optional[str] = None
     capacity: Optional[float] = None
     status: Optional[str] = None
+    first_registration: Optional[str] = None
+    inspection_expiry: Optional[str] = None
     notes: Optional[str] = None
 
 
