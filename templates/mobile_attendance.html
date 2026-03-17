@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>勤怠打刻 - 配車管理</title>
+    <title>勤怠打刻・日報 - 配車管理</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -24,7 +24,7 @@
         }
         .header h1 { font-size: 1.1rem; font-weight: 700; }
         .header .date { font-size: 0.85rem; opacity: 0.9; margin-top: 4px; }
-        .container { padding: 16px; max-width: 500px; margin: 0 auto; }
+        .container { padding: 16px; max-width: 500px; margin: 0 auto; padding-bottom: 70px; }
 
         .card {
             background: var(--card); border-radius: 12px;
@@ -42,46 +42,98 @@
             background-repeat: no-repeat; background-position: right 16px center;
         }
 
-        .clock-display {
-            text-align: center; padding: 20px 0;
-        }
+        .clock-display { text-align: center; padding: 16px 0; }
         .clock-time {
-            font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums;
+            font-size: 2.8rem; font-weight: 700; font-variant-numeric: tabular-nums;
             color: var(--primary);
         }
-        .clock-date { font-size: 0.9rem; color: var(--text-light); margin-top: 4px; }
+        .clock-date { font-size: 0.85rem; color: var(--text-light); margin-top: 4px; }
 
-        .punch-buttons {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-            margin: 16px 0;
-        }
+        .punch-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
         .punch-btn {
-            padding: 20px; font-size: 1.1rem; font-weight: 700;
+            padding: 18px; font-size: 1.05rem; font-weight: 700;
             border: none; border-radius: 12px; cursor: pointer;
             color: #fff; transition: transform 0.1s, opacity 0.2s;
         }
         .punch-btn:active { transform: scale(0.97); }
         .punch-btn.clock-in { background: var(--green); }
-        .punch-btn.clock-in:hover { background: var(--green-dark); }
         .punch-btn.clock-out { background: var(--orange); }
-        .punch-btn.clock-out:hover { background: #d97706; }
         .punch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         .status-banner {
-            text-align: center; padding: 12px; border-radius: 10px;
-            font-weight: 600; font-size: 0.95rem; margin-bottom: 16px;
+            text-align: center; padding: 10px; border-radius: 10px;
+            font-weight: 600; font-size: 0.9rem; margin-bottom: 12px;
         }
         .status-banner.working { background: #dcfce7; color: #166534; }
         .status-banner.off { background: #f1f5f9; color: var(--text-light); }
         .status-banner.done { background: #dbeafe; color: #1e40af; }
 
-        .today-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .today-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .info-item {
-            background: #f8fafc; border-radius: 8px; padding: 12px; text-align: center;
+            background: #f8fafc; border-radius: 8px; padding: 10px; text-align: center;
         }
-        .info-label { font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px; }
-        .info-value { font-size: 1.2rem; font-weight: 700; }
+        .info-label { font-size: 0.7rem; color: var(--text-light); margin-bottom: 2px; }
+        .info-value { font-size: 1.1rem; font-weight: 700; }
 
+        .work-type-select, .vehicle-select {
+            width: 100%; padding: 10px; font-size: 0.9rem;
+            border: 1px solid #d1d5db; border-radius: 8px; margin-top: 6px;
+            background: #fff; appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 12px center;
+        }
+
+        /* タブ切替 */
+        .tab-bar {
+            display: flex; gap: 0; margin-bottom: 16px;
+            background: #e2e8f0; border-radius: 10px; padding: 3px;
+        }
+        .tab-btn {
+            flex: 1; padding: 10px; text-align: center; font-size: 0.85rem;
+            font-weight: 600; border: none; background: transparent; cursor: pointer;
+            border-radius: 8px; color: var(--text-light); transition: all 0.2s;
+        }
+        .tab-btn.active { background: #fff; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* 日報フォーム */
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 0; cursor: pointer; border-bottom: 1px solid #e2e8f0;
+        }
+        .section-header h3 {
+            font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 6px;
+        }
+        .section-header .toggle { font-size: 0.8rem; color: var(--text-light); transition: transform 0.2s; }
+        .section-header.open .toggle { transform: rotate(180deg); }
+        .section-body { display: none; padding: 12px 0; }
+        .section-body.open { display: block; }
+
+        .form-row { margin-bottom: 12px; }
+        .form-row label {
+            display: block; font-size: 0.78rem; color: var(--text-light);
+            margin-bottom: 4px; font-weight: 600;
+        }
+        .form-row input, .form-row select, .form-row textarea {
+            width: 100%; padding: 10px 12px; font-size: 0.9rem;
+            border: 1px solid #d1d5db; border-radius: 8px; background: #fff;
+            color: var(--text);
+        }
+        .form-row textarea { resize: vertical; min-height: 60px; }
+        .form-row input[type="time"] { font-family: inherit; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+        .save-btn {
+            width: 100%; padding: 14px; font-size: 1rem; font-weight: 700;
+            background: var(--primary); color: #fff; border: none; border-radius: 12px;
+            cursor: pointer; margin-top: 12px; transition: background 0.2s;
+        }
+        .save-btn:hover { background: var(--primary-dark); }
+        .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 履歴 */
         .history-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 12px 0; border-bottom: 1px solid #e2e8f0;
@@ -98,15 +150,6 @@
         .badge-orange { background: #fef3c7; color: #92400e; }
         .badge-blue { background: #dbeafe; color: #1e40af; }
 
-        .work-type-select {
-            width: 100%; padding: 10px; font-size: 0.9rem;
-            border: 1px solid #d1d5db; border-radius: 8px; margin-top: 8px;
-        }
-        .break-input {
-            width: 100%; padding: 10px; font-size: 0.9rem;
-            border: 1px solid #d1d5db; border-radius: 8px; margin-top: 8px;
-        }
-
         .nav-bottom {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: #fff; border-top: 1px solid #e2e8f0;
@@ -120,11 +163,33 @@
         .msg { text-align: center; padding: 8px; font-size: 0.85rem; border-radius: 8px; margin-bottom: 12px; display: none; }
         .msg.success { display: block; background: #dcfce7; color: #166534; }
         .msg.error { display: block; background: #fee2e2; color: #991b1b; }
+
+        .alcohol-btns { display: flex; gap: 8px; }
+        .alcohol-btn {
+            flex: 1; padding: 10px; text-align: center; font-size: 0.85rem; font-weight: 600;
+            border: 2px solid #d1d5db; border-radius: 8px; background: #fff; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .alcohol-btn.selected-ok { background: #dcfce7; border-color: #22c55e; color: #166534; }
+        .alcohol-btn.selected-ng { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+
+        .weather-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .weather-btn {
+            padding: 8px 14px; font-size: 0.85rem; font-weight: 600;
+            border: 2px solid #d1d5db; border-radius: 8px; background: #fff; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .weather-btn.selected { background: #dbeafe; border-color: var(--primary); color: var(--primary); }
+
+        .break-input {
+            width: 100%; padding: 10px; font-size: 0.9rem;
+            border: 1px solid #d1d5db; border-radius: 8px; margin-top: 6px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🚛 勤怠打刻</h1>
+        <h1>🚛 勤怠・日報</h1>
         <div class="date" id="header-date"></div>
     </div>
 
@@ -139,58 +204,220 @@
         </div>
 
         <div id="main-content" style="display:none">
-            <div class="card">
-                <div class="clock-display">
-                    <div class="clock-time" id="clock-time">--:--</div>
-                    <div class="clock-date" id="clock-date"></div>
+            <!-- タブ切替 -->
+            <div class="tab-bar">
+                <button class="tab-btn active" onclick="switchTab('punch')">打刻</button>
+                <button class="tab-btn" onclick="switchTab('report')">日報入力</button>
+                <button class="tab-btn" onclick="switchTab('history')">履歴</button>
+            </div>
+
+            <!-- === 打刻タブ === -->
+            <div id="tab-punch" class="tab-content active">
+                <div class="card">
+                    <div class="clock-display">
+                        <div class="clock-time" id="clock-time">--:--</div>
+                        <div class="clock-date" id="clock-date"></div>
+                    </div>
+                    <div id="status-banner" class="status-banner off">未出勤</div>
+                    <div class="punch-buttons">
+                        <button class="punch-btn clock-in" id="btn-clock-in" onclick="punchClockIn()">🟢 出勤</button>
+                        <button class="punch-btn clock-out" id="btn-clock-out" onclick="punchClockOut()" disabled>🟠 退勤</button>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>勤務種別</label>
+                            <select class="work-type-select" id="work-type">
+                                <option>通常</option>
+                                <option>休日出勤</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>休憩時間(分)</label>
+                            <input type="number" class="break-input" id="break-minutes" value="60" style="margin-top:0">
+                        </div>
+                    </div>
                 </div>
-                <div id="status-banner" class="status-banner off">未出勤</div>
-                <div class="punch-buttons">
-                    <button class="punch-btn clock-in" id="btn-clock-in" onclick="punchClockIn()">
-                        🟢 出勤
-                    </button>
-                    <button class="punch-btn clock-out" id="btn-clock-out" onclick="punchClockOut()" disabled>
-                        🟠 退勤
-                    </button>
-                </div>
-                <div class="form-group" style="margin-top:8px">
-                    <label style="font-size:0.8rem;color:var(--text-light)">勤務種別</label>
-                    <select class="work-type-select" id="work-type">
-                        <option>通常</option>
-                        <option>休日出勤</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-top:8px">
-                    <label style="font-size:0.8rem;color:var(--text-light)">休憩時間(分)</label>
-                    <input type="number" class="break-input" id="break-minutes" value="60">
+
+                <div class="card">
+                    <h2>本日の情報</h2>
+                    <div class="today-info">
+                        <div class="info-item">
+                            <div class="info-label">出勤時刻</div>
+                            <div class="info-value" id="today-in">--:--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">退勤時刻</div>
+                            <div class="info-value" id="today-out">--:--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">勤務時間</div>
+                            <div class="info-value" id="today-hours">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">残業</div>
+                            <div class="info-value" id="today-overtime">-</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>本日の情報</h2>
-                <div class="today-info">
-                    <div class="info-item">
-                        <div class="info-label">出勤時刻</div>
-                        <div class="info-value" id="today-in">--:--</div>
+            <!-- === 日報入力タブ === -->
+            <div id="tab-report" class="tab-content">
+                <div class="card">
+                    <h2>📋 本日の日報</h2>
+
+                    <!-- 車両・運行情報 -->
+                    <div class="section-header open" onclick="toggleSection(this)">
+                        <h3>🚛 車両・運行情報</h3>
+                        <span class="toggle">▲</span>
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">退勤時刻</div>
-                        <div class="info-value" id="today-out">--:--</div>
+                    <div class="section-body open">
+                        <div class="form-row">
+                            <label>使用車両</label>
+                            <select class="vehicle-select" id="rpt-vehicle">
+                                <option value="">-- 選択 --</option>
+                            </select>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <label>出庫時刻</label>
+                                <input type="time" id="rpt-departure">
+                            </div>
+                            <div class="form-row">
+                                <label>帰庫時刻</label>
+                                <input type="time" id="rpt-return">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label>走行距離 (km)</label>
+                            <input type="number" id="rpt-distance" step="0.1" placeholder="例: 185.3">
+                        </div>
+                        <div class="form-row">
+                            <label>運行経路</label>
+                            <textarea id="rpt-routes" placeholder="例: 大田倉庫→首都高→東名→横浜港"></textarea>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">勤務時間</div>
-                        <div class="info-value" id="today-hours">-</div>
+
+                    <!-- 作業時間 -->
+                    <div class="section-header open" onclick="toggleSection(this)">
+                        <h3>⏱ 作業時間</h3>
+                        <span class="toggle">▲</span>
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">残業</div>
-                        <div class="info-value" id="today-overtime">-</div>
+                    <div class="section-body open">
+                        <div class="form-grid-3">
+                            <div class="form-row">
+                                <label>荷待ち(分)</label>
+                                <input type="number" id="rpt-waiting" value="0" min="0">
+                            </div>
+                            <div class="form-row">
+                                <label>積込(分)</label>
+                                <input type="number" id="rpt-loading" value="0" min="0">
+                            </div>
+                            <div class="form-row">
+                                <label>荷卸(分)</label>
+                                <input type="number" id="rpt-unloading" value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <label>休憩場所</label>
+                                <input type="text" id="rpt-break-location" placeholder="例: 海老名SA">
+                            </div>
+                            <div class="form-row">
+                                <label>休憩時間(分)</label>
+                                <input type="number" id="rpt-break" value="60" min="0">
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- 点呼 -->
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h3>✅ 点呼</h3>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <label>出庫前点呼</label>
+                                <input type="time" id="rpt-pre-check">
+                            </div>
+                            <div class="form-row">
+                                <label>帰庫後点呼</label>
+                                <input type="time" id="rpt-post-check">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label>アルコール検知</label>
+                            <div class="alcohol-btns">
+                                <button type="button" class="alcohol-btn" onclick="selectAlcohol(this, '異常なし')">✅ 異常なし</button>
+                                <button type="button" class="alcohol-btn" onclick="selectAlcohol(this, '要確認')">⚠️ 要確認</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 給油・高速 -->
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h3>⛽ 給油・高速</h3>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-grid">
+                            <div class="form-row">
+                                <label>給油量 (L)</label>
+                                <input type="number" id="rpt-fuel-liters" step="0.1" value="0">
+                            </div>
+                            <div class="form-row">
+                                <label>給油金額 (円)</label>
+                                <input type="number" id="rpt-fuel-cost" value="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label>高速料金 (円)</label>
+                            <input type="number" id="rpt-highway-cost" value="0">
+                        </div>
+                        <div class="form-row">
+                            <label>高速区間</label>
+                            <input type="text" id="rpt-highway-sections" placeholder="例: 東名 大井松田→厚木">
+                        </div>
+                    </div>
+
+                    <!-- その他 -->
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <h3>📝 その他</h3>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="form-row">
+                            <label>天候</label>
+                            <div class="weather-btns">
+                                <button type="button" class="weather-btn" onclick="selectWeather(this, '晴')">☀️ 晴</button>
+                                <button type="button" class="weather-btn" onclick="selectWeather(this, '曇')">☁️ 曇</button>
+                                <button type="button" class="weather-btn" onclick="selectWeather(this, '雨')">🌧 雨</button>
+                                <button type="button" class="weather-btn" onclick="selectWeather(this, '雪')">❄️ 雪</button>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label>事故・故障・特記事項</label>
+                            <textarea id="rpt-incidents" placeholder="なければ空欄でOK"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>備考</label>
+                            <textarea id="rpt-notes" placeholder="その他メモ"></textarea>
+                        </div>
+                    </div>
+
+                    <button class="save-btn" id="btn-save-report" onclick="saveReport()">
+                        💾 日報を保存
+                    </button>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>直近の勤怠</h2>
-                <div id="history-list"></div>
+            <!-- === 履歴タブ === -->
+            <div id="tab-history" class="tab-content">
+                <div class="card">
+                    <h2>直近の勤怠</h2>
+                    <div id="history-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -203,35 +430,71 @@
         const API = '/api';
         let currentDriverId = null;
         let todayRecord = null;
+        let vehicles = [];
+        let selectedAlcohol = '';
+        let selectedWeather = '';
 
-        // 時計更新
+        // --- 時計 ---
         function updateClock() {
             const now = new Date();
             document.getElementById('clock-time').textContent =
                 now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
-            document.getElementById('clock-date').textContent =
-                now.toLocaleDateString('ja-JP', {year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'});
-            document.getElementById('header-date').textContent =
-                now.toLocaleDateString('ja-JP', {year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'});
+            const dateStr = now.toLocaleDateString('ja-JP', {year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'});
+            document.getElementById('clock-date').textContent = dateStr;
+            document.getElementById('header-date').textContent = dateStr;
         }
         setInterval(updateClock, 1000);
         updateClock();
 
         function fmt(d) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         }
 
         function showMsg(text, type) {
             const el = document.getElementById('msg');
             el.textContent = text;
             el.className = 'msg ' + type;
-            setTimeout(() => { el.className = 'msg'; }, 3000);
+            setTimeout(() => { el.className = 'msg'; }, 4000);
         }
 
-        // ドライバー一覧読み込み
+        // --- タブ切替 ---
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach((b, i) => {
+                b.classList.toggle('active', b.textContent.includes(
+                    tab === 'punch' ? '打刻' : tab === 'report' ? '日報' : '履歴'
+                ));
+            });
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            if (tab === 'report') loadReportData();
+            if (tab === 'history') loadHistory();
+        }
+
+        // --- セクション開閉 ---
+        function toggleSection(header) {
+            header.classList.toggle('open');
+            const body = header.nextElementSibling;
+            body.classList.toggle('open');
+            header.querySelector('.toggle').textContent = body.classList.contains('open') ? '▲' : '▼';
+        }
+
+        // --- アルコール選択 ---
+        function selectAlcohol(btn, value) {
+            document.querySelectorAll('.alcohol-btn').forEach(b => {
+                b.classList.remove('selected-ok', 'selected-ng');
+            });
+            selectedAlcohol = value;
+            btn.classList.add(value === '異常なし' ? 'selected-ok' : 'selected-ng');
+        }
+
+        // --- 天候選択 ---
+        function selectWeather(btn, value) {
+            document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('selected'));
+            selectedWeather = value;
+            btn.classList.add('selected');
+        }
+
+        // --- ドライバー・車両読み込み ---
         async function loadDrivers() {
             const res = await fetch(API + '/drivers');
             const drivers = await res.json();
@@ -242,12 +505,21 @@
                 opt.textContent = d.name;
                 sel.appendChild(opt);
             });
-            // LocalStorageから前回選択を復元
             const saved = localStorage.getItem('attendance_driver_id');
-            if (saved) {
-                sel.value = saved;
-                onDriverChange();
-            }
+            if (saved) { sel.value = saved; onDriverChange(); }
+        }
+
+        async function loadVehicles() {
+            const res = await fetch(API + '/vehicles');
+            vehicles = await res.json();
+            const sel = document.getElementById('rpt-vehicle');
+            sel.innerHTML = '<option value="">-- 選択 --</option>';
+            vehicles.filter(v => v.status !== '整備中').forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.id;
+                opt.textContent = `${v.number} (${v.type})`;
+                sel.appendChild(opt);
+            });
         }
 
         async function onDriverChange() {
@@ -263,11 +535,12 @@
             await loadHistory();
         }
 
+        // --- 打刻系 ---
         async function loadTodayRecord() {
             const today = fmt(new Date());
-            const res = await fetch(API + '/attendance');
+            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`);
             const records = await res.json();
-            todayRecord = records.find(r => r.driver_id === currentDriverId && r.date === today);
+            todayRecord = records.find(r => r.date === today);
 
             const banner = document.getElementById('status-banner');
             const btnIn = document.getElementById('btn-clock-in');
@@ -278,58 +551,29 @@
                 document.getElementById('today-out').textContent = todayRecord.clock_out || '--:--';
 
                 if (todayRecord.clock_in && todayRecord.clock_out) {
-                    // 退勤済み
                     banner.className = 'status-banner done';
                     banner.textContent = '✅ 本日の勤務完了';
-                    btnIn.disabled = true;
-                    btnOut.disabled = true;
+                    btnIn.disabled = true; btnOut.disabled = true;
                     const mins = timeDiff(todayRecord.clock_in, todayRecord.clock_out) - (todayRecord.break_minutes || 60);
                     document.getElementById('today-hours').textContent = `${Math.floor(mins/60)}h${mins%60}m`;
-                    document.getElementById('today-overtime').textContent = todayRecord.overtime_minutes > 0 ? `${todayRecord.overtime_minutes}分` : 'なし';
+                    document.getElementById('today-overtime').textContent =
+                        todayRecord.overtime_minutes > 0 ? `${todayRecord.overtime_minutes}分` : 'なし';
                 } else if (todayRecord.clock_in) {
-                    // 勤務中
                     banner.className = 'status-banner working';
                     banner.textContent = `🟢 勤務中 (${todayRecord.clock_in}〜)`;
-                    btnIn.disabled = true;
-                    btnOut.disabled = false;
+                    btnIn.disabled = true; btnOut.disabled = false;
                     document.getElementById('today-hours').textContent = '勤務中...';
                     document.getElementById('today-overtime').textContent = '-';
                 }
             } else {
-                // 未出勤
                 banner.className = 'status-banner off';
                 banner.textContent = '未出勤';
-                btnIn.disabled = false;
-                btnOut.disabled = true;
+                btnIn.disabled = false; btnOut.disabled = true;
                 document.getElementById('today-in').textContent = '--:--';
                 document.getElementById('today-out').textContent = '--:--';
                 document.getElementById('today-hours').textContent = '-';
                 document.getElementById('today-overtime').textContent = '-';
             }
-        }
-
-        async function loadHistory() {
-            const res = await fetch(API + '/attendance');
-            const records = await res.json();
-            const mine = records.filter(r => r.driver_id === currentDriverId).slice(0, 10);
-            const today = fmt(new Date());
-
-            document.getElementById('history-list').innerHTML = mine
-                .filter(r => r.date !== today)
-                .map(r => {
-                    const workMins = r.clock_in && r.clock_out ? timeDiff(r.clock_in, r.clock_out) - (r.break_minutes || 60) : 0;
-                    const otBadge = r.overtime_minutes > 0 ? `<span class="badge badge-orange">残業${r.overtime_minutes}分</span>` : '';
-                    return `<div class="history-item">
-                        <div>
-                            <div class="history-date">${r.date}</div>
-                            <div class="history-times">${r.clock_in || '-'} → ${r.clock_out || '-'}</div>
-                        </div>
-                        <div style="text-align:right">
-                            <div class="history-hours">${workMins > 0 ? Math.floor(workMins/60) + 'h' + (workMins%60) + 'm' : '-'}</div>
-                            ${otBadge}
-                        </div>
-                    </div>`;
-                }).join('') || '<p style="color:var(--text-light);font-size:0.85rem;text-align:center;padding:20px">履歴がありません</p>';
         }
 
         async function punchClockIn() {
@@ -340,7 +584,7 @@
             const breakMin = parseInt(document.getElementById('break-minutes').value) || 60;
 
             try {
-                await fetch(API + '/attendance', {
+                const res = await fetch(API + '/attendance', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -352,6 +596,7 @@
                         work_type: workType,
                     })
                 });
+                if (!res.ok) throw new Error('API error');
                 showMsg(`${time} 出勤しました`, 'success');
                 await loadTodayRecord();
             } catch(e) {
@@ -365,11 +610,12 @@
             const time = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});
 
             try {
-                await fetch(API + `/attendance/${todayRecord.id}`, {
+                const res = await fetch(API + `/attendance/${todayRecord.id}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ clock_out: time })
                 });
+                if (!res.ok) throw new Error('API error');
                 showMsg(`${time} 退勤しました。お疲れ様でした！`, 'success');
                 await loadTodayRecord();
                 await loadHistory();
@@ -378,13 +624,147 @@
             }
         }
 
+        // --- 日報入力 ---
+        async function loadReportData() {
+            if (!todayRecord) {
+                await loadTodayRecord();
+            }
+            if (!todayRecord) return;
+
+            // 既存データをフォームに反映
+            const r = todayRecord;
+            document.getElementById('rpt-vehicle').value = r.vehicle_id || '';
+            document.getElementById('rpt-departure').value = r.departure_time || '';
+            document.getElementById('rpt-return').value = r.return_time || '';
+            document.getElementById('rpt-distance').value = r.distance_km || '';
+            document.getElementById('rpt-routes').value = r.routes || '';
+            document.getElementById('rpt-waiting').value = r.waiting_time || 0;
+            document.getElementById('rpt-loading').value = r.loading_time || 0;
+            document.getElementById('rpt-unloading').value = r.unloading_time || 0;
+            document.getElementById('rpt-break-location').value = r.break_location || '';
+            document.getElementById('rpt-break').value = r.break_minutes || 60;
+            document.getElementById('rpt-pre-check').value = r.pre_check_time || '';
+            document.getElementById('rpt-post-check').value = r.post_check_time || '';
+            document.getElementById('rpt-fuel-liters').value = r.fuel_liters || 0;
+            document.getElementById('rpt-fuel-cost').value = r.fuel_cost || 0;
+            document.getElementById('rpt-highway-cost').value = r.highway_cost || 0;
+            document.getElementById('rpt-highway-sections').value = r.highway_sections || '';
+            document.getElementById('rpt-incidents').value = r.incidents || '';
+            document.getElementById('rpt-notes').value = r.notes || '';
+
+            // アルコール
+            selectedAlcohol = r.alcohol_check || '';
+            document.querySelectorAll('.alcohol-btn').forEach(b => {
+                b.classList.remove('selected-ok', 'selected-ng');
+            });
+            if (selectedAlcohol) {
+                document.querySelectorAll('.alcohol-btn').forEach(b => {
+                    if (b.textContent.includes(selectedAlcohol === '異常なし' ? '異常なし' : '要確認')) {
+                        b.classList.add(selectedAlcohol === '異常なし' ? 'selected-ok' : 'selected-ng');
+                    }
+                });
+            }
+
+            // 天候
+            selectedWeather = r.weather || '';
+            document.querySelectorAll('.weather-btn').forEach(b => {
+                b.classList.remove('selected');
+                if (selectedWeather && b.textContent.includes(selectedWeather)) {
+                    b.classList.add('selected');
+                }
+            });
+        }
+
+        async function saveReport() {
+            if (!currentDriverId) return;
+            if (!todayRecord) {
+                showMsg('先に出勤打刻を行ってください', 'error');
+                return;
+            }
+
+            const data = {
+                vehicle_id: parseInt(document.getElementById('rpt-vehicle').value) || null,
+                departure_time: document.getElementById('rpt-departure').value || '',
+                return_time: document.getElementById('rpt-return').value || '',
+                distance_km: parseFloat(document.getElementById('rpt-distance').value) || 0,
+                routes: document.getElementById('rpt-routes').value,
+                waiting_time: parseInt(document.getElementById('rpt-waiting').value) || 0,
+                loading_time: parseInt(document.getElementById('rpt-loading').value) || 0,
+                unloading_time: parseInt(document.getElementById('rpt-unloading').value) || 0,
+                break_location: document.getElementById('rpt-break-location').value,
+                break_minutes: parseInt(document.getElementById('rpt-break').value) || 60,
+                pre_check_time: document.getElementById('rpt-pre-check').value || '',
+                post_check_time: document.getElementById('rpt-post-check').value || '',
+                alcohol_check: selectedAlcohol,
+                fuel_liters: parseFloat(document.getElementById('rpt-fuel-liters').value) || 0,
+                fuel_cost: parseInt(document.getElementById('rpt-fuel-cost').value) || 0,
+                highway_cost: parseInt(document.getElementById('rpt-highway-cost').value) || 0,
+                highway_sections: document.getElementById('rpt-highway-sections').value,
+                weather: selectedWeather,
+                incidents: document.getElementById('rpt-incidents').value,
+                notes: document.getElementById('rpt-notes').value,
+            };
+
+            try {
+                const btn = document.getElementById('btn-save-report');
+                btn.disabled = true; btn.textContent = '保存中...';
+
+                const res = await fetch(`${API}/attendance/${todayRecord.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) throw new Error('API error');
+
+                btn.textContent = '✅ 保存しました';
+                showMsg('日報を保存しました', 'success');
+                await loadTodayRecord();
+                setTimeout(() => { btn.disabled = false; btn.textContent = '💾 日報を保存'; }, 2000);
+            } catch(e) {
+                showMsg('保存に失敗しました', 'error');
+                const btn = document.getElementById('btn-save-report');
+                btn.disabled = false; btn.textContent = '💾 日報を保存';
+            }
+        }
+
+        // --- 履歴 ---
+        async function loadHistory() {
+            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`);
+            const records = await res.json();
+            const today = fmt(new Date());
+
+            document.getElementById('history-list').innerHTML = records
+                .filter(r => r.date !== today)
+                .slice(0, 10)
+                .map(r => {
+                    const workMins = r.clock_in && r.clock_out
+                        ? timeDiff(r.clock_in, r.clock_out) - (r.break_minutes || 60) : 0;
+                    const otBadge = r.overtime_minutes > 0
+                        ? `<span class="badge badge-orange">残業${r.overtime_minutes}分</span>` : '';
+                    const vBadge = r.vehicle_number
+                        ? `<span class="badge badge-blue">${r.vehicle_number}</span>` : '';
+                    return `<div class="history-item">
+                        <div>
+                            <div class="history-date">${r.date} ${vBadge}</div>
+                            <div class="history-times">${r.clock_in || '-'} → ${r.clock_out || '-'}</div>
+                        </div>
+                        <div style="text-align:right">
+                            <div class="history-hours">${workMins > 0 ? Math.floor(workMins/60) + 'h' + (workMins%60) + 'm' : '-'}</div>
+                            ${otBadge}
+                        </div>
+                    </div>`;
+                }).join('') || '<p style="color:var(--text-light);font-size:0.85rem;text-align:center;padding:20px">履歴がありません</p>';
+        }
+
         function timeDiff(start, end) {
             const [sh, sm] = start.split(':').map(Number);
             const [eh, em] = end.split(':').map(Number);
             return (eh * 60 + em) - (sh * 60 + sm);
         }
 
+        // --- 初期化 ---
         loadDrivers();
+        loadVehicles();
     </script>
 </body>
 </html>
