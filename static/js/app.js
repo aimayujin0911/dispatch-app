@@ -7,6 +7,7 @@ let calendarDate = new Date();
 let dragState = null;
 let resizeState = null;
 let justDragged = false;
+let shipmentDragState = null;
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -164,7 +165,7 @@ async function loadDispatchCalendar() {
     if (unassigned.length > 0) {
         panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 (${unassigned.length}件)</h3>
             <div class="unassigned-list">
-                ${unassigned.map(s => `<div class="unassigned-item" onclick="openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})">
+                ${unassigned.map(s => `<div class="unassigned-item" draggable="false" onmousedown="startShipmentDrag(event, ${s.id}, '${s.client_name}', '${(s.pickup_address||'').replace(/'/g,"\\'")}', '${(s.delivery_address||'').replace(/'/g,"\\'")}', '${activeDayStr}')" onclick="if(!justDragged){openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})}">
                     <strong>${s.client_name}</strong>
                     <span>${s.pickup_address} → ${s.delivery_address}</span>
                     <span class="badge badge-orange">未配車</span>
@@ -346,6 +347,138 @@ async function onGanttDragEnd(e) {
         await apiPut(`/dispatches/${id}`, update);
         loadDispatchCalendar();
     }
+}
+
+// ===== 未配車案件ドラッグ＆ドロップ =====
+function startShipmentDrag(e, shipmentId, clientName, pickup, delivery, dayStr) {
+    e.preventDefault();
+    shipmentDragState = {
+        shipmentId, clientName, pickup, delivery, dayStr,
+        startX: e.clientX, startY: e.clientY,
+        dragging: false, ghost: null, targetVehicleId: null, dropTime: '08:00',
+    };
+    document.addEventListener('mousemove', onShipmentDragMove);
+    document.addEventListener('mouseup', onShipmentDragEnd);
+}
+
+function onShipmentDragMove(e) {
+    if (!shipmentDragState) return;
+    const dx = Math.abs(e.clientX - shipmentDragState.startX);
+    const dy = Math.abs(e.clientY - shipmentDragState.startY);
+    if (!shipmentDragState.dragging && (dx > 5 || dy > 5)) {
+        shipmentDragState.dragging = true;
+        document.body.style.cursor = 'grabbing';
+    }
+    if (!shipmentDragState.dragging) return;
+
+    document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
+
+    if (timeline) {
+        const vid = parseInt(timeline.dataset.vehicleId);
+        shipmentDragState.targetVehicleId = vid;
+        timeline.classList.add('drag-over');
+
+        // 時間を計算
+        const rect = timeline.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const pct = relX / rect.width;
+        const totalMin = HOUR_COUNT * 60;
+        const mins = HOUR_START * 60 + pct * totalMin;
+        const snapped = Math.round(mins / 15) * 15;
+        const startMin = Math.max(HOUR_START * 60, Math.min(snapped, HOUR_END * 60 - 60));
+        shipmentDragState.dropTime = minutesToTime(startMin);
+
+        // ゴーストバー表示
+        if (!shipmentDragState.ghost || shipmentDragState.ghost.parentElement !== timeline) {
+            if (shipmentDragState.ghost) shipmentDragState.ghost.remove();
+            const ghost = document.createElement('div');
+            ghost.className = 'gantt-bar gantt-bar-ghost ev-green';
+            ghost.style.pointerEvents = 'none';
+            timeline.appendChild(ghost);
+            shipmentDragState.ghost = ghost;
+        }
+        const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
+        const width = (60 / totalMin) * 100; // デフォルト1時間幅
+        shipmentDragState.ghost.style.left = left + '%';
+        shipmentDragState.ghost.style.width = width + '%';
+        shipmentDragState.ghost.innerHTML = `<span class="gantt-ghost-label">${shipmentDragState.dropTime} ${shipmentDragState.clientName}</span>`;
+    } else {
+        shipmentDragState.targetVehicleId = null;
+        if (shipmentDragState.ghost) { shipmentDragState.ghost.remove(); shipmentDragState.ghost = null; }
+    }
+}
+
+async function onShipmentDragEnd(e) {
+    document.removeEventListener('mousemove', onShipmentDragMove);
+    document.removeEventListener('mouseup', onShipmentDragEnd);
+    document.body.style.cursor = '';
+    document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    if (!shipmentDragState) return;
+    const { shipmentId, dayStr, dragging, targetVehicleId, dropTime, ghost } = shipmentDragState;
+    if (ghost) ghost.remove();
+    shipmentDragState = null;
+
+    if (!dragging) return;
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 200);
+
+    if (!targetVehicleId) return;
+
+    // ドライバー選択モーダルを開く（車両・時間・案件はドロップから確定）
+    const drivers = await apiGet('/drivers');
+    const availableDrivers = drivers.filter(d => d.status !== '非番');
+    const endMin = timeToMinutes(dropTime) + 60;
+    const endTime = minutesToTime(Math.min(endMin, HOUR_END * 60));
+
+    document.getElementById('modal-title').textContent = '配車確定 - ドライバー選択';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
+            <div><strong>日付:</strong> ${dayStr}</div>
+            <div><strong>時間:</strong> ${dropTime} 〜 ${endTime}</div>
+        </div>
+        <div class="form-group">
+            <label>ドライバー</label>
+            <select id="f-sd-driver">
+                <option value="">-- 選択 --</option>
+                ${availableDrivers.map(d => `<option value="${d.id}">${d.name} (${d.license_type}) [${d.status}]</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>開始時刻</label>
+                <input type="time" id="f-sd-start" value="${dropTime}">
+            </div>
+            <div class="form-group">
+                <label>終了時刻</label>
+                <input type="time" id="f-sd-end" value="${endTime}">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="confirmShipmentDrop(${targetVehicleId}, ${shipmentId}, '${dayStr}')">配車する</button>
+        </div>`;
+    showModal();
+}
+
+async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
+    const driverId = parseInt(document.getElementById('f-sd-driver').value);
+    if (!driverId) return alert('ドライバーを選択してください');
+    const startTime = document.getElementById('f-sd-start').value;
+    const endTime = document.getElementById('f-sd-end').value;
+    await apiPost('/dispatches', {
+        vehicle_id: vehicleId,
+        driver_id: driverId,
+        shipment_id: shipmentId,
+        date: dayStr,
+        start_time: startTime,
+        end_time: endTime,
+    });
+    closeModal();
+    loadDispatchCalendar();
 }
 
 // ===== ガントバーリサイズ =====

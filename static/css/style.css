@@ -756,9 +756,10 @@ body {
     background: #fffbeb;
     border: 1px solid #fbbf24;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: grab;
     font-size: 0.85rem;
     transition: background 0.15s;
+    user-select: none;
 }
 
 .unassigned-item:hover {
