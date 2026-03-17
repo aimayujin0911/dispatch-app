@@ -144,13 +144,17 @@ async function loadDispatchCalendar() {
         return false;
     });
 
+    const activeDayDate = days[selectedDayIndex];
+    const activeDateLabel = `${activeDayDate.getFullYear()}年${activeDayDate.getMonth() + 1}月${activeDayDate.getDate()}日(${dayNames[activeDayDate.getDay()]})`;
+
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
         <div class="cal-controls">
-            <button class="btn btn-sm" onclick="changeDays(-${CAL_DAYS})">◀ 前</button>
+            <button class="btn btn-sm" onclick="changeDays(-1)" title="前日">◀ 前日</button>
             <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
-            <button class="btn btn-sm" onclick="changeDays(${CAL_DAYS})">次 ▶</button>
-            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()">
+            <button class="btn btn-sm" onclick="changeDays(1)" title="翌日">翌日 ▶</button>
+            <span style="font-size:1.1rem;font-weight:700;margin:0 8px;color:var(--text-dark,#1e293b)">${activeDateLabel}</span>
+            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()" title="日付を選択">
             <div class="cal-day-tabs">
                 ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
             </div>
@@ -1450,11 +1454,25 @@ async function loadShipments() {
 async function openShipmentModal(shipment = null) {
     const isEdit = !!shipment;
     const today = new Date().toISOString().split('T')[0];
-    const freqType = shipment?.frequency_type || '単発';
+    const rawFreqType = shipment?.frequency_type || '単発';
+    const isTeiki = (rawFreqType === '毎日' || rawFreqType === '曜日指定');
+    const freqCategory = isTeiki ? '定期' : '単発';
     const freqDays = (shipment?.frequency_days || '').split(',').filter(Boolean);
+    const hasYokujitsuOroshi = (shipment?.time_note || '').includes('翌日卸');
     const clients = await apiGet('/clients');
     document.getElementById('modal-title').textContent = isEdit ? '案件編集' : '新規案件';
     document.getElementById('modal-body').innerHTML = `
+        <div class="form-group" style="background:#eef2ff;padding:10px;border-radius:8px;margin-bottom:12px">
+            <label style="font-weight:700;margin-bottom:6px;display:block">案件種別</label>
+            <div style="display:flex;gap:16px">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:600">
+                    <input type="radio" name="f-s-freq-category" value="単発" ${freqCategory === '単発' ? 'checked' : ''} onchange="toggleFreqCategory()"> 単発
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:600">
+                    <input type="radio" name="f-s-freq-category" value="定期" ${freqCategory === '定期' ? 'checked' : ''} onchange="toggleFreqCategory()"> 定期
+                </label>
+            </div>
+        </div>
         <div class="form-group">
             <label>案件名</label>
             <input type="text" id="f-s-name" value="${shipment?.name || ''}" placeholder="例: A社定期便">
@@ -1487,29 +1505,62 @@ async function openShipmentModal(shipment = null) {
             <label>卸地</label>
             <input type="text" id="f-s-delivery" value="${shipment?.delivery_address || ''}">
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>集荷日</label>
-                <input type="date" id="f-s-pickup-date" value="${shipment?.pickup_date || today}">
+        <div id="shipment-tanpatsu-dates" style="display:${freqCategory === '単発' ? 'block' : 'none'}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>集荷日</label>
+                    <input type="date" id="f-s-pickup-date" value="${shipment?.pickup_date || today}">
+                </div>
+                <div class="form-group">
+                    <label>集荷時間</label>
+                    <input type="time" id="f-s-pickup-time-tanpatsu" value="${shipment?.pickup_time || ''}">
+                </div>
             </div>
-            <div class="form-group">
-                <label>集荷時間</label>
-                <input type="time" id="f-s-pickup-time" value="${shipment?.pickup_time || ''}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>配達日</label>
+                    <input type="date" id="f-s-delivery-date" value="${shipment?.delivery_date || today}">
+                </div>
+                <div class="form-group">
+                    <label>配達時間</label>
+                    <input type="time" id="f-s-delivery-time-tanpatsu" value="${shipment?.delivery_time || ''}">
+                </div>
             </div>
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>配達日</label>
-                <input type="date" id="f-s-delivery-date" value="${shipment?.delivery_date || today}">
+        <div id="shipment-teiki-fields" style="display:${freqCategory === '定期' ? 'block' : 'none'}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>集荷時間</label>
+                    <input type="time" id="f-s-pickup-time-teiki" value="${shipment?.pickup_time || ''}">
+                </div>
+                <div class="form-group">
+                    <label>配達時間</label>
+                    <input type="time" id="f-s-delivery-time-teiki" value="${shipment?.delivery_time || ''}">
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="checkbox" id="f-s-yokujitsu-oroshi" ${hasYokujitsuOroshi ? 'checked' : ''}> 翌日卸（配達が翌日になる場合）
+                </label>
             </div>
             <div class="form-group">
-                <label>配達時間</label>
-                <input type="time" id="f-s-delivery-time" value="${shipment?.delivery_time || ''}">
+                <label>頻度</label>
+                <select id="f-s-freq-type-teiki" onchange="toggleFreqDays()">
+                    ${['毎日', '曜日指定'].map(f =>
+                        `<option ${rawFreqType === f ? 'selected' : ''}>${f}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group" id="freq-days-group" style="display:${rawFreqType === '曜日指定' ? 'block' : 'none'}">
+                <label>曜日選択</label>
+                <div class="freq-days-row">
+                    ${['月', '火', '水', '木', '金', '土', '日'].map(d =>
+                        `<label class="freq-day-check"><input type="checkbox" value="${d}" ${freqDays.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}
+                </div>
             </div>
         </div>
         <div class="form-group">
             <label>時間備考（AM指定、午前必着など）</label>
-            <input type="text" id="f-s-time-note" value="${shipment?.time_note || ''}" placeholder="例: AM指定、13:00-15:00">
+            <input type="text" id="f-s-time-note" value="${(shipment?.time_note || '').replace('翌日卸', '').replace(/^[、,\s]+|[、,\s]+$/g, '')}" placeholder="例: AM指定、13:00-15:00">
         </div>
         <div class="form-row" style="background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:8px">
             <div class="form-group">
@@ -1539,20 +1590,6 @@ async function openShipmentModal(shipment = null) {
             </div>
         </div>
         <div class="form-group">
-            <label>頻度</label>
-            <select id="f-s-freq-type" onchange="toggleFreqDays()">
-                ${['単発', '毎日', '曜日指定'].map(f =>
-                    `<option ${freqType === f ? 'selected' : ''}>${f}</option>`).join('')}
-            </select>
-        </div>
-        <div class="form-group" id="freq-days-group" style="display:${freqType === '曜日指定' ? 'block' : 'none'}">
-            <label>曜日選択</label>
-            <div class="freq-days-row">
-                ${['月', '火', '水', '木', '金', '土', '日'].map(d =>
-                    `<label class="freq-day-check"><input type="checkbox" value="${d}" ${freqDays.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}
-            </div>
-        </div>
-        <div class="form-group">
             <label>備考</label>
             <textarea id="f-s-notes">${shipment?.notes || ''}</textarea>
         </div>
@@ -1563,17 +1600,47 @@ async function openShipmentModal(shipment = null) {
     showModal();
 }
 
+function toggleFreqCategory() {
+    const category = document.querySelector('input[name="f-s-freq-category"]:checked').value;
+    document.getElementById('shipment-tanpatsu-dates').style.display = category === '単発' ? 'block' : 'none';
+    document.getElementById('shipment-teiki-fields').style.display = category === '定期' ? 'block' : 'none';
+}
+
 function toggleFreqDays() {
-    const type = document.getElementById('f-s-freq-type').value;
+    const type = document.getElementById('f-s-freq-type-teiki').value;
     document.getElementById('freq-days-group').style.display = type === '曜日指定' ? 'block' : 'none';
 }
 
 async function saveShipment(id) {
-    const freqType = document.getElementById('f-s-freq-type').value;
-    let freqDays = '';
-    if (freqType === '曜日指定') {
-        freqDays = [...document.querySelectorAll('#freq-days-group input:checked')].map(cb => cb.value).join(',');
+    const freqCategory = document.querySelector('input[name="f-s-freq-category"]:checked').value;
+    let freqType, freqDays = '', pickupDate, deliveryDate, pickupTime, deliveryTime;
+
+    if (freqCategory === '定期') {
+        freqType = document.getElementById('f-s-freq-type-teiki').value;
+        if (freqType === '曜日指定') {
+            freqDays = [...document.querySelectorAll('#freq-days-group input:checked')].map(cb => cb.value).join(',');
+        }
+        pickupDate = '';
+        deliveryDate = '';
+        pickupTime = document.getElementById('f-s-pickup-time-teiki').value;
+        deliveryTime = document.getElementById('f-s-delivery-time-teiki').value;
+    } else {
+        freqType = '単発';
+        pickupDate = document.getElementById('f-s-pickup-date').value;
+        deliveryDate = document.getElementById('f-s-delivery-date').value;
+        pickupTime = document.getElementById('f-s-pickup-time-tanpatsu').value;
+        deliveryTime = document.getElementById('f-s-delivery-time-tanpatsu').value;
     }
+
+    // Build time_note: combine 翌日卸 marker with user-entered time note
+    let timeNoteParts = [];
+    if (freqCategory === '定期' && document.getElementById('f-s-yokujitsu-oroshi').checked) {
+        timeNoteParts.push('翌日卸');
+    }
+    const userTimeNote = document.getElementById('f-s-time-note').value.trim();
+    if (userTimeNote) timeNoteParts.push(userTimeNote);
+    const timeNote = timeNoteParts.join('、');
+
     const data = {
         name: document.getElementById('f-s-name').value,
         client_name: document.getElementById('f-s-client').value,
@@ -1581,11 +1648,11 @@ async function saveShipment(id) {
         weight: parseFloat(document.getElementById('f-s-weight').value),
         pickup_address: document.getElementById('f-s-pickup').value,
         delivery_address: document.getElementById('f-s-delivery').value,
-        pickup_date: document.getElementById('f-s-pickup-date').value,
-        pickup_time: document.getElementById('f-s-pickup-time').value,
-        delivery_date: document.getElementById('f-s-delivery-date').value,
-        delivery_time: document.getElementById('f-s-delivery-time').value,
-        time_note: document.getElementById('f-s-time-note').value,
+        pickup_date: pickupDate,
+        pickup_time: pickupTime,
+        delivery_date: deliveryDate,
+        delivery_time: deliveryTime,
+        time_note: timeNote,
         price: parseInt(document.getElementById('f-s-price').value),
         frequency_type: freqType,
         frequency_days: freqDays,

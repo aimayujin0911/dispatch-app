@@ -32,6 +32,8 @@
         .btn-warning { background: #f59e0b; color: #fff; }
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-revert { background: #fff; color: #64748b; border: 1px solid #cbd5e1; font-size: .72rem; padding: .2rem .45rem; }
+        .btn-revert:hover { background: #f1f5f9; color: #334155; }
         .btn:hover { opacity: .85; }
         .btn:disabled { opacity: .5; cursor: not-allowed; }
         .badge { padding: .2rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
@@ -50,7 +52,11 @@
         .form-group input, .form-group select, .form-group textarea { width: 100%; }
         .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
         .text-right { text-align: right; }
-        .btn-group { display: inline-flex; gap: .25rem; }
+        .btn-group { display: inline-flex; gap: .25rem; align-items: center; flex-wrap: wrap; }
+        .email-summary { margin: .5rem 0; }
+        .email-summary-item { padding: .5rem .75rem; border-radius: 6px; margin-bottom: .4rem; font-size: .88rem; }
+        .email-summary-ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+        .email-summary-warn { background: #fefce8; border: 1px solid #fef08a; color: #92400e; }
         @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
@@ -86,8 +92,7 @@
     <div class="card">
         <div class="bulk-actions">
             <button class="btn btn-primary" onclick="bulkMarkBilled()">✅ 一括請求済</button>
-            <button class="btn btn-outline" onclick="bulkPrint()">🖨️ 請求書印刷</button>
-            <button class="btn btn-warning" onclick="openEmailModal()">📧 メール送付</button>
+            <button class="btn btn-warning" onclick="openEmailModal()">📧 メール一括送付</button>
         </div>
         <div style="overflow-x:auto">
         <table>
@@ -107,11 +112,12 @@
 <div class="modal-overlay" id="emailModal">
     <div class="modal">
         <h2>📧 請求書メール送付</h2>
-        <div class="form-group"><label>宛先メール</label><input type="email" id="emailTo"></div>
+        <p style="font-size:.9rem;margin-bottom:.75rem;">以下の取引先に請求書メールを送付します:</p>
+        <div id="emailSummary" class="email-summary"></div>
         <div class="form-group"><label>件名</label><input type="text" id="emailSubject" value="請求書のご送付"></div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeModal('emailModal')">キャンセル</button>
-            <button class="btn btn-primary" onclick="sendInvoiceEmail()">送信</button>
+            <button class="btn btn-primary" id="emailSendBtn" onclick="sendInvoiceEmail()">送信</button>
         </div>
     </div>
 </div>
@@ -149,6 +155,20 @@ function yen(n) { return '¥' + (n || 0).toLocaleString(); }
 let allShipments = [];
 // Displayed shipments (after client-side filter)
 let shipments = [];
+// Cached clients list
+let clientsCache = null;
+
+async function getClients() {
+    if (clientsCache) return clientsCache;
+    try {
+        const data = await apiGet('/api/clients');
+        clientsCache = Array.isArray(data) ? data : (data.clients || []);
+    } catch (e) {
+        console.error('Failed to load clients:', e);
+        clientsCache = [];
+    }
+    return clientsCache;
+}
 
 async function loadShipments() {
     try {
@@ -205,6 +225,15 @@ function renderTable() {
         const invoiceStatus = s.invoice_status || '未請求';
         const isBilled = invoiceStatus === '請求済';
         const isPaid = invoiceStatus === '入金済';
+        const isUnbilled = invoiceStatus === '未請求';
+
+        let revertBtn = '';
+        if (isBilled) {
+            revertBtn = `<button class="btn btn-revert" onclick="revertStatus(${s.id}, '未請求')" title="未請求に戻す">戻す</button>`;
+        } else if (isPaid) {
+            revertBtn = `<button class="btn btn-revert" onclick="revertStatus(${s.id}, '請求済')" title="請求済に戻す">戻す</button>`;
+        }
+
         return `<tr>
         <td><input type="checkbox" class="row-check" value="${s.id}"></td>
         <td>${s.name || s.cargo_name || '-'}</td>
@@ -219,6 +248,8 @@ function renderTable() {
             <div class="btn-group">
                 <button class="btn btn-primary" style="padding:.3rem .5rem;font-size:.78rem" onclick="markBilled(${s.id})" ${isBilled || isPaid ? 'disabled' : ''}>請求済</button>
                 <button class="btn btn-success" style="padding:.3rem .5rem;font-size:.78rem" onclick="markPaid(${s.id})" ${isPaid ? 'disabled' : ''}>入金済</button>
+                <button class="btn btn-outline" style="padding:.3rem .5rem;font-size:.78rem" onclick="printSingleInvoice(${s.id})" title="請求書印刷">🖨️</button>
+                ${revertBtn}
             </div>
         </td>
     </tr>`;
@@ -233,64 +264,163 @@ function toggleAll(el) {
 }
 
 async function markBilled(id) {
+    if (!confirm('この案件を請求済みにしますか？')) return;
     const today = new Date().toISOString().slice(0, 10);
     await apiPut(`/api/shipments/${id}`, { invoice_status: '請求済', invoice_date: today });
     loadShipments();
 }
 
 async function markPaid(id) {
+    if (!confirm('この案件を入金済みにしますか？')) return;
     const today = new Date().toISOString().slice(0, 10);
     await apiPut(`/api/shipments/${id}`, { invoice_status: '入金済' });
+    loadShipments();
+}
+
+async function revertStatus(id, targetStatus) {
+    const msg = targetStatus === '未請求'
+        ? 'この案件を未請求に戻しますか？'
+        : 'この案件を請求済に戻しますか？';
+    if (!confirm(msg)) return;
+    const update = { invoice_status: targetStatus };
+    if (targetStatus === '未請求') {
+        update.invoice_date = null;
+    }
+    await apiPut(`/api/shipments/${id}`, update);
     loadShipments();
 }
 
 async function bulkMarkBilled() {
     const ids = getCheckedIds();
     if (!ids.length) return alert('請求対象を選択してください');
+    if (!confirm(`${ids.length}件を請求済みにしますか？`)) return;
     const today = new Date().toISOString().slice(0, 10);
     await Promise.all(ids.map(id => apiPut(`/api/shipments/${id}`, { invoice_status: '請求済', invoice_date: today })));
     loadShipments();
 }
 
-function bulkPrint() {
-    const ids = getCheckedIds();
-    const items = ids.length ? shipments.filter(s => ids.includes(s.id)) : shipments;
+function printSingleInvoice(id) {
+    const s = shipments.find(sh => sh.id === id) || allShipments.find(sh => sh.id === id);
+    if (!s) return alert('案件が見つかりません');
     const win = window.open('', '_blank');
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
     win.document.write(`<html><head><meta charset="UTF-8"><title>請求書</title><style>
-        body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse;margin-top:1rem}
-        th,td{border:1px solid #ccc;padding:.5rem;text-align:left}th{background:#f0f0f0}.total{font-size:1.2rem;font-weight:bold;margin-top:1rem}
-        @media print{button{display:none}}</style></head><body>
-        <h1>請求書</h1><p>${currentYear}年${currentMonth}月</p>
-        <table><thead><tr><th>案件名</th><th>荷主</th><th>配達日</th><th style="text-align:right">運賃</th></tr></thead><tbody>
-        ${items.map(s => `<tr><td>${s.name || s.cargo_name || ''}</td><td>${s.client_name || ''}</td><td>${s.delivery_date || ''}</td><td style="text-align:right">¥${(s.price||0).toLocaleString()}</td></tr>`).join('')}
-        </tbody></table>
-        <p class="total">合計: ¥${items.reduce((a,s)=>a+(s.price||0),0).toLocaleString()}</p>
-        <button onclick="window.print()">印刷</button></body></html>`);
+        body { font-family: 'Yu Gothic', 'Hiragino Sans', sans-serif; padding: 2rem 3rem; color: #222; }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { font-size: 1.8rem; letter-spacing: .3rem; border-bottom: 3px double #333; display: inline-block; padding-bottom: .3rem; }
+        .meta { display: flex; justify-content: space-between; margin-bottom: 1.5rem; }
+        .meta-left { font-size: 1rem; }
+        .meta-right { text-align: right; font-size: .85rem; }
+        .client-name { font-size: 1.2rem; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: .2rem; margin-bottom: .5rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { border: 1px solid #999; padding: .6rem .75rem; text-align: left; }
+        th { background: #f5f5f5; font-size: .85rem; }
+        .total-row { font-weight: bold; font-size: 1.1rem; background: #fafafa; }
+        .amount-box { margin-top: 1.5rem; text-align: center; font-size: 1.4rem; font-weight: bold; border: 2px solid #333; padding: .75rem; }
+        .footer { margin-top: 2rem; font-size: .8rem; color: #666; }
+        @media print { button { display: none; } }
+    </style></head><body>
+        <div class="header"><h1>請 求 書</h1></div>
+        <div class="meta">
+            <div class="meta-left">
+                <div class="client-name">${s.client_name || '-'} 御中</div>
+                <p>下記の通りご請求申し上げます。</p>
+            </div>
+            <div class="meta-right">
+                <p>発行日: ${dateStr}</p>
+                <p>請求番号: INV-${s.id}</p>
+            </div>
+        </div>
+        <div class="amount-box">ご請求金額: ¥${(s.price||0).toLocaleString()}</div>
+        <table>
+            <thead><tr><th>項目</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td>案件名</td><td>${s.name || s.cargo_name || '-'}</td></tr>
+                <tr><td>積地</td><td>${s.pickup_address || '-'}</td></tr>
+                <tr><td>卸地</td><td>${s.delivery_address || '-'}</td></tr>
+                <tr><td>配達日</td><td>${s.delivery_date || '-'}</td></tr>
+                <tr><td>運賃</td><td style="text-align:right;font-weight:bold">¥${(s.price||0).toLocaleString()}</td></tr>
+            </tbody>
+        </table>
+        <div class="footer">
+            <p>お支払期限: 翌月末日</p>
+            <p>※ ご不明な点がございましたらお問い合わせください。</p>
+        </div>
+        <br><button onclick="window.print()" style="padding:.5rem 1.5rem;font-size:1rem;cursor:pointer">🖨️ 印刷</button>
+    </body></html>`);
 }
+
+// --- Email modal: group by client, look up billing_email ---
+let emailSendData = []; // [{client_name, billing_email, shipment_ids}]
 
 async function openEmailModal() {
     const ids = getCheckedIds();
     if (!ids.length) return alert('送付対象を選択してください');
-    const s = shipments.find(sh => sh.id === ids[0]);
-    if (s && s.client_id) {
-        try {
-            const client = await apiGet(`/api/clients/${s.client_id}`);
-            document.getElementById('emailTo').value = client.billing_email || client.email || '';
-        } catch(e) {}
+
+    const checkedShipments = shipments.filter(s => ids.includes(s.id));
+    // Group by client_name
+    const groups = {};
+    for (const s of checkedShipments) {
+        const cn = s.client_name || '不明';
+        if (!groups[cn]) groups[cn] = { client_name: cn, client_id: s.client_id, shipment_ids: [] };
+        groups[cn].shipment_ids.push(s.id);
     }
+
+    // Look up billing_email from /api/clients
+    const clients = await getClients();
+    const clientMap = {};
+    for (const c of clients) {
+        clientMap[c.name] = c;
+    }
+
+    emailSendData = [];
+    let summaryHtml = '';
+    let hasWarning = false;
+
+    for (const key of Object.keys(groups)) {
+        const g = groups[key];
+        const clientInfo = clientMap[g.client_name];
+        const email = clientInfo ? (clientInfo.billing_email || '') : '';
+        emailSendData.push({ client_name: g.client_name, billing_email: email, shipment_ids: g.shipment_ids });
+
+        if (email) {
+            summaryHtml += `<div class="email-summary-item email-summary-ok">
+                <strong>${g.client_name}</strong> (${g.shipment_ids.length}件)<br>
+                📧 ${email}
+            </div>`;
+        } else {
+            hasWarning = true;
+            summaryHtml += `<div class="email-summary-item email-summary-warn">
+                ⚠️ <strong>${g.client_name}</strong> (${g.shipment_ids.length}件): メールアドレス未登録
+            </div>`;
+        }
+    }
+
+    document.getElementById('emailSummary').innerHTML = summaryHtml;
     document.getElementById('emailSubject').value = `${currentYear}年${currentMonth}月 請求書のご送付`;
+    document.getElementById('emailSendBtn').disabled = emailSendData.every(d => !d.billing_email);
     openModal('emailModal');
 }
 
 async function sendInvoiceEmail() {
-    const ids = getCheckedIds();
-    await apiPost('/api/settings/send-invoice', {
-        shipment_ids: ids,
-        to: document.getElementById('emailTo').value,
-        subject: document.getElementById('emailSubject').value
-    });
-    closeModal('emailModal');
-    alert('送信しました');
+    const subject = document.getElementById('emailSubject').value;
+    const sendable = emailSendData.filter(d => d.billing_email);
+    if (!sendable.length) return alert('送信可能なメールアドレスがありません');
+
+    try {
+        await Promise.all(sendable.map(d =>
+            apiPost('/api/settings/send-invoice', {
+                shipment_ids: d.shipment_ids,
+                to: d.billing_email,
+                subject: subject
+            })
+        ));
+        closeModal('emailModal');
+        alert(`${sendable.length}件の取引先にメールを送信しました`);
+    } catch (e) {
+        alert('送信エラー: ' + e.message);
+    }
 }
 
 initMonth();

@@ -41,6 +41,7 @@
 
         /* Alert */
         .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; display: none; }
+        .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
         .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
         .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
@@ -121,20 +122,22 @@
             <option value="">-- ドライバー選択 --</option>
         </select>
         <button class="btn btn-primary" onclick="openAddModal()">＋ 追加</button>
-        <button class="btn btn-blue" onclick="generateFromDispatches()">📋 配車から自動生成</button>
+        <!-- 配車から自動生成 削除済み -->
         <button class="btn btn-outline" onclick="exportCSV()">📥 CSV出力</button>
     </div>
 
-    <!-- 36協定アラート -->
-    <div class="alert alert-warning" id="alertWarning">⚠️ 36協定警告: 月間残業時間が45時間を超えています。</div>
-    <div class="alert alert-danger" id="alertDanger">🚨 36協定危険: 月間残業時間が80時間を超えています！直ちに対応が必要です。</div>
+    <!-- 改善基準告示アラート -->
+    <div class="alert alert-info" id="alertRestraint">📋 拘束時間: <span id="alertRestraintText"></span></div>
+    <div class="alert alert-warning" id="alertOvertimeWarn">⚠️ 時間外労働警告: <span id="alertOvertimeWarnText"></span></div>
+    <div class="alert alert-danger" id="alertOvertimeDanger">🚨 時間外労働危険: <span id="alertOvertimeDangerText"></span></div>
+    <div class="alert alert-warning" id="alertRestWarn">⚠️ 休息期間不足: <span id="alertRestWarnText"></span></div>
 
     <!-- Stats -->
     <div class="stats" id="statsArea">
         <div class="stat-card highlight"><div class="label">出勤日数</div><div class="value" id="sDays">0</div></div>
-        <div class="stat-card"><div class="label">残業時間(h)</div><div class="value" id="sOvertime">0</div></div>
-        <div class="stat-card"><div class="label">深夜時間(h)</div><div class="value" id="sNight">0</div></div>
-        <div class="stat-card"><div class="label">平均勤務時間(h)</div><div class="value" id="sAvg">0</div></div>
+        <div class="stat-card"><div class="label">時間外労働(h)</div><div class="value" id="sOvertime">0</div></div>
+        <div class="stat-card"><div class="label">月間拘束時間(h)</div><div class="value" id="sRestraint">0</div></div>
+        <div class="stat-card"><div class="label">最短休息時間(h)</div><div class="value" id="sMinRest">-</div></div>
         <div class="stat-card"><div class="label">有給残日数</div><div class="value" id="sLeaveBalance">-</div></div>
         <div class="stat-card"><div class="label">有給使用日数</div><div class="value" id="sLeaveUsed">0</div></div>
     </div>
@@ -157,18 +160,16 @@
         </div>
     </div>
 
-    <!-- Table -->
-    <div class="card">
-        <h2 style="font-size:1.1rem; margin-bottom:.75rem;">勤怠一覧</h2>
+    <!-- Table (shown only when NO driver is selected) -->
+    <div class="card" id="tableSection" style="display:none;">
+        <h2 style="font-size:1.1rem; margin-bottom:.75rem;">勤怠一覧（全ドライバー）</h2>
         <div style="overflow-x:auto;">
             <table>
                 <thead>
                     <tr>
                         <th>日付</th><th>ドライバー</th><th>車両</th>
                         <th>出勤</th><th>退勤</th><th>出庫</th><th>帰庫</th>
-                        <th>休憩</th><th>待機</th><th>積込</th><th>荷卸</th>
-                        <th>種別</th><th>給油L</th><th>高速代</th><th>アルコール</th>
-                        <th>残業(分)</th><th>深夜(分)</th><th>操作</th>
+                        <th>休憩</th><th>種別</th><th>残業(分)</th><th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="tBody"></tbody>
@@ -459,25 +460,47 @@ function renderAll() {
 function renderStats() {
     const workDays = records.filter(r => r.work_type === '通常' || r.work_type === '休日' || r.work_type === '半休').length;
     const totalOvertime = records.reduce((s, r) => s + (r.overtime_minutes || 0), 0);
-    const totalNight = records.reduce((s, r) => s + (r.night_minutes || r.late_night_minutes || 0), 0);
     const leaveUsed = records.filter(r => r.work_type === '有給').length + records.filter(r => r.work_type === '半休').length * 0.5;
 
-    // Average work hours
-    let totalWorkMin = 0, countWork = 0;
+    // Calculate monthly restraint time (clock_in to clock_out for each day)
+    let totalRestraintMin = 0;
     records.forEach(r => {
         const cin = r.clock_in || r.start_time;
         const cout = r.clock_out || r.end_time;
         if (cin && cout) {
-            const diff = timeDiffMinutes(cin, cout) - (r.break_minutes || 0);
-            if (diff > 0) { totalWorkMin += diff; countWork++; }
+            const diff = timeDiffMinutes(cin, cout);
+            if (diff > 0) totalRestraintMin += diff;
         }
     });
-    const avgHours = countWork > 0 ? (totalWorkMin / countWork / 60).toFixed(1) : '0';
+
+    // Calculate minimum rest period (gap between prev day clock_out and next day clock_in)
+    let minRestMinutes = null;
+    const sorted = [...records].filter(r => (r.clock_in || r.start_time) && (r.clock_out || r.end_time))
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    for (let i = 1; i < sorted.length; i++) {
+        const prevOut = sorted[i - 1].clock_out || sorted[i - 1].end_time;
+        const currIn = sorted[i].clock_in || sorted[i].start_time;
+        if (prevOut && currIn) {
+            const prevDate = sorted[i - 1].date ? sorted[i - 1].date.substring(0, 10) : '';
+            const currDate = sorted[i].date ? sorted[i].date.substring(0, 10) : '';
+            if (prevDate && currDate) {
+                const [ph, pm] = prevOut.split(':').map(Number);
+                const [ch, cm] = currIn.split(':').map(Number);
+                const prevMs = new Date(prevDate + 'T' + prevOut.substring(0,5)).getTime();
+                const currMs = new Date(currDate + 'T' + currIn.substring(0,5)).getTime();
+                let restMin = (currMs - prevMs) / 60000;
+                // If clock_out was after midnight (next-day scenario), skip negative
+                if (restMin > 0 && restMin < 48 * 60) {
+                    if (minRestMinutes === null || restMin < minRestMinutes) minRestMinutes = restMin;
+                }
+            }
+        }
+    }
 
     document.getElementById('sDays').textContent = workDays;
     document.getElementById('sOvertime').textContent = (totalOvertime / 60).toFixed(1);
-    document.getElementById('sNight').textContent = (totalNight / 60).toFixed(1);
-    document.getElementById('sAvg').textContent = avgHours;
+    document.getElementById('sRestraint').textContent = (totalRestraintMin / 60).toFixed(1);
+    document.getElementById('sMinRest').textContent = minRestMinutes !== null ? (minRestMinutes / 60).toFixed(1) : '-';
     document.getElementById('sLeaveUsed').textContent = leaveUsed;
 
     // Leave balance from driver
@@ -491,15 +514,93 @@ function renderStats() {
 }
 
 function renderAlerts() {
+    // Hide all alerts first
+    document.getElementById('alertRestraint').style.display = 'none';
+    document.getElementById('alertOvertimeWarn').style.display = 'none';
+    document.getElementById('alertOvertimeDanger').style.display = 'none';
+    document.getElementById('alertRestWarn').style.display = 'none';
+
+    if (!selectedDriverId) return;
+
+    // 月間拘束時間 (clock_in to clock_out sum)
+    let totalRestraintMin = 0;
+    let daysOver13h = 0, daysOver15h = 0;
+    records.forEach(r => {
+        const cin = r.clock_in || r.start_time;
+        const cout = r.clock_out || r.end_time;
+        if (cin && cout) {
+            const diff = timeDiffMinutes(cin, cout);
+            if (diff > 0) {
+                totalRestraintMin += diff;
+                if (diff > 15 * 60) daysOver15h++;
+                else if (diff > 13 * 60) daysOver13h++;
+            }
+        }
+    });
+    const restraintHours = totalRestraintMin / 60;
+
+    // Show restraint alert
+    if (restraintHours >= 284) {
+        document.getElementById('alertRestraint').style.display = 'block';
+        document.getElementById('alertRestraint').className = 'alert alert-danger';
+        document.getElementById('alertRestraintText').textContent =
+            `月間拘束時間 ${restraintHours.toFixed(1)}h（上限284h超過）。1日13h超: ${daysOver13h}日、15h超: ${daysOver15h}日`;
+    } else if (restraintHours >= 270) {
+        document.getElementById('alertRestraint').style.display = 'block';
+        document.getElementById('alertRestraint').className = 'alert alert-warning';
+        document.getElementById('alertRestraintText').textContent =
+            `月間拘束時間 ${restraintHours.toFixed(1)}h（270h超過、上限284h）。1日13h超: ${daysOver13h}日、15h超: ${daysOver15h}日`;
+    } else if (daysOver13h > 0 || daysOver15h > 0) {
+        document.getElementById('alertRestraint').style.display = 'block';
+        document.getElementById('alertRestraint').className = 'alert alert-info';
+        document.getElementById('alertRestraintText').textContent =
+            `月間拘束時間 ${restraintHours.toFixed(1)}h。1日13h超: ${daysOver13h}日、15h超: ${daysOver15h}日`;
+    }
+
+    // 月間時間外労働
     const totalOvertime = records.reduce((s, r) => s + (r.overtime_minutes || 0), 0);
-    const w = document.getElementById('alertWarning');
-    const d = document.getElementById('alertDanger');
-    w.style.display = 'none';
-    d.style.display = 'none';
-    if (totalOvertime > 4800) { // > 80h = 4800min
-        d.style.display = 'block';
-    } else if (totalOvertime > 2700) { // > 45h = 2700min
-        w.style.display = 'block';
+    if (totalOvertime > 2700) { // > 45h
+        document.getElementById('alertOvertimeDanger').style.display = 'block';
+        document.getElementById('alertOvertimeDangerText').textContent =
+            `月間時間外労働 ${(totalOvertime / 60).toFixed(1)}h（45h超過！直ちに対応が必要）`;
+    } else if (totalOvertime > 2400) { // > 40h
+        document.getElementById('alertOvertimeWarn').style.display = 'block';
+        document.getElementById('alertOvertimeWarnText').textContent =
+            `月間時間外労働 ${(totalOvertime / 60).toFixed(1)}h（40h超過、上限45hに注意）`;
+    }
+
+    // 休息期間不足 (gap between prev clock_out and next clock_in)
+    const sorted = [...records].filter(r => (r.clock_in || r.start_time) && (r.clock_out || r.end_time))
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    let minRestMin = null;
+    let daysUnder11h = 0, daysUnder9h = 0;
+    for (let i = 1; i < sorted.length; i++) {
+        const prevOut = sorted[i - 1].clock_out || sorted[i - 1].end_time;
+        const currIn = sorted[i].clock_in || sorted[i].start_time;
+        if (prevOut && currIn) {
+            const prevDate = sorted[i - 1].date ? sorted[i - 1].date.substring(0, 10) : '';
+            const currDate = sorted[i].date ? sorted[i].date.substring(0, 10) : '';
+            if (prevDate && currDate) {
+                const prevMs = new Date(prevDate + 'T' + prevOut.substring(0,5)).getTime();
+                const currMs = new Date(currDate + 'T' + currIn.substring(0,5)).getTime();
+                let restMin = (currMs - prevMs) / 60000;
+                if (restMin > 0 && restMin < 48 * 60) {
+                    if (minRestMin === null || restMin < minRestMin) minRestMin = restMin;
+                    if (restMin < 9 * 60) daysUnder9h++;
+                    else if (restMin < 11 * 60) daysUnder11h++;
+                }
+            }
+        }
+    }
+    if (daysUnder9h > 0) {
+        document.getElementById('alertRestWarn').style.display = 'block';
+        document.getElementById('alertRestWarn').className = 'alert alert-danger';
+        document.getElementById('alertRestWarnText').textContent =
+            `休息9h未満: ${daysUnder9h}回、11h未満: ${daysUnder11h + daysUnder9h}回（最短: ${minRestMin !== null ? (minRestMin / 60).toFixed(1) : '-'}h）`;
+    } else if (daysUnder11h > 0) {
+        document.getElementById('alertRestWarn').style.display = 'block';
+        document.getElementById('alertRestWarnText').textContent =
+            `休息11h未満: ${daysUnder11h}回（最短: ${minRestMin !== null ? (minRestMin / 60).toFixed(1) : '-'}h）`;
     }
 }
 
@@ -615,8 +716,16 @@ function renderCalendar() {
 
 // ===== Table =====
 function renderTable() {
+    const tableSection = document.getElementById('tableSection');
     const tbody = document.getElementById('tBody');
     const noData = document.getElementById('noData');
+
+    // Show table only when NO driver is selected
+    if (selectedDriverId) {
+        tableSection.style.display = 'none';
+        return;
+    }
+    tableSection.style.display = 'block';
 
     if (records.length === 0) {
         tbody.innerHTML = '';
@@ -632,7 +741,6 @@ function renderTable() {
         const dep = r.departure_time || '';
         const ret = r.return_time || '';
         const wtColor = {'通常':'#3b82f6','休日':'#f59e0b','有給':'#22c55e','半休':'#a3e635','欠勤':'#ef4444'}[r.work_type] || '#94a3b8';
-        const alcoholColor = r.alcohol_check === '要確認' ? 'color:#ef4444;font-weight:700' : '';
         return `<tr>
             <td>${r.date || ''}</td>
             <td>${r.driver_name || ''}</td>
@@ -642,15 +750,8 @@ function renderTable() {
             <td>${dep ? dep.substring(0,5) : ''}</td>
             <td>${ret ? ret.substring(0,5) : ''}</td>
             <td>${r.break_minutes != null ? r.break_minutes : ''}</td>
-            <td>${r.waiting_time != null ? r.waiting_time : ''}</td>
-            <td>${r.loading_time != null ? r.loading_time : ''}</td>
-            <td>${r.unloading_time != null ? r.unloading_time : ''}</td>
             <td><span style="color:${wtColor};font-weight:600">${r.work_type || ''}</span></td>
-            <td>${r.fuel_liters != null ? r.fuel_liters : ''}</td>
-            <td>${r.highway_cost != null ? r.highway_cost.toLocaleString() : ''}</td>
-            <td><span style="${alcoholColor}">${r.alcohol_check || ''}</span></td>
             <td>${r.overtime_minutes != null ? r.overtime_minutes : ''}</td>
-            <td>${r.night_minutes != null ? r.night_minutes : (r.late_night_minutes != null ? r.late_night_minutes : '')}</td>
             <td>
                 <div class="btn-group">
                     <button class="btn btn-outline" style="padding:.25rem .5rem;font-size:.8rem" onclick="openEditModal(${r.id})">編集</button>

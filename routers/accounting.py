@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import AccountEntry, Shipment, Vehicle, VehicleCost, Dispatch
+from models import AccountEntry, Shipment, Vehicle, VehicleCost, Dispatch, Attendance
 
 router = APIRouter()
 
@@ -110,6 +110,23 @@ def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get
         if d.shipment and d.shipment.price:
             vehicle_revenue[d.vehicle_id] = vehicle_revenue.get(d.vehicle_id, 0) + d.shipment.price
 
+    # 車両紐付けなしの燃料費・高速代を走行距離で按分
+    q_attendance = db.query(Attendance)
+    if year and month:
+        q_attendance = q_attendance.filter(Attendance.date >= start, Attendance.date < end)
+    attendances = q_attendance.all()
+
+    # 車両ごとの月間走行距離を集計
+    vehicle_distance = {}
+    for a in attendances:
+        if a.vehicle_id and a.distance_km:
+            vehicle_distance[a.vehicle_id] = vehicle_distance.get(a.vehicle_id, 0) + a.distance_km
+    total_distance = sum(vehicle_distance.values()) or 1  # 0除算防止
+
+    # 車両紐付けなしの燃料費・高速代を集計
+    unassigned_fuel = sum(e.amount for e in entries if e.entry_type == "支出" and e.category == "燃料費" and not e.vehicle_id)
+    unassigned_highway = sum(e.amount for e in entries if e.entry_type == "支出" and e.category == "高速代(ETC)" and not e.vehicle_id)
+
     result = []
     for v in vehicles:
         revenue = vehicle_revenue.get(v.id, 0)
@@ -121,8 +138,15 @@ def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get
             cat = e.category or "その他"
             expense_by_cat[cat] = expense_by_cat.get(cat, 0) + e.amount
 
+        # 走行距離による按分（燃料費・高速代）
+        dist_ratio = vehicle_distance.get(v.id, 0) / total_distance
+        allocated_fuel = int(unassigned_fuel * dist_ratio)
+        allocated_highway = int(unassigned_highway * dist_ratio)
+        expense_by_cat["燃料費"] = expense_by_cat.get("燃料費", 0) + allocated_fuel
+        expense_by_cat["高速代(ETC)"] = expense_by_cat.get("高速代(ETC)", 0) + allocated_highway
+        expense_total += allocated_fuel + allocated_highway
+
         # 固定費（VehicleCost）
-        from database import SessionLocal
         costs = db.query(VehicleCost).filter(VehicleCost.vehicle_id == v.id).all()
         monthly_fixed = sum(c.amount for c in costs if c.frequency == "月額")
         yearly_to_monthly = sum(c.amount // 12 for c in costs if c.frequency == "年額")
@@ -137,6 +161,8 @@ def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get
             "fixed_cost": fixed_total,
             "profit": revenue - expense_total - fixed_total,
             "expense_by_category": expense_by_cat,
+            "distance_km": round(vehicle_distance.get(v.id, 0), 1),
+            "distance_ratio": round(dist_ratio * 100, 1),
         })
     return result
 

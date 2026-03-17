@@ -385,20 +385,22 @@ def seed():
                 amount=s.price, related_shipment_id=s.id,
                 vehicle_id=v_id))
 
-    # 支出（車両紐付き）
+    # 支出（一括請求方式：燃料費・高速代は取引先から月一括請求、車両紐付けなし）
     expenses = [
-        (today - timedelta(days=1), "燃料費", "軽油 200L @140円", 28000, vehicles[0].id),
-        (today - timedelta(days=2), "高速代(ETC)", "首都高+東名 品川→浜松", 8500, vehicles[0].id),
-        (today - timedelta(days=3), "燃料費", "軽油 150L @140円", 21000, vehicles[1].id),
-        (today - timedelta(days=3), "高速代(ETC)", "関越道 練馬→高崎", 4200, vehicles[2].id),
-        (today - timedelta(days=5), "タイヤ代", "千葉500お7890 タイヤ交換4本", 120000, vehicles[4].id),
+        # 燃料費：出光興産から一括請求（月末締め）
+        (today - timedelta(days=1), "燃料費", "出光興産 大田SS 2月分燃料費一括", 184800, None),
+        # 高速代：ETC法人カードから一括請求
+        (today - timedelta(days=2), "高速代(ETC)", "ETCコーポレート 2月分高速代一括", 89600, None),
+        # 個別経費
+        (today - timedelta(days=5), "タイヤ代", "ブリヂストン タイヤ館蒲田 千葉500お7890 タイヤ交換4本", 120000, vehicles[4].id),
         (today - timedelta(days=7), "保険料", "車両保険 月額分", 85000, None),
         (today - timedelta(days=7), "リース料", "大宮400え3456 月額リース", 250000, vehicles[3].id),
         (today - timedelta(days=10), "協力会社支払", "丸一運送 2月分", 280000, None),
         (today - timedelta(days=10), "給与・手当", "ドライバー手当 3月前半", 180000, None),
         (today - timedelta(days=12), "事務所経費", "事務所家賃 3月分", 150000, None),
-        (today - timedelta(days=14), "燃料費", "軽油 250L @140円", 35000, vehicles[3].id),
         (today - timedelta(days=2), "駐車場代", "月極駐車場 3月分", 50000, None),
+        # 整備費：山田自動車整備から請求
+        (today - timedelta(days=8), "修理・整備費", "山田自動車整備 品川100あ1234 オイル交換・点検", 35000, vehicles[0].id),
     ]
     for d, cat, desc, amt, v_id in expenses:
         db.add(AccountEntry(date=d, entry_type="支出", category=cat, description=desc, amount=amt, vehicle_id=v_id))
