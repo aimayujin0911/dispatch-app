@@ -4,7 +4,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from datetime import date, timedelta
 from database import engine, SessionLocal, Base
-from models import Vehicle, Driver, Shipment, Dispatch, DailyReport
+from models import (Vehicle, Driver, Shipment, Dispatch, DailyReport, Client,
+                    PartnerCompany, PartnerInvoice, PartnerInvoiceItem,
+                    TransportRequest, VehicleNotification, Attendance,
+                    AccountEntry, CompanySettings)
 
 
 def seed():
@@ -12,6 +15,19 @@ def seed():
     db = SessionLocal()
 
     today = date.today()
+
+    # 自社情報
+    settings = CompanySettings(
+        id=1,
+        company_name="株式会社サンプル運輸",
+        address="東京都大田区南蒲田1-10-5",
+        phone="03-5555-1234",
+        fax="03-5555-1235",
+        representative="代表取締役 佐藤一郎",
+        registration_number="T1234567890123",
+        bank_info="みずほ銀行 蒲田支店 普通 1234567",
+    )
+    db.add(settings)
 
     # 車両
     vehicles = [
@@ -38,12 +54,11 @@ def seed():
     db.flush()
 
     # 荷主企業
-    from models import Client
     clients = [
-        Client(name="ABC物流", address="東京都大田区南蒲田1-1-1", phone="03-1234-5678", contact_person="鈴木部長"),
-        Client(name="XYZ商事", address="埼玉県さいたま市大宮区桜木町1-1", phone="048-123-4567", contact_person="田中課長"),
+        Client(name="ABC物流", address="東京都大田区南蒲田1-1-1", phone="03-1234-5678", fax="03-1234-5679", contact_person="鈴木部長"),
+        Client(name="XYZ商事", address="埼玉県さいたま市大宮区桜木町1-1", phone="048-123-4567", fax="048-123-4568", contact_person="田中課長"),
         Client(name="山本建設", address="東京都江東区有明3-3-3", phone="03-2345-6789", contact_person="山本社長"),
-        Client(name="日本通商", address="東京都品川区東品川2-2-2", phone="03-3456-7890", contact_person="佐々木主任"),
+        Client(name="日本通商", address="東京都品川区東品川2-2-2", phone="03-3456-7890", fax="03-3456-7891", contact_person="佐々木主任"),
         Client(name="太陽食品", address="千葉県船橋市本町5-5-5", phone="047-123-4567", contact_person="中村係長"),
         Client(name="関東運輸", address="東京都墨田区錦糸1-1-1", phone="03-4567-8901", contact_person="高橋部長"),
         Client(name="東海配送", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-123-4567", contact_person="伊藤店長"),
@@ -53,27 +68,43 @@ def seed():
     db.add_all(clients)
     db.flush()
 
+    # 協力会社
+    partners = [
+        PartnerCompany(name="丸一運送", address="東京都足立区千住1-1-1", phone="03-6666-1111", fax="03-6666-1112",
+                       contact_person="松本配車担当", bank_info="三菱UFJ銀行 北千住支店 普通 9876543", payment_terms="月末締め翌月末払い"),
+        PartnerCompany(name="大和急送", address="神奈川県川崎市川崎区駅前本町1-1", phone="044-555-2222", fax="044-555-2223",
+                       contact_person="中野所長", bank_info="りそな銀行 川崎支店 普通 1112233", payment_terms="月末締め翌月末払い"),
+        PartnerCompany(name="富士ロジスティクス", address="静岡県沼津市大手町1-1", phone="055-444-3333", fax="055-444-3334",
+                       contact_person="望月運行管理者", bank_info="静岡銀行 沼津支店 普通 4445566", payment_terms="20日締め翌月末払い"),
+    ]
+    db.add_all(partners)
+    db.flush()
+
     # 案件
     shipments = [
         Shipment(name="ABC家電定期便", client_name="ABC物流", cargo_description="家電製品", weight=3000,
                  pickup_address="東京都大田区平和島", delivery_address="神奈川県横浜市港北区",
-                 pickup_date=today, delivery_date=today, price=85000, status="配車済",
+                 pickup_date=today, pickup_time="06:00", delivery_date=today, delivery_time="12:00",
+                 time_note="午前必着", price=85000, status="配車済",
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         Shipment(name="XYZ冷蔵便", client_name="XYZ商事", cargo_description="食品(冷蔵)", weight=8000,
                  pickup_address="埼玉県さいたま市大宮区", delivery_address="千葉県千葉市美浜区",
-                 pickup_date=today, delivery_date=today, price=120000, status="配車済",
+                 pickup_date=today, pickup_time="08:00", delivery_date=today, delivery_time="16:00",
+                 price=120000, status="配車済",
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="山本建材輸送", client_name="山本建設", cargo_description="建材", weight=5000,
                  pickup_address="東京都江東区有明", delivery_address="茨城県つくば市",
                  pickup_date=today, delivery_date=today + timedelta(days=1), price=95000, status="未配車",
-                 frequency_type="単発", frequency_days=""),
+                 time_note="AM指定", frequency_type="単発", frequency_days=""),
         Shipment(name="日本通商精密機器", client_name="日本通商", cargo_description="精密機器", weight=1500,
                  pickup_address="東京都品川区東品川", delivery_address="静岡県浜松市中区",
-                 pickup_date=today + timedelta(days=1), delivery_date=today + timedelta(days=1), price=150000, status="未配車",
+                 pickup_date=today + timedelta(days=1), pickup_time="09:00", delivery_date=today + timedelta(days=1), delivery_time="18:00",
+                 time_note="取扱注意・時間厳守", price=150000, status="未配車",
                  frequency_type="曜日指定", frequency_days="火,木"),
         Shipment(name="太陽飲料配送", client_name="太陽食品", cargo_description="飲料", weight=6000,
                  pickup_address="千葉県船橋市", delivery_address="東京都新宿区",
-                 pickup_date=today + timedelta(days=2), delivery_date=today + timedelta(days=2), price=65000, status="未配車",
+                 pickup_date=today + timedelta(days=2), pickup_time="07:00", delivery_date=today + timedelta(days=2), delivery_time="11:00",
+                 price=65000, status="未配車",
                  frequency_type="毎日", frequency_days=""),
         # 完了済み(売上データ用)
         Shipment(name="関東雑貨便", client_name="関東運輸", cargo_description="雑貨", weight=2000,
@@ -83,6 +114,7 @@ def seed():
         Shipment(name="東海部品輸送", client_name="東海配送", cargo_description="自動車部品", weight=7000,
                  pickup_address="神奈川県横浜市鶴見区", delivery_address="静岡県沼津市",
                  pickup_date=today - timedelta(days=2), delivery_date=today - timedelta(days=2), price=180000, status="完了",
+                 invoice_status="請求済", invoice_date=today - timedelta(days=1),
                  frequency_type="単発", frequency_days=""),
         Shipment(name="北関東衣料便", client_name="北関東商事", cargo_description="衣料品", weight=3500,
                  pickup_address="群馬県高崎市", delivery_address="東京都渋谷区",
@@ -91,6 +123,7 @@ def seed():
         Shipment(name="湘南医薬品配送", client_name="湘南物流", cargo_description="医薬品", weight=500,
                  pickup_address="東京都中央区", delivery_address="神奈川県藤沢市",
                  pickup_date=today - timedelta(days=4), delivery_date=today - timedelta(days=4), price=98000, status="完了",
+                 invoice_status="入金済", invoice_date=today - timedelta(days=2),
                  frequency_type="毎日", frequency_days=""),
     ]
     db.add_all(shipments)
@@ -129,6 +162,132 @@ def seed():
                     notes="長距離運行"),
     ]
     db.add_all(reports)
+    db.flush()
+
+    # 協力会社請求書
+    pi1 = PartnerInvoice(
+        partner_id=partners[0].id, invoice_number="MR-2026-0301", invoice_date=today - timedelta(days=5),
+        due_date=today + timedelta(days=25), total_amount=280000, tax_amount=28000,
+        status="確認済", period_start=today - timedelta(days=35), period_end=today - timedelta(days=5),
+        notes="3月前半分")
+    db.add(pi1)
+    db.flush()
+    db.add_all([
+        PartnerInvoiceItem(partner_invoice_id=pi1.id, date=today - timedelta(days=10), description="東京→横浜 雑貨 4t車", amount=85000),
+        PartnerInvoiceItem(partner_invoice_id=pi1.id, date=today - timedelta(days=8), description="埼玉→千葉 食品 冷蔵車", amount=95000),
+        PartnerInvoiceItem(partner_invoice_id=pi1.id, date=today - timedelta(days=6), description="東京→静岡 部品 10t車", amount=100000),
+    ])
+
+    pi2 = PartnerInvoice(
+        partner_id=partners[1].id, invoice_number="YK-2026-03", invoice_date=today - timedelta(days=2),
+        due_date=today + timedelta(days=28), total_amount=150000, tax_amount=15000,
+        status="未確認", period_start=today - timedelta(days=30), period_end=today - timedelta(days=2),
+        notes="2月分")
+    db.add(pi2)
+    db.flush()
+    db.add_all([
+        PartnerInvoiceItem(partner_invoice_id=pi2.id, date=today - timedelta(days=15), description="川崎→横浜 建材 平ボディ", amount=75000),
+        PartnerInvoiceItem(partner_invoice_id=pi2.id, date=today - timedelta(days=12), description="川崎→大田区 家電 バン", amount=75000),
+    ])
+
+    # 輸送依頼書
+    db.add_all([
+        TransportRequest(
+            request_number="TR-0001", partner_id=partners[0].id, shipment_id=shipments[2].id,
+            request_date=today, pickup_date=today + timedelta(days=1), pickup_time="08:00",
+            delivery_date=today + timedelta(days=1), delivery_time="15:00",
+            pickup_address="東京都江東区有明", pickup_contact="山本建設 山本社長 03-2345-6789",
+            delivery_address="茨城県つくば市", delivery_contact="現場事務所 090-1111-2222",
+            cargo_description="建材（鉄骨・合板）", cargo_weight=5000, cargo_quantity="鉄骨10本、合板50枚",
+            vehicle_type_required="平ボディ", freight_amount=75000,
+            special_instructions="荷下ろしにクレーン必要。現場到着後に電話連絡のこと。",
+            status="送付済"),
+        TransportRequest(
+            request_number="TR-0002", partner_id=partners[2].id,
+            request_date=today, pickup_date=today + timedelta(days=2), pickup_time="06:00",
+            delivery_date=today + timedelta(days=2), delivery_time="14:00",
+            pickup_address="神奈川県横浜市鶴見区", pickup_contact="東海配送 伊藤店長 045-123-4567",
+            delivery_address="静岡県沼津市", delivery_contact="富士工場 055-111-2222",
+            cargo_description="自動車部品", cargo_weight=7000, cargo_quantity="20パレット",
+            vehicle_type_required="ウイング車", freight_amount=120000,
+            special_instructions="パレット回収あり（空パレット15枚）。温度管理不要。",
+            status="下書き"),
+    ])
+
+    # 車番連絡票
+    db.add_all([
+        VehicleNotification(
+            dispatch_id=dispatches_data[0].id, notification_date=today - timedelta(days=1),
+            arrival_date=today, arrival_time="06:00",
+            vehicle_number="品川 100 あ 1234", vehicle_type="ウイング車 10t",
+            driver_name="田中 太郎", driver_phone="090-1234-5678",
+            cargo_description="家電製品", quantity="パレット8枚",
+            destination_name="横浜倉庫", destination_address="神奈川県横浜市港北区",
+            destination_contact="倉庫管理 鈴木様 045-XXX-XXXX",
+            sender_name="ABC物流", special_notes="リフト使用可。バースNo.3に付け。",
+            status="送付済"),
+        VehicleNotification(
+            dispatch_id=dispatches_data[1].id, notification_date=today,
+            arrival_date=today, arrival_time="08:00",
+            vehicle_number="大宮 400 え 3456", vehicle_type="トレーラー 20t",
+            driver_name="鈴木 一郎", driver_phone="090-2345-6789",
+            cargo_description="食品(冷蔵)", quantity="パレット15枚",
+            destination_name="千葉物流センター", destination_address="千葉県千葉市美浜区",
+            destination_contact="入荷担当 佐藤様 043-XXX-XXXX",
+            sender_name="XYZ商事", special_notes="冷蔵車。庫内温度5℃以下維持。検品あり。",
+            status="未送付"),
+    ])
+
+    # 勤怠データ（過去2週間分）
+    for d_offset in range(1, 15):
+        d = today - timedelta(days=d_offset)
+        if d.weekday() >= 5:  # 土日スキップ
+            continue
+        for drv_idx in range(4):  # 4人分
+            clock_in = ["06:00", "07:00", "06:30", "08:00"][drv_idx]
+            clock_out = ["17:00", "18:00", "16:30", "19:00"][drv_idx]
+            # 勤務時間計算
+            sh, sm = map(int, clock_in.split(':'))
+            eh, em = map(int, clock_out.split(':'))
+            work_mins = (eh * 60 + em) - (sh * 60 + sm) - 60
+            overtime = max(0, work_mins - 480)
+            late_night = 0
+            if eh >= 22 or sh < 5:
+                late_night = 30
+            db.add(Attendance(
+                driver_id=drivers[drv_idx].id, date=d,
+                clock_in=clock_in, clock_out=clock_out,
+                break_minutes=60, work_type="通常",
+                overtime_minutes=overtime, late_night_minutes=late_night,
+                distance_km=[245, 180, 120, 300][drv_idx],
+                allowance=[1000, 1000, 500, 1500][drv_idx],
+            ))
+
+    # 会計データ
+    # 収入（完了案件から）
+    for s in shipments:
+        if s.status == "完了":
+            db.add(AccountEntry(
+                date=s.delivery_date, entry_type="収入", category="運賃収入",
+                description=f"{s.client_name}: {s.pickup_address} → {s.delivery_address}",
+                amount=s.price, related_shipment_id=s.id))
+
+    # 支出
+    expenses = [
+        (today - timedelta(days=1), "燃料費", "軽油 200L @140円", 28000),
+        (today - timedelta(days=2), "高速代", "首都高+東名 品川→浜松", 8500),
+        (today - timedelta(days=3), "燃料費", "軽油 150L @140円", 21000),
+        (today - timedelta(days=3), "高速代", "関越道 練馬→高崎", 4200),
+        (today - timedelta(days=5), "修理・整備費", "千葉500お7890 タイヤ交換4本", 120000),
+        (today - timedelta(days=7), "保険料", "車両保険 月額分", 85000),
+        (today - timedelta(days=7), "リース料", "大宮400え3456 月額リース", 250000),
+        (today - timedelta(days=10), "協力会社支払", "丸一運送 2月分", 280000),
+        (today - timedelta(days=10), "給与・手当", "ドライバー手当 3月前半", 180000),
+        (today - timedelta(days=12), "事務所経費", "事務所家賃 3月分", 150000),
+        (today - timedelta(days=14), "燃料費", "軽油 250L @140円", 35000),
+    ]
+    for d, cat, desc, amt in expenses:
+        db.add(AccountEntry(date=d, entry_type="支出", category=cat, description=desc, amount=amt))
 
     db.commit()
     db.close()

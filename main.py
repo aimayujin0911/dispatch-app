@@ -77,6 +77,11 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/m/attendance", response_class=HTMLResponse)
+async def mobile_attendance(request: Request):
+    return templates.TemplateResponse("mobile_attendance.html", {"request": request})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
