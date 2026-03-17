@@ -857,6 +857,7 @@ async function showDispatchDetail(id) {
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
             <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="指示書印刷">🖨 指示書</button>
             <button class="btn btn-sm" onclick="createVehicleNotificationFromDispatch(${d.id})" title="車番連絡票">📋 車番連絡</button>
+            <button class="btn btn-sm" onclick="createTransportRequestFromDispatch(${d.id})" title="輸送依頼書">📄 依頼書</button>
             <button class="btn btn-sm" onclick="autoReportFromDispatch(${d.id})" title="日報自動作成">📝 日報作成</button>
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
@@ -1256,8 +1257,10 @@ async function loadShipments() {
             <td>¥${s.price.toLocaleString()}</td>
             <td>${freqLabel || '単発'}</td>
             <td>${statusBadge(s.status)}</td>
-            <td>
+            <td style="white-space:nowrap">
                 <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
+                <button class="btn btn-sm" onclick="createTransportRequestFromShipment(${s.id})" title="輸送依頼書作成">📄</button>
+                <button class="btn btn-sm" onclick="printShipmentInstruction(${s.id})" title="指示書印刷">🖨</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteShipment(${s.id})">削除</button>
             </td>
         </tr>`;
@@ -2297,8 +2300,77 @@ async function saveVehicleNotification() {
 
 async function createVehicleNotificationFromDispatch(dispatchId) {
     await apiPost(`/vehicle-notifications/from-dispatch/${dispatchId}`, {});
-    alert('車番連絡票を作成しました');
+    alert('車番連絡票を作成しました（書類管理ページで確認・印刷できます）');
     closeModal();
+}
+
+// 案件から輸送依頼書を作成（案件一覧の📄ボタン）
+async function createTransportRequestFromShipment(shipmentId) {
+    const shipments = await apiGet('/shipments');
+    const s = shipments.find(x => x.id === shipmentId);
+    if (!s) return;
+    openTransportRequestModal(s);
+}
+
+// 配車から輸送依頼書を作成（配車詳細の📄ボタン）
+async function createTransportRequestFromDispatch(dispatchId) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === dispatchId);
+    if (!d) return;
+    // 配車データを案件形式に変換してモーダルを開く
+    const shipmentLike = {
+        pickup_address: d.pickup_address || '',
+        delivery_address: d.delivery_address || '',
+        pickup_date: d.date,
+        delivery_date: d.end_date || d.date,
+        pickup_time: d.start_time || '',
+        delivery_time: d.end_time || '',
+        cargo_description: d.cargo_description || '',
+        weight: d.weight || 0,
+        price: d.price || 0,
+    };
+    closeModal();
+    openTransportRequestModal(shipmentLike);
+}
+
+// 案件から指示書を印刷（案件一覧の🖨ボタン）
+async function printShipmentInstruction(shipmentId) {
+    const shipments = await apiGet('/shipments');
+    const s = shipments.find(x => x.id === shipmentId);
+    if (!s) return;
+    const settings = await apiGet('/settings');
+    const printWin = window.open('', '_blank', 'width=600,height=800');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>運送指示書</title>
+        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
+        h1{font-size:1.5rem;text-align:center;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse;margin:16px 0}
+        th,td{border:1px solid #333;padding:10px 14px;text-align:left}
+        th{background:#f5f5f5;width:120px;font-size:0.9rem}
+        .header{text-align:right;font-size:0.85rem;margin-bottom:12px}
+        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
+        .sign{margin-top:40px;display:flex;justify-content:space-around}
+        .sign-box{border:1px solid #333;width:120px;height:60px;text-align:center;padding-top:40px;font-size:0.8rem}
+        </style></head><body>
+        <h1>運送指示書</h1>
+        <div class="header"><strong>${settings.company_name || ''}</strong><br>TEL: ${settings.phone || ''}</div>
+        <table>
+            <tr><th>案件名</th><td>${s.name || '-'}</td></tr>
+            <tr><th>荷主</th><td>${s.client_name}</td></tr>
+            <tr><th>集荷日時</th><td>${s.pickup_date} ${s.pickup_time || ''} ${s.time_note ? '(' + s.time_note + ')' : ''}</td></tr>
+            <tr><th>積地</th><td>${s.pickup_address}</td></tr>
+            <tr><th>配達日時</th><td>${s.delivery_date} ${s.delivery_time || ''}</td></tr>
+            <tr><th>卸地</th><td>${s.delivery_address}</td></tr>
+            <tr><th>荷物内容</th><td>${s.cargo_description || '-'}</td></tr>
+            <tr><th>重量</th><td>${s.weight ? s.weight + 'kg' : '-'}</td></tr>
+            <tr><th>運賃</th><td>¥${(s.price || 0).toLocaleString()}</td></tr>
+            <tr><th>備考</th><td>${s.notes || '-'}</td></tr>
+        </table>
+        <div class="sign">
+            <div class="sign-box">運行管理者</div>
+            <div class="sign-box">運転者確認</div>
+        </div>
+        <div class="footer">印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
+        <script>window.print();<\/script></body></html>`);
 }
 
 async function deleteVehicleNotification(id) {
