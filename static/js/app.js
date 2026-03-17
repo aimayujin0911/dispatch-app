@@ -154,11 +154,11 @@ async function loadDispatchCalendar() {
             </div>
             <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
             <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
-                ${[0,1,2,3,4,5,6,7,8,9,10].map(h => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+                ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
             </select>
             <span style="color:var(--text-light);font-size:0.8rem">〜</span>
             <select id="cal-hour-end" class="select" onchange="changeHourRange()" title="終了時刻" style="width:70px">
-                ${[18,19,20,21,22,23,24].map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
+                ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
             </select>
             <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
                 <option value="">全車種</option>
