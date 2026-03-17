@@ -6,6 +6,7 @@ let currentPage = 'dashboard';
 let calendarDate = new Date();
 let dragState = null;
 let resizeState = null;
+let justDragged = false;
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -332,6 +333,9 @@ async function onGanttDragEnd(e) {
 
     if (!dragging) { showDispatchDetail(id); return; }
 
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 200);
+
     const vehicleChanged = targetVehicleId && targetVehicleId !== vehicleId;
     const timeChanged = newStart !== origStart || newEnd !== origEnd;
 
@@ -445,6 +449,7 @@ function calcDuration(start, end) {
 
 // ===== 配車作成モーダル =====
 async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId, preselectedShipmentId) {
+    if (justDragged) { justDragged = false; return; }
     const [vehicles, drivers, shipments] = await Promise.all([
         apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
     ]);
