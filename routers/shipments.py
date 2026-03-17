@@ -38,6 +38,8 @@ class ShipmentUpdate(BaseModel):
     frequency_type: Optional[str] = None
     frequency_days: Optional[str] = None
     status: Optional[str] = None
+    invoice_status: Optional[str] = None
+    invoice_date: Optional[date] = None
     notes: Optional[str] = None
 
 

@@ -205,6 +205,12 @@
 
         <!-- 売上・請求管理 -->
         <section class="page" id="page-revenue">
+            <div class="page-actions">
+                <button class="btn btn-sm" onclick="changeRevMonth(-1)">◀ 前月</button>
+                <input type="month" id="rev-month" onchange="loadRevenue()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
+                <button class="btn btn-sm" onclick="changeRevMonth(1)">翌月 ▶</button>
+                <button class="btn btn-sm" onclick="setRevMonthCurrent()">今月</button>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card green">
                     <div class="stat-label">月間売上</div>
@@ -218,6 +224,10 @@
                     <div class="stat-label">平均単価</div>
                     <div class="stat-value" id="rev-avg">¥0</div>
                 </div>
+                <div class="stat-card purple">
+                    <div class="stat-label">未請求額</div>
+                    <div class="stat-value" id="rev-uninvoiced">¥0</div>
+                </div>
             </div>
             <div class="dashboard-grid">
                 <div class="card">
@@ -230,19 +240,32 @@
                 </div>
             </div>
             <div class="card" style="margin-top:16px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h3 style="margin:0">完了済み案件一覧（請求管理）</h3>
-                    <button class="btn btn-sm btn-primary" onclick="printInvoiceList()">🖨 請求一覧印刷</button>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                    <h3 style="margin:0">案件別 請求管理</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <select id="rev-filter-invoice" onchange="loadRevenue()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem">
+                            <option value="">全て</option>
+                            <option value="未請求">未請求のみ</option>
+                            <option value="請求済">請求済のみ</option>
+                            <option value="入金済">入金済のみ</option>
+                        </select>
+                        <button class="btn btn-sm" onclick="bulkInvoice()">📄 一括請求済にする</button>
+                        <button class="btn btn-sm btn-primary" onclick="printInvoiceList()">🖨 請求書印刷</button>
+                    </div>
                 </div>
                 <div class="table-container">
                     <table class="data-table" id="invoice-table">
                         <thead>
                             <tr>
+                                <th><input type="checkbox" id="rev-check-all" onchange="toggleAllInvoiceChecks(this)"></th>
+                                <th>案件名</th>
                                 <th>荷主</th>
-                                <th>荷物</th>
                                 <th>積地 → 卸地</th>
                                 <th>配達日</th>
                                 <th>運賃</th>
+                                <th>請求状態</th>
+                                <th>請求日</th>
+                                <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="revenue-table"></tbody>
@@ -292,6 +315,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=6"></script>
+    <script src="/static/js/app.js?v=7"></script>
 </body>
 </html>

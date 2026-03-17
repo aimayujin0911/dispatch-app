@@ -64,6 +64,8 @@ class Shipment(Base):
     frequency_type = Column(String(20), default="単発")
     frequency_days = Column(String(50), default="")
     status = Column(String(20), default="未配車")
+    invoice_status = Column(String(20), default="未請求")
+    invoice_date = Column(Date, nullable=True)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 

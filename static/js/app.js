@@ -1609,19 +1609,64 @@ function statusBadgeHtml(status) {
 }
 
 // ===== 【機能2,5】売上・請求管理 =====
-async function loadRevenue() {
-    const [data, shipments, dispatches] = await Promise.all([
-        apiGet('/dashboard'), apiGet('/shipments'), apiGet('/dispatches')
-    ]);
-    const completed = shipments.filter(s => s.status === '完了');
-    document.getElementById('rev-monthly').textContent = `¥${data.monthly_revenue.toLocaleString()}`;
-    document.getElementById('rev-completed').textContent = data.monthly_completed;
-    const avg = data.monthly_completed > 0 ? Math.round(data.monthly_revenue / data.monthly_completed) : 0;
-    document.getElementById('rev-avg').textContent = `¥${avg.toLocaleString()}`;
+function getRevMonth() {
+    const el = document.getElementById('rev-month');
+    if (!el || !el.value) {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return el.value;
+}
 
-    // 【機能2】車両別売上
+function changeRevMonth(delta) {
+    const current = getRevMonth();
+    const [y, m] = current.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    document.getElementById('rev-month').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    loadRevenue();
+}
+
+function setRevMonthCurrent() {
+    const now = new Date();
+    document.getElementById('rev-month').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    loadRevenue();
+}
+
+async function loadRevenue() {
+    // 月セレクタ初期化
+    const monthEl = document.getElementById('rev-month');
+    if (!monthEl.value) {
+        const now = new Date();
+        monthEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    const [yearStr, monStr] = monthEl.value.split('-');
+    const year = parseInt(yearStr), month = parseInt(monStr);
+    const monthStart = `${yearStr}-${monStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const monthEnd = `${yearStr}-${monStr}-${String(lastDay).padStart(2, '0')}`;
+
+    const [shipments, dispatches] = await Promise.all([
+        apiGet('/shipments'), apiGet('/dispatches')
+    ]);
+
+    // 該当月の完了案件
+    const completed = shipments.filter(s =>
+        s.status === '完了' && s.delivery_date >= monthStart && s.delivery_date <= monthEnd
+    );
+    const totalRevenue = completed.reduce((sum, s) => sum + s.price, 0);
+    const uninvoiced = completed.filter(s => !s.invoice_status || s.invoice_status === '未請求');
+    const uninvoicedTotal = uninvoiced.reduce((sum, s) => sum + s.price, 0);
+
+    document.getElementById('rev-monthly').textContent = `¥${totalRevenue.toLocaleString()}`;
+    document.getElementById('rev-completed').textContent = completed.length;
+    const avg = completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0;
+    document.getElementById('rev-avg').textContent = `¥${avg.toLocaleString()}`;
+    document.getElementById('rev-uninvoiced').textContent = `¥${uninvoicedTotal.toLocaleString()}`;
+
+    // 車両別売上（該当月の配車から）
+    const monthDispatches = dispatches.filter(d => d.date >= monthStart && d.date <= monthEnd);
     const vehicleRevenue = {};
-    dispatches.forEach(d => {
+    monthDispatches.forEach(d => {
         if (d.price > 0) {
             const key = d.vehicle_number || '不明';
             vehicleRevenue[key] = (vehicleRevenue[key] || 0) + d.price;
@@ -1639,9 +1684,7 @@ async function loadRevenue() {
     // 荷主別売上
     const clientRevenue = {};
     completed.forEach(s => {
-        if (s.price > 0) {
-            clientRevenue[s.client_name] = (clientRevenue[s.client_name] || 0) + s.price;
-        }
+        if (s.price > 0) clientRevenue[s.client_name] = (clientRevenue[s.client_name] || 0) + s.price;
     });
     const maxCRev = Math.max(...Object.values(clientRevenue), 1);
     document.getElementById('rev-by-client').innerHTML = Object.entries(clientRevenue)
@@ -1652,24 +1695,70 @@ async function loadRevenue() {
             <span class="rev-bar-value">¥${rev.toLocaleString()}</span>
         </div>`).join('') || '<p style="color:var(--text-light);font-size:0.85rem">データなし</p>';
 
-    // 【機能5】請求一覧テーブル
+    // 請求フィルタ
+    const invoiceFilter = document.getElementById('rev-filter-invoice')?.value || '';
+    let filtered = completed;
+    if (invoiceFilter) {
+        filtered = completed.filter(s => (s.invoice_status || '未請求') === invoiceFilter);
+    }
+
+    // 請求管理テーブル
     let totalInvoice = 0;
-    document.getElementById('revenue-table').innerHTML = completed.map(s => {
+    document.getElementById('revenue-table').innerHTML = filtered.map(s => {
         totalInvoice += s.price;
+        const invStatus = s.invoice_status || '未請求';
+        const invBadge = invStatus === '入金済' ? '<span class="badge badge-green">入金済</span>'
+            : invStatus === '請求済' ? '<span class="badge badge-blue">請求済</span>'
+            : '<span class="badge badge-orange">未請求</span>';
         return `<tr>
-            <td>${s.client_name}</td>
-            <td>${s.cargo_description || '-'}</td>
-            <td>${s.pickup_address} → ${s.delivery_address}</td>
+            <td><input type="checkbox" class="inv-check" data-id="${s.id}"></td>
+            <td>${s.name || '-'}</td>
+            <td><strong>${s.client_name}</strong></td>
+            <td style="font-size:0.8rem">${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.delivery_date}</td>
             <td><strong>¥${s.price.toLocaleString()}</strong></td>
+            <td>${invBadge}</td>
+            <td style="font-size:0.8rem">${s.invoice_date || '-'}</td>
+            <td>
+                <select onchange="updateInvoiceStatus(${s.id}, this.value)" style="font-size:0.8rem;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px">
+                    <option ${invStatus === '未請求' ? 'selected' : ''}>未請求</option>
+                    <option ${invStatus === '請求済' ? 'selected' : ''}>請求済</option>
+                    <option ${invStatus === '入金済' ? 'selected' : ''}>入金済</option>
+                </select>
+            </td>
         </tr>`;
-    }).join('') + (completed.length > 0 ? `<tr style="background:#f8fafc;font-weight:700">
-        <td colspan="4" style="text-align:right">合計</td>
+    }).join('') + (filtered.length > 0 ? `<tr style="background:#f8fafc;font-weight:700">
+        <td></td><td colspan="4" style="text-align:right">合計 (${filtered.length}件)</td>
         <td>¥${totalInvoice.toLocaleString()}</td>
-    </tr>` : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:40px">完了済み案件がありません</td></tr>');
+        <td colspan="3"></td>
+    </tr>` : `<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">${monthEl.value} の該当案件がありません</td></tr>`);
 }
 
-// 【機能5】請求一覧印刷
+async function updateInvoiceStatus(shipmentId, status) {
+    const today = fmt(new Date());
+    const data = { invoice_status: status };
+    if (status === '請求済' || status === '入金済') data.invoice_date = today;
+    if (status === '未請求') data.invoice_date = null;
+    await apiPut(`/shipments/${shipmentId}`, data);
+    loadRevenue();
+}
+
+function toggleAllInvoiceChecks(master) {
+    document.querySelectorAll('.inv-check').forEach(cb => cb.checked = master.checked);
+}
+
+async function bulkInvoice() {
+    const checked = [...document.querySelectorAll('.inv-check:checked')].map(cb => parseInt(cb.dataset.id));
+    if (checked.length === 0) return alert('請求する案件を選択してください');
+    if (!confirm(`${checked.length}件を請求済にしますか？`)) return;
+    const today = fmt(new Date());
+    for (const id of checked) {
+        await apiPut(`/shipments/${id}`, { invoice_status: '請求済', invoice_date: today });
+    }
+    loadRevenue();
+}
+
+// 請求書印刷
 function printInvoiceList() {
     window.print();
 }
