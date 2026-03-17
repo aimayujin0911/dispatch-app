@@ -128,7 +128,12 @@ async function loadDispatchCalendar() {
 
     const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
     const filterType = document.getElementById('cal-filter-type')?.value || '';
-    const filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
+    let filteredVehicles = filterType ? vehicles.filter(v => v.type === filterType) : vehicles;
+    // Requirement 5: 整備中の車両を一番下に並び替え
+    filteredVehicles = [
+        ...filteredVehicles.filter(v => v.status !== '整備中'),
+        ...filteredVehicles.filter(v => v.status === '整備中'),
+    ];
 
     if (selectedDayIndex >= CAL_DAYS) selectedDayIndex = 0;
     const activeDayStr = dayStrs[selectedDayIndex];
@@ -191,9 +196,13 @@ async function loadDispatchCalendar() {
             <div class="unassigned-list">
                 ${unassigned.map(s => {
                     const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
+                    // Requirement 6: 品目と積載量を表示
+                    const cargoDesc = s.cargo_description ? `<span style="font-size:0.78rem;color:#6b7280">${s.cargo_description}</span>` : '';
+                    const weightDesc = s.weight > 0 ? `<span style="font-size:0.78rem;color:#6b7280">${s.weight}kg</span>` : '';
                     return `<div class="unassigned-item" draggable="false" onmousedown="startShipmentDrag(event, ${s.id}, '${s.client_name}', '${(s.pickup_address||'').replace(/'/g,"\\'")}', '${(s.delivery_address||'').replace(/'/g,"\\'")}', '${activeDayStr}')" onclick="if(!justDragged){openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})}">
                     <strong>${s.name || s.client_name}</strong>
                     <span>${s.pickup_address} → ${s.delivery_address}</span>
+                    ${cargoDesc}${weightDesc}
                     <span class="badge badge-orange">未配車${freqLabel}</span>
                     <span>¥${s.price.toLocaleString()}</span>
                 </div>`;
@@ -204,16 +213,56 @@ async function loadDispatchCalendar() {
     }
 }
 
+// Requirement 1: ドライバー重複チェック（時間重複がある場合、重複先の車両番号を返す）
+async function checkDriverConflict(driverId, dateStr, startTime, endTime, excludeVehicleId, excludeDispatchId) {
+    const dispatches = await apiGet(`/dispatches?target_date=${dateStr}`);
+    const newStart = timeToMinutes(startTime);
+    const newEnd = timeToMinutes(endTime);
+    for (const d of dispatches) {
+        if (d.driver_id !== driverId) continue;
+        if (excludeVehicleId && d.vehicle_id === excludeVehicleId) continue;
+        if (excludeDispatchId && d.id === excludeDispatchId) continue;
+        const dStart = timeToMinutes(d.start_time);
+        const dEnd = timeToMinutes(d.end_time);
+        // 時間が重複しているかチェック
+        if (newStart < dEnd && newEnd > dStart) {
+            return d.vehicle_number || `車両ID:${d.vehicle_id}`;
+        }
+    }
+    return null;
+}
+
 function buildGanttRows(dayStr, dispatches, vehicles) {
+    // Requirement 1 & 2: ドライバー重複チェック用マップを構築
+    const driverDispatchMap = {};
+    dispatches.forEach(d => {
+        if (!d.driver_id) return;
+        if (!driverDispatchMap[d.driver_id]) driverDispatchMap[d.driver_id] = [];
+        driverDispatchMap[d.driver_id].push(d);
+    });
+    // 同じ日に複数車両に割り当てられているドライバーIDのセット
+    const conflictDriverIds = new Set();
+    Object.entries(driverDispatchMap).forEach(([driverId, dList]) => {
+        const vehicleIds = new Set(dList.map(d => d.vehicle_id));
+        if (vehicleIds.size > 1) conflictDriverIds.add(parseInt(driverId));
+    });
+
     let html = '';
     vehicles.forEach(v => {
+        const isMaintenance = v.status === '整備中';
         const statusCls = v.status === '稼働中' ? 'blue' : v.status === '空車' ? 'green' : 'orange';
-        html += `<div class="cal-vehicle-label">`;
+        // Requirement 5: 整備中はグレーアウト
+        const maintenanceStyle = isMaintenance ? 'opacity:0.5;background:#e5e7eb;' : '';
+        html += `<div class="cal-vehicle-label" style="${maintenanceStyle}">`;
         html += `<div class="cal-vehicle-name">${v.number}</div>`;
         html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type}</div>`;
         html += `</div>`;
 
-        html += `<div class="gantt-timeline" data-vehicle-id="${v.id}" style="grid-column: 2 / -1;" onclick="openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})">`;
+        // Requirement 5: 整備中車両はドロップ不可（クリック時に警告）
+        const timelineClick = isMaintenance
+            ? `alert('この車両は整備中のため配車できません')`
+            : `openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})`;
+        html += `<div class="gantt-timeline${isMaintenance ? ' maintenance' : ''}" data-vehicle-id="${v.id}" data-maintenance="${isMaintenance}" style="grid-column: 2 / -1;${maintenanceStyle}" onclick="${timelineClick}">`;
 
         for (let h = HOUR_START; h <= HOUR_END; h++) {
             const left = ((h - HOUR_START) / HOUR_COUNT) * 100;
@@ -258,10 +307,9 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         const timelineMinH = maxLanes * laneHeight + 8;
 
         if (maxLanes > 1) {
-            html = html.replace(
-                `data-vehicle-id="${v.id}" style="grid-column: 2 / -1;"`,
-                `data-vehicle-id="${v.id}" style="grid-column: 2 / -1; min-height:${timelineMinH}px;"`
-            );
+            const styleSearch = `data-vehicle-id="${v.id}" data-maintenance="${isMaintenance}" style="grid-column: 2 / -1;${maintenanceStyle}"`;
+            const styleReplace = `data-vehicle-id="${v.id}" data-maintenance="${isMaintenance}" style="grid-column: 2 / -1;${maintenanceStyle} min-height:${timelineMinH}px;"`;
+            html = html.replace(styleSearch, styleReplace);
         }
 
         const totalMin = HOUR_COUNT * 60;
@@ -271,13 +319,24 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const color = getDispatchColor(d.status);
             const capBadge = (d.weight > 0 && d.vehicle_capacity > 0) ? ` [${Math.round(d.weight / d.vehicle_capacity * 100)}%]` : '';
             const multiDayTag = d.isMultiDay ? ` 📅${d.date}〜${d.end_date}` : '';
+            // Requirement 6: 品目と積載量をtooltipに追加
+            const cargoInfo = d.cargo_description ? ` / ${d.cargo_description}` : '';
+            const weightInfo = d.weight > 0 ? ` ${d.weight}kg` : '';
             const top = d.lane * laneHeight + 4;
             const barH = laneHeight - 6;
             const multiDayClass = d.isMultiDay ? ' multi-day' : '';
-            html += `<div class="gantt-bar ${color}${multiDayClass}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}${multiDayTag}">`;
+            // Requirement 2: ドライバー重複警告（オレンジ枠）
+            const driverConflict = d.driver_id && conflictDriverIds.has(d.driver_id);
+            const conflictStyle = driverConflict ? 'border:2px solid #f97316;box-shadow:0 0 4px rgba(249,115,22,0.5);' : '';
+            const conflictIcon = driverConflict ? '⚠ ' : '';
+            // Requirement 3: ドライバー名を表示
+            const driverLabel = d.driver_name ? `${conflictIcon}${d.driver_name}` : '';
+            html += `<div class="gantt-bar ${color}${multiDayClass}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;${conflictStyle}" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${driverLabel}\n${d.start_time}-${d.end_time} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoInfo}${weightInfo}${capBadge}${multiDayTag}${driverConflict ? '\n⚠ このドライバーは同日に別車両にも配車されています' : ''}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
-            const startLabel = d.isMultiDay && dayStr !== d.date ? `${d.dayLabel}` : `${d.start_time} ${d.pickup_address || ''}`;
-            const endLabel = d.isMultiDay && dayStr !== d.end_date ? '▶' : `${d.end_time} ${d.delivery_address || ''}`;
+            // Requirement 3: ドライバー名 + 積卸地を表示、Requirement 6: 品目も表示
+            const cargoShort = d.cargo_description ? ` [${d.cargo_description}]` : '';
+            const startLabel = d.isMultiDay && dayStr !== d.date ? `${d.dayLabel}` : `${driverLabel} ${d.start_time} ${d.pickup_address || ''}${cargoShort}`;
+            const endLabel = d.isMultiDay && dayStr !== d.end_date ? '▶' : `→ ${d.delivery_address || ''} ${d.end_time}`;
             html += `<span class="gantt-bar-start">${startLabel}</span>`;
             html += `<span class="gantt-bar-end">${endLabel}</span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
@@ -382,6 +441,12 @@ function onGanttDragMove(e) {
         removeGhost();
     } else if (timeline) {
         dragState.droppedOnUnassigned = false;
+        // Requirement 5: 整備中の車両にはドロップ不可
+        if (timeline.dataset.maintenance === 'true') {
+            dragState.targetVehicleId = null;
+            removeGhost();
+            return;
+        }
         const vid = parseInt(timeline.dataset.vehicleId);
         dragState.targetVehicleId = vid;
         if (vid !== dragState.vehicleId) timeline.classList.add('drag-over');
@@ -438,10 +503,27 @@ async function onGanttDragEnd(e) {
     const timeChanged = newStart !== origStart || newEnd !== origEnd;
 
     if (vehicleChanged || timeChanged) {
+        // Requirement 4: 時間変更の警告
+        if (timeChanged && !confirm(`この案件の時間を変更しますか？（現在: ${origStart}-${origEnd} → ${newStart}-${newEnd}）`)) {
+            loadDispatchCalendar();
+            return;
+        }
         const update = {};
         if (vehicleChanged) update.vehicle_id = targetVehicleId;
         if (timeChanged) { update.start_time = newStart; update.end_time = newEnd; }
-        await apiPut(`/dispatches/${id}`, update);
+        try {
+            const resp = await fetch(API + `/dispatches/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(update)
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                alert('配車の更新に失敗しました: ' + (err.detail || resp.statusText));
+            }
+        } catch (e) {
+            alert('配車の更新に失敗しました: ' + e.message);
+        }
         loadDispatchCalendar();
     }
 }
@@ -474,6 +556,12 @@ function onShipmentDragMove(e) {
     const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
 
     if (timeline) {
+        // Requirement 5: 整備中の車両にはドロップ不可
+        if (timeline.dataset.maintenance === 'true') {
+            shipmentDragState.targetVehicleId = null;
+            if (shipmentDragState.ghost) { shipmentDragState.ghost.remove(); shipmentDragState.ghost = null; }
+            return;
+        }
         const vid = parseInt(timeline.dataset.vehicleId);
         shipmentDragState.targetVehicleId = vid;
         timeline.classList.add('drag-over');
@@ -602,6 +690,14 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
     if (!driverId && !partnerId) return alert('ドライバーまたは協力会社を選択してください');
     const startTime = document.getElementById('f-sd-start').value;
     const endTime = document.getElementById('f-sd-end').value;
+    // Requirement 1: ドライバー重複チェック
+    if (driverId) {
+        const conflict = await checkDriverConflict(driverId, dayStr, startTime, endTime, vehicleId);
+        if (conflict) {
+            alert(`このドライバーは同日に別の車両（${conflict}）で配車されています。\n時間が重複しているため配車できません。`);
+            return;
+        }
+    }
     const result = await apiPost('/dispatches', {
         vehicle_id: vehicleId,
         driver_id: driverId || null,
@@ -702,7 +798,24 @@ async function onGanttResizeEnd() {
     const { id, newStart, newEnd, origStart, origEnd } = resizeState;
     resizeState = null;
     if (newStart === origStart && newEnd === origEnd) return;
-    await apiPut(`/dispatches/${id}`, { start_time: newStart, end_time: newEnd });
+    // Requirement 4: 時間が設定されている案件の時間変更時に警告
+    if (!confirm(`この案件の時間を変更しますか？（現在: ${origStart}-${origEnd} → ${newStart}-${newEnd}）`)) {
+        loadDispatchCalendar();
+        return;
+    }
+    try {
+        const resp = await fetch(API + `/dispatches/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ start_time: newStart, end_time: newEnd })
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            alert('時間の保存に失敗しました: ' + (err.detail || resp.statusText));
+        }
+    } catch (e) {
+        alert('時間の保存に失敗しました: ' + e.message);
+    }
     loadDispatchCalendar();
 }
 
@@ -768,9 +881,11 @@ function timeToMinutes(t) {
 }
 
 function minutesToTime(mins) {
-    mins = Math.max(0, Math.min(mins, 23 * 60 + 30));
+    mins = Math.max(0, Math.min(mins, 24 * 60));
     const h = Math.floor(mins / 60);
     const m = mins % 60;
+    // 24:00は23:59として保存（DB String(5)制約）
+    if (h >= 24) return '23:59';
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
@@ -873,6 +988,15 @@ async function saveQuickDispatch() {
     if (!vehicleId || !driverId) return alert('車両とドライバーを選択してください');
     const date = document.getElementById('f-qd-date').value;
     if (!date) return alert('日付を選択してください');
+
+    // Requirement 1: ドライバー重複チェック
+    const startTimeVal = document.getElementById('f-qd-start').value;
+    const endTimeVal = document.getElementById('f-qd-end').value;
+    const conflict = await checkDriverConflict(driverId, date, startTimeVal, endTimeVal, vehicleId);
+    if (conflict) {
+        alert(`このドライバーは同日に別の車両（${conflict}）で配車されています。\n時間が重複しているため配車できません。`);
+        return;
+    }
 
     const endDate = document.getElementById('f-qd-end-date').value;
     const shipmentId = document.getElementById('f-qd-shipment').value;
@@ -1134,13 +1258,28 @@ async function editDispatch(id) {
 
 async function saveEditDispatch(id) {
     const endDate = document.getElementById('f-ed-end-date').value;
+    const dateVal = document.getElementById('f-ed-date').value;
+    const startTimeVal = document.getElementById('f-ed-start').value;
+    const endTimeVal = document.getElementById('f-ed-end').value;
+    const vehicleIdVal = parseInt(document.getElementById('f-ed-vehicle').value);
+    const driverIdVal = parseInt(document.getElementById('f-ed-driver').value);
+
+    // Requirement 1: ドライバー重複チェック（自分自身は除外）
+    if (driverIdVal) {
+        const conflict = await checkDriverConflict(driverIdVal, dateVal, startTimeVal, endTimeVal, vehicleIdVal, id);
+        if (conflict) {
+            alert(`このドライバーは同日に別の車両（${conflict}）で配車されています。\n時間が重複しているため配車できません。`);
+            return;
+        }
+    }
+
     const data = {
-        date: document.getElementById('f-ed-date').value,
+        date: dateVal,
         end_date: endDate || null,
-        start_time: document.getElementById('f-ed-start').value,
-        end_time: document.getElementById('f-ed-end').value,
-        vehicle_id: parseInt(document.getElementById('f-ed-vehicle').value),
-        driver_id: parseInt(document.getElementById('f-ed-driver').value),
+        start_time: startTimeVal,
+        end_time: endTimeVal,
+        vehicle_id: vehicleIdVal,
+        driver_id: driverIdVal,
         pickup_address: document.getElementById('f-ed-pickup').value,
         delivery_address: document.getElementById('f-ed-delivery').value,
         notes: document.getElementById('f-ed-notes').value,
