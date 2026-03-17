@@ -106,6 +106,9 @@ def seed():
                  date=today + timedelta(days=1), start_time="07:00", end_time="15:00", status="予定", notes="建材配送"),
         Dispatch(vehicle_id=vehicles[2].id, driver_id=drivers[3].id, shipment_id=shipments[3].id,
                  date=today + timedelta(days=1), start_time="09:00", end_time="18:00", status="予定", notes="精密機器取扱注意"),
+        # 日またぎ配車テスト
+        Dispatch(vehicle_id=vehicles[5].id, driver_id=drivers[5].id, shipment_id=shipments[4].id,
+                 date=today, end_date=today + timedelta(days=1), start_time="20:00", end_time="06:00", status="予定", notes="夜間長距離便"),
     ]
     db.add_all(dispatches_data)
     db.flush()

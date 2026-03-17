@@ -720,6 +720,12 @@ body {
     background: #f0f7ff !important;
 }
 
+#unassigned-panel.drag-over {
+    background: #fef3c7 !important;
+    border: 2px dashed #d97706;
+    box-shadow: 0 0 8px rgba(217, 119, 6, 0.3);
+}
+
 .gantt-bar-ghost {
     position: absolute;
     top: 4px;
@@ -740,6 +746,20 @@ body {
     color: #1e40af;
     white-space: nowrap;
 }
+
+.gantt-bar.multi-day {
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 3px,
+        rgba(255,255,255,0.15) 3px,
+        rgba(255,255,255,0.15) 6px
+    ), var(--bar-bg, #dbeafe);
+    border-style: dashed;
+}
+.gantt-bar.blue.multi-day { --bar-bg: #93c5fd; }
+.gantt-bar.green.multi-day { --bar-bg: #86efac; }
+.gantt-bar.orange.multi-day { --bar-bg: #fdba74; }
 
 /* 未配車案件パネル */
 .unassigned-list {

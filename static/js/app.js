@@ -100,9 +100,9 @@ function statusBar(label, count, total, color) {
 
 // ===== 配車表（車両×時間ガントチャート） =====
 const CAL_DAYS = 3;
-const HOUR_START = 5;
-const HOUR_END = 22;
-const HOUR_COUNT = HOUR_END - HOUR_START;
+let HOUR_START = 5;
+let HOUR_END = 22;
+let HOUR_COUNT = HOUR_END - HOUR_START;
 let selectedDayIndex = 0;
 
 async function loadDispatchCalendar() {
@@ -135,6 +135,13 @@ async function loadDispatchCalendar() {
     const hours = [];
     for (let h = HOUR_START; h < HOUR_END; h++) hours.push(h);
 
+    // 日付またぎ配車: この日に関係する配車を抽出
+    const dayDispatches2 = dispatches.filter(d => {
+        if (d.date === activeDayStr) return true;
+        if (d.end_date && d.date <= activeDayStr && d.end_date >= activeDayStr) return true;
+        return false;
+    });
+
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
         <div class="cal-controls">
@@ -146,6 +153,13 @@ async function loadDispatchCalendar() {
                 ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
             </div>
             <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
+            <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
+                ${[0,1,2,3,4,5,6,7,8,9,10].map(h => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+            </select>
+            <span style="color:var(--text-light);font-size:0.8rem">〜</span>
+            <select id="cal-hour-end" class="select" onchange="changeHourRange()" title="終了時刻" style="width:70px">
+                ${[18,19,20,21,22,23,24].map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
+            </select>
             <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
                 <option value="">全車種</option>
                 ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
@@ -155,25 +169,32 @@ async function loadDispatchCalendar() {
             <div class="gantt-grid" style="grid-template-columns: 140px repeat(${HOUR_COUNT}, 1fr);">
                 <div class="cal-header cal-vehicle-col">車両</div>
                 ${hours.map(h => `<div class="cal-header gantt-hour-header">${String(h).padStart(2, '0')}</div>`).join('')}
-                ${buildGanttRows(activeDayStr, dayDispatches, filteredVehicles)}
+                ${buildGanttRows(activeDayStr, dayDispatches2, filteredVehicles)}
             </div>
         </div>`;
 
-    // 【機能3】未配車案件パネル
-    const unassigned = shipments.filter(s => s.status === '未配車');
+    // 【機能3】未配車案件パネル（その日に該当する案件のみ表示）
+    const unassigned = shipments.filter(s => {
+        if (s.status !== '未配車') return false;
+        return isShipmentForDate(s, activeDayStr);
+    });
+    const allUnassigned = shipments.filter(s => s.status === '未配車');
     const panel = document.getElementById('unassigned-panel');
     if (unassigned.length > 0) {
-        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 (${unassigned.length}件)</h3>
+        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件<span style="color:var(--text-light);font-size:0.8rem"> / 全${allUnassigned.length}件</span>)</h3>
             <div class="unassigned-list">
-                ${unassigned.map(s => `<div class="unassigned-item" draggable="false" onmousedown="startShipmentDrag(event, ${s.id}, '${s.client_name}', '${(s.pickup_address||'').replace(/'/g,"\\'")}', '${(s.delivery_address||'').replace(/'/g,"\\'")}', '${activeDayStr}')" onclick="if(!justDragged){openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})}">
-                    <strong>${s.client_name}</strong>
+                ${unassigned.map(s => {
+                    const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
+                    return `<div class="unassigned-item" draggable="false" onmousedown="startShipmentDrag(event, ${s.id}, '${s.client_name}', '${(s.pickup_address||'').replace(/'/g,"\\'")}', '${(s.delivery_address||'').replace(/'/g,"\\'")}', '${activeDayStr}')" onclick="if(!justDragged){openQuickDispatchModal('${activeDayStr}','08:00','17:00', null, ${s.id})}">
+                    <strong>${s.name || s.client_name}</strong>
                     <span>${s.pickup_address} → ${s.delivery_address}</span>
-                    <span class="badge badge-orange">未配車</span>
+                    <span class="badge badge-orange">未配車${freqLabel}</span>
                     <span>¥${s.price.toLocaleString()}</span>
-                </div>`).join('')}
+                </div>`;
+                }).join('')}
             </div>`;
     } else {
-        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件</h3><p style="color:var(--text-light);font-size:0.85rem">全ての案件が配車済みです</p>`;
+        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件 - ${activeDayStr}</h3><p style="color:var(--text-light);font-size:0.85rem">${allUnassigned.length > 0 ? 'この日に該当する未配車案件はありません（全' + allUnassigned.length + '件）' : '全ての案件が配車済みです'}</p>`;
     }
 }
 
@@ -197,12 +218,34 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         // 重なりを検出して段(row)を割り当て
         const lanes = [];
         const dispatchLanes = vDispatches.map(d => {
-            const startMin = timeToMinutes(d.start_time);
-            const endMin = timeToMinutes(d.end_time);
+            // 日付またぎ対応: 表示日に応じて表示時間を調整
+            let startMin, endMin, isMultiDay = false, dayLabel = '';
+            if (d.end_date && d.end_date !== d.date) {
+                isMultiDay = true;
+                if (dayStr === d.date) {
+                    // 初日: start_time 〜 表示終了
+                    startMin = timeToMinutes(d.start_time);
+                    endMin = HOUR_END * 60;
+                    dayLabel = '▶';
+                } else if (dayStr === d.end_date) {
+                    // 最終日: 表示開始 〜 end_time
+                    startMin = HOUR_START * 60;
+                    endMin = timeToMinutes(d.end_time);
+                    dayLabel = '▶';
+                } else {
+                    // 中間日: 全日表示
+                    startMin = HOUR_START * 60;
+                    endMin = HOUR_END * 60;
+                    dayLabel = '⇥ 継続中';
+                }
+            } else {
+                startMin = timeToMinutes(d.start_time);
+                endMin = timeToMinutes(d.end_time);
+            }
             let lane = 0;
             while (lanes[lane] && lanes[lane] > startMin) { lane++; }
             lanes[lane] = endMin;
-            return { ...d, lane, startMin, endMin };
+            return { ...d, lane, startMin, endMin, isMultiDay, dayLabel };
         });
         const maxLanes = Math.max(lanes.length, 1);
         const laneHeight = 32;
@@ -221,12 +264,16 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const width = ((d.endMin - d.startMin) / totalMin) * 100;
             const color = getDispatchColor(d.status);
             const capBadge = (d.weight > 0 && d.vehicle_capacity > 0) ? ` [${Math.round(d.weight / d.vehicle_capacity * 100)}%]` : '';
+            const multiDayTag = d.isMultiDay ? ` 📅${d.date}〜${d.end_date}` : '';
             const top = d.lane * laneHeight + 4;
             const barH = laneHeight - 6;
-            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}">`;
+            const multiDayClass = d.isMultiDay ? ' multi-day' : '';
+            html += `<div class="gantt-bar ${color}${multiDayClass}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}${multiDayTag}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
-            html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
-            html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
+            const startLabel = d.isMultiDay && dayStr !== d.date ? `${d.dayLabel}` : `${d.start_time} ${d.pickup_address || ''}`;
+            const endLabel = d.isMultiDay && dayStr !== d.end_date ? '▶' : `${d.end_time} ${d.delivery_address || ''}`;
+            html += `<span class="gantt-bar-start">${startLabel}</span>`;
+            html += `<span class="gantt-bar-end">${endLabel}</span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `</div>`;
         });
@@ -316,11 +363,19 @@ function onGanttDragMove(e) {
     dragState.newEnd = newEnd;
 
     document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.getElementById('unassigned-panel')?.classList.remove('drag-over');
 
     const elements = document.elementsFromPoint(e.clientX, e.clientY);
     const timeline = elements.find(el => el.classList.contains('gantt-timeline'));
+    const unassignedPanel = elements.find(el => el.id === 'unassigned-panel' || el.closest('#unassigned-panel'));
 
-    if (timeline) {
+    if (unassignedPanel) {
+        dragState.droppedOnUnassigned = true;
+        dragState.targetVehicleId = null;
+        document.getElementById('unassigned-panel')?.classList.add('drag-over');
+        removeGhost();
+    } else if (timeline) {
+        dragState.droppedOnUnassigned = false;
         const vid = parseInt(timeline.dataset.vehicleId);
         dragState.targetVehicleId = vid;
         if (vid !== dragState.vehicleId) timeline.classList.add('drag-over');
@@ -335,6 +390,7 @@ function onGanttDragMove(e) {
         }
         updateGhostPosition(dragState.ghost, newStartMin, newEndMin);
     } else {
+        dragState.droppedOnUnassigned = false;
         dragState.targetVehicleId = null;
         removeGhost();
     }
@@ -345,17 +401,32 @@ async function onGanttDragEnd(e) {
     document.removeEventListener('mouseup', onGanttDragEnd);
     document.body.style.cursor = '';
     document.querySelectorAll('.gantt-timeline.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.getElementById('unassigned-panel')?.classList.remove('drag-over');
     removeGhost();
 
     if (!dragState) return;
     const { id, vehicleId, dragging, targetVehicleId, bar, origStart, origEnd, newStart, newEnd } = dragState;
     if (bar) bar.classList.remove('dragging');
+    const droppedOnUnassigned = dragState.droppedOnUnassigned;
     dragState = null;
 
     if (!dragging) { showDispatchDetail(id); return; }
 
     justDragged = true;
     setTimeout(() => { justDragged = false; }, 200);
+
+    // 未配車パネルにドロップ → 配車を削除して案件を未配車に戻す
+    if (droppedOnUnassigned) {
+        if (!confirm('この配車を取り消して未配車に戻しますか？')) return;
+        const dispatches = await apiGet('/dispatches');
+        const d = dispatches.find(x => x.id === id);
+        if (d && d.shipment_id) {
+            await apiPut(`/shipments/${d.shipment_id}`, { status: '未配車' });
+        }
+        await apiDelete(`/dispatches/${id}`);
+        loadDispatchCalendar();
+        return;
+    }
 
     const vehicleChanged = targetVehicleId && targetVehicleId !== vehicleId;
     const timeChanged = newStart !== origStart || newEnd !== origEnd;
@@ -571,6 +642,16 @@ function changeDays(dir) {
     loadDispatchCalendar();
 }
 
+function changeHourRange() {
+    const newStart = parseInt(document.getElementById('cal-hour-start').value);
+    const newEnd = parseInt(document.getElementById('cal-hour-end').value);
+    if (newEnd <= newStart) { alert('終了時刻は開始時刻より後にしてください'); return; }
+    HOUR_START = newStart;
+    HOUR_END = newEnd;
+    HOUR_COUNT = HOUR_END - HOUR_START;
+    loadDispatchCalendar();
+}
+
 function isToday(d) {
     const t = new Date();
     return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
@@ -582,6 +663,30 @@ function fmt(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+// 案件がその日に該当するか判定（単発=集荷日一致、毎日=範囲内、曜日指定=曜日+範囲内）
+function isShipmentForDate(s, dateStr) {
+    const d = new Date(dateStr);
+    const pickup = s.pickup_date;
+    const delivery = s.delivery_date;
+    // 単発: 集荷日〜配達日の範囲内
+    if (s.frequency_type === '単発' || !s.frequency_type) {
+        return dateStr >= pickup && dateStr <= delivery;
+    }
+    // 毎日: 集荷日以降
+    if (s.frequency_type === '毎日') {
+        return dateStr >= pickup;
+    }
+    // 曜日指定: 集荷日以降 かつ 該当曜日
+    if (s.frequency_type === '曜日指定') {
+        if (dateStr < pickup) return false;
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        const dayName = dayNames[d.getDay()];
+        const specifiedDays = (s.frequency_days || '').split(',');
+        return specifiedDays.includes(dayName);
+    }
+    return false;
 }
 
 function timeToMinutes(t) {
@@ -614,10 +719,13 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
     document.getElementById('modal-body').innerHTML = `
         <div class="form-row">
             <div class="form-group">
-                <label>日付</label>
+                <label>開始日</label>
                 <input type="date" id="f-qd-date" value="${date}">
             </div>
-            <div class="form-group"></div>
+            <div class="form-group">
+                <label>終了日（日またぎの場合）</label>
+                <input type="date" id="f-qd-end-date" value="" placeholder="同日なら空欄">
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -693,6 +801,7 @@ async function saveQuickDispatch() {
     const date = document.getElementById('f-qd-date').value;
     if (!date) return alert('日付を選択してください');
 
+    const endDate = document.getElementById('f-qd-end-date').value;
     const shipmentId = document.getElementById('f-qd-shipment').value;
     const data = {
         vehicle_id: vehicleId, driver_id: driverId, date: date,
@@ -700,6 +809,7 @@ async function saveQuickDispatch() {
         end_time: document.getElementById('f-qd-end').value,
         notes: document.getElementById('f-qd-notes').value,
     };
+    if (endDate && endDate !== date) data.end_date = endDate;
 
     if (shipmentId) {
         data.shipment_id = parseInt(shipmentId);
@@ -811,10 +921,13 @@ async function editDispatch(id) {
     document.getElementById('modal-body').innerHTML = `
         <div class="form-row">
             <div class="form-group">
-                <label>日付</label>
+                <label>開始日</label>
                 <input type="date" id="f-ed-date" value="${d.date}">
             </div>
-            <div class="form-group"></div>
+            <div class="form-group">
+                <label>終了日（日またぎ）</label>
+                <input type="date" id="f-ed-end-date" value="${d.end_date || ''}">
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -857,8 +970,10 @@ async function editDispatch(id) {
 }
 
 async function saveEditDispatch(id) {
+    const endDate = document.getElementById('f-ed-end-date').value;
     const data = {
         date: document.getElementById('f-ed-date').value,
+        end_date: endDate || null,
         start_time: document.getElementById('f-ed-start').value,
         end_time: document.getElementById('f-ed-end').value,
         vehicle_id: parseInt(document.getElementById('f-ed-vehicle').value),
@@ -899,7 +1014,8 @@ async function loadVehicles() {
         return `<tr>
             <td><strong><a href="#" onclick="event.preventDefault();editVehicle(${v.id})" class="link-cell">${v.number}</a></strong></td>
             <td style="font-size:0.8rem;font-family:monospace">${v.chassis_number || '-'}</td>
-            <td>${v.type} <span style="font-size:0.8rem;color:var(--text-light)">${v.capacity.toLocaleString()}kg</span></td>
+            <td>${v.type}</td>
+            <td>${v.capacity.toLocaleString()}</td>
             <td>${statusBadge(v.status)}</td>
             <td>${inspBadge}</td>
             <td>

@@ -33,6 +33,7 @@ def seed_on_startup():
             ("vehicles", "chassis_number", "VARCHAR(30) DEFAULT ''"),
             ("vehicles", "first_registration", "VARCHAR(10) DEFAULT ''"),
             ("vehicles", "inspection_expiry", "VARCHAR(10) DEFAULT ''"),
+            ("dispatches", "end_date", "DATE"),
         ]
         for table, col, coltype in migrate_cols:
             try:

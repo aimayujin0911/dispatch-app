@@ -78,6 +78,7 @@ class Dispatch(Base):
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
     shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=True)
     date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)
     start_time = Column(String(5), default="08:00")
     end_time = Column(String(5), default="17:00")
     status = Column(String(20), default="予定")

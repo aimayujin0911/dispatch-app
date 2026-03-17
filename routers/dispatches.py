@@ -14,6 +14,7 @@ class DispatchCreate(BaseModel):
     driver_id: int
     shipment_id: Optional[int] = None
     date: date
+    end_date: Optional[date] = None
     start_time: str = "08:00"
     end_time: str = "17:00"
     pickup_address: str = ""
@@ -28,6 +29,7 @@ class DispatchUpdate(BaseModel):
     driver_id: Optional[int] = None
     shipment_id: Optional[int] = None
     date: Optional[date] = None
+    end_date: Optional[date] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     status: Optional[str] = None
@@ -38,18 +40,32 @@ class DispatchUpdate(BaseModel):
 
 @router.get("")
 def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, db: Session = Depends(get_db)):
+    from sqlalchemy import or_
     query = db.query(Dispatch).options(
         joinedload(Dispatch.vehicle),
         joinedload(Dispatch.driver),
         joinedload(Dispatch.shipment),
     )
     if target_date:
-        query = query.filter(Dispatch.date == target_date)
+        td = date.fromisoformat(target_date)
+        # 単日 or 日付またぎの配車を含める
+        query = query.filter(
+            or_(
+                Dispatch.date == td,
+                (Dispatch.end_date != None) & (Dispatch.date <= td) & (Dispatch.end_date >= td)
+            )
+        )
     elif week_start:
         from datetime import timedelta
         start = date.fromisoformat(week_start)
         end = start + timedelta(days=6)
-        query = query.filter(Dispatch.date >= start, Dispatch.date <= end)
+        # 期間内に重なる配車をすべて取得
+        query = query.filter(
+            or_(
+                (Dispatch.date >= start) & (Dispatch.date <= end),
+                (Dispatch.end_date != None) & (Dispatch.date <= end) & (Dispatch.end_date >= start)
+            )
+        )
     dispatches = query.order_by(Dispatch.date, Dispatch.start_time).all()
     result = []
     for d in dispatches:
@@ -59,6 +75,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "driver_id": d.driver_id,
             "shipment_id": d.shipment_id,
             "date": str(d.date),
+            "end_date": str(d.end_date) if d.end_date else None,
             "start_time": d.start_time or "08:00",
             "end_time": d.end_time or "17:00",
             "status": d.status,
@@ -84,6 +101,7 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
         "vehicle_id": data.vehicle_id,
         "driver_id": data.driver_id,
         "date": data.date,
+        "end_date": data.end_date,
         "start_time": data.start_time,
         "end_time": data.end_time,
         "status": data.status,
