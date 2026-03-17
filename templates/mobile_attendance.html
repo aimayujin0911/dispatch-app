@@ -133,6 +133,32 @@
         .save-btn:hover { background: var(--primary-dark); }
         .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* アクティビティボタン */
+        .activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .activity-btn {
+            padding: 16px 10px; text-align: center; font-size: 0.9rem; font-weight: 700;
+            border: 2px solid #d1d5db; border-radius: 12px; background: #fff; cursor: pointer;
+            transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px;
+        }
+        .activity-btn .icon { font-size: 1.5rem; }
+        .activity-btn .label { font-size: 0.78rem; color: var(--text-light); }
+        .activity-btn.active { border-color: #f59e0b; background: #fffbeb; }
+        .activity-btn.active .label { color: #92400e; }
+        .activity-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .activity-log { margin-top: 12px; }
+        .activity-log-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 6px;
+            font-size: 0.82rem;
+        }
+        .activity-log-item .time { font-weight: 700; color: var(--primary); }
+        .activity-log-item .type { font-weight: 600; }
+        .timer-display {
+            text-align: center; padding: 8px; background: #fef3c7; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; color: #92400e; margin-bottom: 12px;
+            display: none;
+        }
+
         /* 履歴 */
         .history-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -207,6 +233,7 @@
             <!-- タブ切替 -->
             <div class="tab-bar">
                 <button class="tab-btn active" onclick="switchTab('punch')">打刻</button>
+                <button class="tab-btn" onclick="switchTab('activity')">作業記録</button>
                 <button class="tab-btn" onclick="switchTab('report')">日報入力</button>
                 <button class="tab-btn" onclick="switchTab('history')">履歴</button>
             </div>
@@ -258,6 +285,43 @@
                             <div class="info-value" id="today-overtime">-</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- === 作業記録タブ === -->
+            <div id="tab-activity" class="tab-content">
+                <div class="card">
+                    <h2>⏱ 作業記録</h2>
+                    <p style="font-size:0.78rem;color:var(--text-light);margin-bottom:12px">ボタンを押すと開始/終了を記録します。日報に自動反映されます。</p>
+
+                    <div id="activity-timer" class="timer-display"></div>
+
+                    <div class="activity-grid">
+                        <button class="activity-btn" id="btn-nimachi" onclick="toggleActivity('nimachi')">
+                            <span class="icon">⏳</span>
+                            <span>荷待ち</span>
+                            <span class="label" id="nimachi-status">停止中</span>
+                        </button>
+                        <button class="activity-btn" id="btn-tsumikomi" onclick="toggleActivity('tsumikomi')">
+                            <span class="icon">📦</span>
+                            <span>積込</span>
+                            <span class="label" id="tsumikomi-status">停止中</span>
+                        </button>
+                        <button class="activity-btn" id="btn-nioroshi" onclick="toggleActivity('nioroshi')">
+                            <span class="icon">🏗</span>
+                            <span>荷卸</span>
+                            <span class="label" id="nioroshi-status">停止中</span>
+                        </button>
+                        <button class="activity-btn" id="btn-kyukei" onclick="toggleActivity('kyukei')">
+                            <span class="icon">☕</span>
+                            <span>休憩</span>
+                            <span class="label" id="kyukei-status">停止中</span>
+                        </button>
+                    </div>
+
+                    <h2 style="margin-top:16px">📝 本日の記録</h2>
+                    <div class="activity-log" id="activity-log"></div>
+                    <div id="activity-summary" style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.82rem"></div>
                 </div>
             </div>
 
@@ -459,15 +523,15 @@
 
         // --- タブ切替 ---
         function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach((b, i) => {
-                b.classList.toggle('active', b.textContent.includes(
-                    tab === 'punch' ? '打刻' : tab === 'report' ? '日報' : '履歴'
-                ));
+            const tabNames = { punch: '打刻', activity: '作業記録', report: '日報', history: '履歴' };
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.toggle('active', b.textContent.includes(tabNames[tab] || ''));
             });
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             if (tab === 'report') loadReportData();
             if (tab === 'history') loadHistory();
+            if (tab === 'activity') renderActivityLog();
         }
 
         // --- セクション開閉 ---
@@ -760,6 +824,108 @@
             const [sh, sm] = start.split(':').map(Number);
             const [eh, em] = end.split(':').map(Number);
             return (eh * 60 + em) - (sh * 60 + sm);
+        }
+
+        // --- 作業記録 ---
+        const activityTypes = {
+            nimachi: { label: '荷待ち', field: 'waiting_time' },
+            tsumikomi: { label: '積込', field: 'loading_time' },
+            nioroshi: { label: '荷卸', field: 'unloading_time' },
+            kyukei: { label: '休憩', field: 'break_minutes' },
+        };
+        let activeActivity = null;
+        let activityStartTime = null;
+        let activityTimerInterval = null;
+        let activityLog = JSON.parse(localStorage.getItem('activity_log_' + fmt(new Date())) || '[]');
+
+        function toggleActivity(type) {
+            if (!todayRecord) {
+                showMsg('先に出勤打刻を行ってください', 'error');
+                return;
+            }
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});
+
+            if (activeActivity === type) {
+                // 停止
+                const elapsed = Math.round((now - activityStartTime) / 60000);
+                activityLog.push({ type, label: activityTypes[type].label, start: activityLog.find(l => l.type === type && !l.end)?.startTime || timeStr, end: timeStr, minutes: elapsed });
+                // 開始ログのendを埋める
+                for (let i = activityLog.length - 1; i >= 0; i--) {
+                    if (activityLog[i].type === type && !activityLog[i].end) {
+                        activityLog[i].end = timeStr;
+                        activityLog[i].minutes = elapsed;
+                        break;
+                    }
+                }
+                localStorage.setItem('activity_log_' + fmt(new Date()), JSON.stringify(activityLog));
+
+                document.getElementById(`btn-${type}`).classList.remove('active');
+                document.getElementById(`${type}-status`).textContent = '停止中';
+
+                // 日報に自動反映
+                const totalMin = activityLog.filter(l => l.type === type && l.minutes).reduce((s, l) => s + l.minutes, 0);
+                const updateData = {};
+                updateData[activityTypes[type].field] = totalMin;
+                fetch(`${API}/attendance/${todayRecord.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(updateData)
+                });
+
+                activeActivity = null;
+                activityStartTime = null;
+                clearInterval(activityTimerInterval);
+                document.getElementById('activity-timer').style.display = 'none';
+                showMsg(`${activityTypes[type].label} ${elapsed}分 記録しました`, 'success');
+            } else {
+                // 別の作業中なら先にそれを停止
+                if (activeActivity) {
+                    toggleActivity(activeActivity);
+                }
+                // 開始
+                activeActivity = type;
+                activityStartTime = now;
+                activityLog.push({ type, label: activityTypes[type].label, startTime: timeStr, start: timeStr, end: null, minutes: 0 });
+                localStorage.setItem('activity_log_' + fmt(new Date()), JSON.stringify(activityLog));
+
+                document.getElementById(`btn-${type}`).classList.add('active');
+                document.getElementById(`${type}-status`).textContent = timeStr + '〜';
+
+                document.getElementById('activity-timer').style.display = 'block';
+                activityTimerInterval = setInterval(updateActivityTimer, 1000);
+                updateActivityTimer();
+            }
+            renderActivityLog();
+        }
+
+        function updateActivityTimer() {
+            if (!activeActivity || !activityStartTime) return;
+            const elapsed = Math.round((new Date() - activityStartTime) / 1000);
+            const min = Math.floor(elapsed / 60);
+            const sec = elapsed % 60;
+            document.getElementById('activity-timer').textContent =
+                `${activityTypes[activeActivity].label}中... ${min}分${String(sec).padStart(2,'0')}秒`;
+        }
+
+        function renderActivityLog() {
+            const completed = activityLog.filter(l => l.end);
+            document.getElementById('activity-log').innerHTML = completed.length === 0
+                ? '<p style="color:var(--text-light);font-size:0.82rem;text-align:center;padding:12px">まだ記録がありません</p>'
+                : completed.map(l => `<div class="activity-log-item">
+                    <span class="type">${l.label}</span>
+                    <span class="time">${l.start} → ${l.end}</span>
+                    <span>${l.minutes}分</span>
+                </div>`).join('');
+
+            // サマリー
+            const summary = {};
+            completed.forEach(l => {
+                summary[l.label] = (summary[l.label] || 0) + (l.minutes || 0);
+            });
+            const summaryHtml = Object.entries(summary).map(([k, v]) => `<strong>${k}:</strong> ${v}分`).join(' / ');
+            document.getElementById('activity-summary').innerHTML = summaryHtml || '記録なし';
         }
 
         // --- 初期化 ---

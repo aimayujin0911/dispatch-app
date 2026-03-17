@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('menuToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
+        toggleSidebar();
     });
 
     loadDashboard();
@@ -49,7 +49,24 @@ function navigateTo(page) {
         settings: loadCompanySettings
     };
     if (loaders[page]) loaders[page]();
-    document.getElementById('sidebar').classList.remove('open');
+    // モバイルでのみサイドバーを閉じる
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.remove('open');
+    }
+}
+
+// ===== サイドバー開閉 =====
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const content = document.querySelector('.content');
+    if (window.innerWidth <= 768) {
+        // モバイル: open クラスで表示切替
+        sidebar.classList.toggle('open');
+    } else {
+        // デスクトップ: collapsed クラスで非表示切替
+        sidebar.classList.toggle('collapsed');
+        if (content) content.classList.toggle('sidebar-collapsed');
+    }
 }
 
 // ===== API ヘルパー =====
@@ -154,32 +171,36 @@ async function loadDispatchCalendar() {
 
     const calContainer = document.getElementById('dispatch-calendar');
     calContainer.innerHTML = `
-        <div class="cal-controls">
-            <button class="btn btn-sm" onclick="changeDays(-1)" title="前日">◀ 前日</button>
-            <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
-            <button class="btn btn-sm" onclick="changeDays(1)" title="翌日">翌日 ▶</button>
-            <span style="font-size:1.1rem;font-weight:700;margin:0 8px;color:var(--text-dark,#1e293b)">${activeDateLabel}</span>
-            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()" title="日付を選択">
-            <div class="cal-day-tabs">
-                ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
+        <div class="cal-controls" style="gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+                <button class="btn btn-sm" onclick="changeDays(-1)" title="前日">◀ 前日</button>
+                <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
+                <button class="btn btn-sm" onclick="changeDays(1)" title="翌日">翌日 ▶</button>
+                <span style="font-size:1.1rem;font-weight:700;margin:0 4px;color:var(--text-dark,#1e293b);white-space:nowrap">${activeDateLabel}</span>
+                <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()" title="日付を選択" style="width:140px">
+                <div class="cal-day-tabs" style="display:flex;gap:2px">
+                    ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
+                </div>
             </div>
-            <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
-            <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
-                ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
-            </select>
-            <span style="color:var(--text-light);font-size:0.8rem">〜</span>
-            <select id="cal-hour-end" class="select" onchange="changeHourRange()" title="終了時刻" style="width:70px">
-                ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
-            </select>
-            <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
-                <option value="">全車種</option>
-                ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+                <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
+                <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
+                    ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+                </select>
+                <span style="color:var(--text-light);font-size:0.8rem">〜</span>
+                <select id="cal-hour-end" class="select" onchange="changeHourRange()" title="終了時刻" style="width:80px">
+                    ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h || (HOUR_END > 24 && h === HOUR_END - 24) ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
+                </select>
+                <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
+                    <option value="">全車種</option>
+                    ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+            </div>
         </div>
         <div class="gantt-wrapper" id="gantt-print-area">
             <div class="gantt-grid" style="grid-template-columns: 140px repeat(${HOUR_COUNT}, 1fr);">
                 <div class="cal-header cal-vehicle-col">車両</div>
-                ${hours.map(h => `<div class="cal-header gantt-hour-header">${String(h).padStart(2, '0')}</div>`).join('')}
+                ${hours.map(h => `<div class="cal-header gantt-hour-header">${h >= 24 ? '翌' + String(h - 24).padStart(2, '0') : String(h).padStart(2, '0')}</div>`).join('')}
                 ${buildGanttRows(activeDayStr, dayDispatches2, filteredVehicles)}
             </div>
         </div>`;
@@ -255,7 +276,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         const maintenanceStyle = isMaintenance ? 'opacity:0.5;background:#e5e7eb;' : '';
         html += `<div class="cal-vehicle-label" style="${maintenanceStyle}">`;
         html += `<div class="cal-vehicle-name">${v.number}</div>`;
-        html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type}</div>`;
+        html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type} ${v.capacity ? v.capacity + 't' : ''}</div>`;
         html += `</div>`;
 
         // Requirement 5: 整備中車両はドロップ不可（クリック時に警告）
@@ -641,7 +662,9 @@ async function onShipmentDragEnd(e) {
         <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
             <div><strong>日付:</strong> ${dayStr}</div>
             <div><strong>時間:</strong> ${startTime} 〜 ${endTime}</div>
-            ${shipment ? `<div><strong>荷主:</strong> ${shipment.client_name}</div>` : ''}
+            ${shipment ? `<div><strong>荷主:</strong> ${shipment.client_name}</div>
+            <div><strong>荷物:</strong> ${shipment.cargo_description || '-'} ${shipment.weight ? shipment.weight + 'kg' : ''}</div>
+            <div><strong>区間:</strong> ${shipment.pickup_address || '-'} → ${shipment.delivery_address || '-'}</div>` : ''}
         </div>
         ${presetNote}
         <div class="form-row">
@@ -830,8 +853,11 @@ function changeDays(dir) {
 
 function changeHourRange() {
     const newStart = parseInt(document.getElementById('cal-hour-start').value);
-    const newEnd = parseInt(document.getElementById('cal-hour-end').value);
-    if (newEnd <= newStart) { alert('終了時刻は開始時刻より後にしてください'); return; }
+    let newEnd = parseInt(document.getElementById('cal-hour-end').value);
+    // 翌日またぎ: 開始が終了以上の場合、24を足す（例: 5〜4 → 5〜28）
+    if (newEnd <= newStart) {
+        newEnd += 24;
+    }
     HOUR_START = newStart;
     HOUR_END = newEnd;
     HOUR_COUNT = HOUR_END - HOUR_START;
@@ -1045,13 +1071,12 @@ async function showDispatchDetail(id) {
             <div><strong>ステータス:</strong> ${statusBadge(d.status)}</div>
             <div><strong>備考:</strong> ${d.notes || '-'}</div>
         </div>
-        <div class="form-actions">
+        <div class="form-actions" style="flex-wrap:wrap;justify-content:center;gap:6px">
             <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
-            <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="指示書印刷">🖨 指示書</button>
+            <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="運行指示書">🖨 指示書</button>
             <button class="btn btn-sm" onclick="createVehicleNotificationFromDispatch(${d.id})" title="車番連絡票">📋 車番連絡</button>
-            <button class="btn btn-sm" onclick="createTransportRequestFromDispatch(${d.id})" title="輸送依頼書">📄 依頼書</button>
-            <button class="btn btn-sm" onclick="autoReportFromDispatch(${d.id})" title="日報自動作成">📝 日報作成</button>
+            <button class="btn btn-sm" onclick="handleTransportRequest(${d.id})" title="輸送依頼書">📄 依頼書</button>
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
     showModal();
@@ -1569,7 +1594,7 @@ async function deleteDriver(id) {
 async function loadShipments() {
     const shipments = await apiGet('/shipments');
     document.getElementById('shipments-table').innerHTML = shipments.map(s => {
-        const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
+        const freqLabel = s.frequency_type === '単発' ? '単発' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
         return `<tr>
             <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
             <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
@@ -1578,13 +1603,10 @@ async function loadShipments() {
             <td>${s.pickup_date}</td>
             <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
             <td>¥${s.price.toLocaleString()}</td>
-            <td>${freqLabel || '単発'}</td>
+            <td style="white-space:nowrap">${freqLabel}</td>
             <td>${statusBadge(s.status)}</td>
             <td style="white-space:nowrap">
                 <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
-                <button class="btn btn-sm" onclick="createTransportRequestFromShipment(${s.id})" title="輸送依頼書作成">📄</button>
-                <button class="btn btn-sm" onclick="printShipmentInstruction(${s.id})" title="指示書印刷">🖨</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteShipment(${s.id})">削除</button>
             </td>
         </tr>`;
     }).join('') || '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
@@ -1667,7 +1689,7 @@ async function openShipmentModal(shipment = null) {
             </div>
         </div>
         <div id="shipment-teiki-fields" style="display:${freqCategory === '定期' ? 'block' : 'none'}">
-            <div class="form-row">
+            <div class="form-row" style="align-items:end">
                 <div class="form-group">
                     <label>集荷時間</label>
                     <input type="time" id="f-s-pickup-time-teiki" value="${shipment?.pickup_time || ''}">
@@ -1676,11 +1698,11 @@ async function openShipmentModal(shipment = null) {
                     <label>配達時間</label>
                     <input type="time" id="f-s-delivery-time-teiki" value="${shipment?.delivery_time || ''}">
                 </div>
-            </div>
-            <div class="form-group" style="margin-top:4px">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                    <input type="checkbox" id="f-s-yokujitsu-oroshi" ${hasYokujitsuOroshi ? 'checked' : ''}> 翌日卸（配達が翌日になる場合）
-                </label>
+                <div class="form-group" style="padding-bottom:6px">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+                        <input type="checkbox" id="f-s-yokujitsu-oroshi" ${hasYokujitsuOroshi ? 'checked' : ''}> 翌日卸
+                    </label>
+                </div>
             </div>
             <div class="form-group">
                 <label>頻度</label>
@@ -1733,6 +1755,7 @@ async function openShipmentModal(shipment = null) {
             <textarea id="f-s-notes">${shipment?.notes || ''}</textarea>
         </div>
         <div class="form-actions">
+            ${isEdit ? `<button class="btn btn-danger" onclick="if(confirm('この案件を削除しますか？')){deleteShipment(${shipment.id})}">削除</button>` : ''}
             <button class="btn" onclick="closeModal()">キャンセル</button>
             <button class="btn btn-primary" onclick="saveShipment(${shipment?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
         </div>`;
@@ -2903,6 +2926,97 @@ async function createVehicleNotificationFromDispatch(dispatchId) {
 }
 
 // 案件から輸送依頼書を作成（案件一覧の📄ボタン）
+// 配車詳細から輸送依頼書 - 協力会社メール or PDF選択
+async function handleTransportRequest(dispatchId) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === dispatchId);
+    if (!d) return;
+    const partners = await apiGet('/partners');
+    const partner = d.partner_id ? partners.find(p => p.id === d.partner_id) : null;
+
+    // まず輸送依頼書を作成
+    const shipments = d.shipment_id ? await apiGet('/shipments') : [];
+    const s = d.shipment_id ? shipments.find(x => x.id === d.shipment_id) : null;
+    const trData = {
+        partner_id: d.partner_id || (partner ? partner.id : 0),
+        shipment_id: d.shipment_id || null,
+        request_date: new Date().toISOString().split('T')[0],
+        pickup_date: d.date,
+        pickup_time: d.start_time || '',
+        delivery_date: d.end_date || d.date,
+        delivery_time: d.end_time || '',
+        pickup_address: d.pickup_address || (s ? s.pickup_address : ''),
+        delivery_address: d.delivery_address || (s ? s.delivery_address : ''),
+        cargo_description: d.cargo_description || (s ? s.cargo_description : ''),
+        cargo_weight: d.weight || (s ? s.weight : 0),
+        freight_amount: d.price || (s ? s.price : 0),
+        status: '下書き',
+    };
+
+    if (partner) {
+        // 協力会社が配車されている場合 - メール or PDF 選択
+        closeModal();
+        document.getElementById('modal-title').textContent = '輸送依頼書 送付方法';
+        document.getElementById('modal-body').innerHTML = `
+            <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
+                <div><strong>協力会社:</strong> ${partner.name}</div>
+                <div><strong>メール:</strong> ${partner.contact_person || '-'} &lt;${partner.fax || partner.phone || '未登録'}&gt;</div>
+                <div><strong>区間:</strong> ${trData.pickup_address} → ${trData.delivery_address}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <button class="btn btn-primary" style="padding:16px;font-size:1rem" onclick="sendTransportRequestByEmail(${JSON.stringify(trData).replace(/"/g, '&quot;')}, '${partner.name}')">
+                    📧 メール送付
+                </button>
+                <button class="btn btn-edit" style="padding:16px;font-size:1rem" onclick="sendTransportRequestAsPDF(${JSON.stringify(trData).replace(/"/g, '&quot;')})">
+                    📄 PDF表示
+                </button>
+            </div>
+            <div class="form-actions">
+                <button class="btn" onclick="closeModal()">キャンセル</button>
+            </div>`;
+        showModal();
+    } else {
+        // 協力会社が未設定 - 直接PDFで出力
+        closeModal();
+        const result = await apiPost('/transport-requests', trData);
+        if (result.id) {
+            setTimeout(() => printTransportRequest(result.id), 300);
+        }
+    }
+}
+
+async function sendTransportRequestByEmail(trData, partnerName) {
+    const result = await apiPost('/transport-requests', trData);
+    if (result.id) {
+        // メール送信処理（設定のSMTP使用）
+        try {
+            const res = await fetch(`${API}/export/send-transport-request-email`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ transport_request_id: result.id })
+            });
+            if (res.ok) {
+                alert(`${partnerName}宛に輸送依頼書をメール送付しました。`);
+            } else {
+                alert('メール送信に失敗しました。PDF表示に切り替えます。');
+                printTransportRequest(result.id);
+            }
+        } catch (e) {
+            alert('メール送信に失敗しました。PDF表示に切り替えます。');
+            printTransportRequest(result.id);
+        }
+    }
+    closeModal();
+}
+
+async function sendTransportRequestAsPDF(trData) {
+    const result = await apiPost('/transport-requests', trData);
+    if (result.id) {
+        printTransportRequest(result.id);
+    }
+    closeModal();
+}
+
 async function createTransportRequestFromShipment(shipmentId) {
     const shipments = await apiGet('/shipments');
     const s = shipments.find(x => x.id === shipmentId);

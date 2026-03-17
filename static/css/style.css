@@ -34,12 +34,23 @@ body {
     width: 240px;
     background: var(--sidebar-bg);
     color: #fff;
+    flex-shrink: 0;
     position: fixed;
     top: 0;
     left: 0;
     height: 100vh;
     z-index: 100;
-    transition: transform 0.3s;
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+}
+
+@media (min-width: 769px) {
+    .sidebar.collapsed {
+        transform: translateX(-240px);
+    }
+    .content.sidebar-collapsed {
+        margin-left: 0 !important;
+    }
 }
 
 .sidebar-header {
@@ -469,9 +480,13 @@ body {
 
 .form-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     justify-content: flex-end;
     margin-top: 20px;
+    flex-wrap: wrap;
+}
+.form-actions .btn {
+    white-space: nowrap;
 }
 
 /* 地図 */
