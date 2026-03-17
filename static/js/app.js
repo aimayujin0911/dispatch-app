@@ -864,35 +864,123 @@ async function showDispatchDetail(id) {
     showModal();
 }
 
-// 【機能4】配車指示書印刷
+// 【機能4】運行指示書印刷（貨物自動車運送事業輸送安全規則 第9条の3準拠）
 async function printDispatchInstruction(id) {
     const dispatches = await apiGet('/dispatches');
     const d = dispatches.find(x => x.id === id);
     if (!d) return;
-    const printWin = window.open('', '_blank', 'width=600,height=800');
-    printWin.document.write(`<!DOCTYPE html><html><head><title>配車指示書</title>
-        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
-        h1{font-size:1.5rem;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
-        table{width:100%;border-collapse:collapse;margin:16px 0}
-        th,td{border:1px solid #ccc;padding:10px 14px;text-align:left}
-        th{background:#f5f5f5;width:120px;font-size:0.9rem}
-        td{font-size:0.95rem}
-        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
+    const settings = await apiGet('/settings');
+    const today = new Date().toLocaleDateString('ja-JP');
+    const printWin = window.open('', '_blank', 'width=800,height=1000');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>運行指示書</title>
+        <style>
+        @page{size:A4;margin:15mm}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif;padding:20mm 15mm;color:#000;font-size:11pt;line-height:1.5}
+        h1{font-size:18pt;text-align:center;letter-spacing:8pt;margin-bottom:6px;font-weight:700}
+        .subtitle{text-align:center;font-size:9pt;color:#555;margin-bottom:16px}
+        .doc-header{display:flex;justify-content:space-between;margin-bottom:14px;font-size:9.5pt}
+        .doc-header .left{line-height:1.8}
+        .doc-header .right{text-align:right;line-height:1.8}
+        .company-name{font-size:11pt;font-weight:700}
+        table{width:100%;border-collapse:collapse;margin-bottom:12px}
+        th,td{border:1px solid #000;padding:6px 10px;font-size:10pt;vertical-align:top}
+        th{background:#f0f0f0;font-weight:600;text-align:center;white-space:nowrap}
+        .sec-title{background:#333;color:#fff;font-weight:700;font-size:10pt;padding:5px 10px;text-align:left}
+        .timeline-table th{width:80px}
+        .timeline-table td.time-col{width:100px;text-align:center;font-weight:600}
+        .timeline-table td.place-col{width:auto}
+        .timeline-table td.action-col{width:120px;text-align:center}
+        .notes-area{min-height:50px}
+        .sign-section{margin-top:20px;display:flex;justify-content:flex-end;gap:0}
+        .sign-box{border:1px solid #000;width:80px;height:70px;text-align:center;font-size:8.5pt;font-weight:600}
+        .sign-box .sign-label{background:#f0f0f0;border-bottom:1px solid #000;padding:3px 0}
+        .sign-box .sign-space{height:48px}
+        .legal-note{margin-top:12px;font-size:7.5pt;color:#666;text-align:center}
+        .wide-th{width:100px}
         </style></head><body>
-        <h1>配車指示書</h1>
+        <h1>運 行 指 示 書</h1>
+        <div class="subtitle">貨物自動車運送事業輸送安全規則 第9条の3</div>
+
+        <div class="doc-header">
+            <div class="left">
+                <span class="company-name">${settings.company_name || ''}</span><br>
+                ${settings.address || ''}<br>
+                TEL: ${settings.phone || ''}<br>
+                事業者番号: ${settings.registration_number || ''}
+            </div>
+            <div class="right">
+                作成日: ${today}<br>
+                指示書番号: DI-${String(d.id).padStart(4,'0')}
+            </div>
+        </div>
+
         <table>
-            <tr><th>日付</th><td>${d.date}</td></tr>
-            <tr><th>時間</th><td>${d.start_time} 〜 ${d.end_time}</td></tr>
-            <tr><th>車両</th><td>${d.vehicle_number} (${d.vehicle_type})</td></tr>
-            <tr><th>ドライバー</th><td>${d.driver_name}</td></tr>
-            <tr><th>荷主</th><td>${d.client_name || '-'}</td></tr>
-            <tr><th>積地</th><td>${d.pickup_address || '-'}</td></tr>
-            <tr><th>卸地</th><td>${d.delivery_address || '-'}</td></tr>
-            <tr><th>荷物</th><td>${d.cargo_description || '-'}</td></tr>
-            <tr><th>備考</th><td>${d.notes || '-'}</td></tr>
+            <tr>
+                <th class="wide-th">乗務員氏名</th>
+                <td style="font-size:12pt;font-weight:700">${d.driver_name}</td>
+                <th class="wide-th">車両番号</th>
+                <td style="font-size:12pt;font-weight:700">${d.vehicle_number}</td>
+            </tr>
+            <tr>
+                <th>車種</th>
+                <td>${d.vehicle_type || '-'}</td>
+                <th>運行日</th>
+                <td style="font-weight:600">${d.date}${d.end_date && d.end_date !== d.date ? ' 〜 ' + d.end_date : ''}</td>
+            </tr>
         </table>
-        <div class="footer">配車管理システム - 印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
-        <script>window.print();</script></body></html>`);
+
+        <table>
+            <tr><td class="sec-title" colspan="4">運行経路・スケジュール</td></tr>
+        </table>
+        <table class="timeline-table">
+            <tr>
+                <th>区分</th>
+                <th>時刻</th>
+                <th>地点・作業内容</th>
+                <th>注意事項</th>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">出庫</td>
+                <td class="time-col">${d.start_time || '-'}</td>
+                <td class="place-col">営業所出発</td>
+                <td>出庫前点検実施</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">積込</td>
+                <td class="time-col">${d.start_time || '-'}</td>
+                <td class="place-col">${d.pickup_address || '-'}${d.client_name ? ' (' + d.client_name + ')' : ''}</td>
+                <td>${d.cargo_description || '-'}</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">荷卸</td>
+                <td class="time-col">${d.end_time || '-'}</td>
+                <td class="place-col">${d.delivery_address || '-'}</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">帰庫</td>
+                <td class="time-col">${d.end_time || '-'}</td>
+                <td class="place-col">営業所帰着</td>
+                <td>帰庫後点呼実施</td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">休憩・注意事項</td></tr>
+            <tr><th style="width:100px">休憩地点</th><td class="notes-area">（　　　　　　　　　　）　休憩時間：　　　分</td></tr>
+            <tr><th>注意箇所</th><td class="notes-area">（運行経路上の危険箇所・工事情報等）</td></tr>
+            <tr><th>備考</th><td class="notes-area">${d.notes || ''}</td></tr>
+        </table>
+
+        <div class="sign-section">
+            <div class="sign-box"><div class="sign-label">運行管理者</div><div class="sign-space"></div></div>
+            <div class="sign-box"><div class="sign-label">補助者</div><div class="sign-space"></div></div>
+            <div class="sign-box"><div class="sign-label">乗務員</div><div class="sign-space"></div></div>
+        </div>
+
+        <div class="legal-note">※正副2部作成し、正本は乗務員が携行、副本は営業所で1年間保管すること（貨物自動車運送事業輸送安全規則 第9条の3）</div>
+        <script>window.print();<\/script></body></html>`);
 }
 
 // 【機能7】配車から日報自動生成
@@ -2204,43 +2292,110 @@ async function deleteTransportRequest(id) {
     await apiDelete(`/transport-requests/${id}`); loadDocuments();
 }
 
-// 輸送依頼書PDF印刷
+// 輸送依頼書PDF印刷（標準貨物自動車運送約款 第6条準拠）
 async function printTransportRequest(id) {
     const trs = await apiGet('/transport-requests');
     const r = trs.find(x => x.id === id);
     if (!r) return;
     const settings = await apiGet('/settings');
-    const printWin = window.open('', '_blank', 'width=700,height=900');
+    const today = new Date().toLocaleDateString('ja-JP');
+    const printWin = window.open('', '_blank', 'width=800,height=1000');
     printWin.document.write(`<!DOCTYPE html><html><head><title>輸送依頼書</title>
-        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333;font-size:14px}
-        h1{font-size:1.5rem;text-align:center;border-bottom:3px double #333;padding-bottom:10px;margin-bottom:20px}
-        table{width:100%;border-collapse:collapse;margin:12px 0}
-        th,td{border:1px solid #333;padding:8px 12px;text-align:left}
-        th{background:#f5f5f5;width:130px;font-size:0.9rem}
-        .header-info{display:flex;justify-content:space-between;margin-bottom:16px;font-size:0.85rem}
-        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
+        <style>
+        @page{size:A4;margin:15mm}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif;padding:20mm 15mm;color:#000;font-size:11pt;line-height:1.5}
+        h1{font-size:18pt;text-align:center;letter-spacing:10pt;margin-bottom:4px;font-weight:700}
+        .subtitle{text-align:center;font-size:8.5pt;color:#555;margin-bottom:18px;border-bottom:2px double #000;padding-bottom:10px}
+        .parties{display:flex;justify-content:space-between;margin-bottom:16px}
+        .party-box{width:48%;font-size:9.5pt;line-height:1.8}
+        .party-label{background:#333;color:#fff;padding:3px 10px;font-size:9pt;font-weight:600;margin-bottom:6px;display:inline-block}
+        .party-name{font-size:13pt;font-weight:700;margin:4px 0}
+        .doc-info{text-align:right;font-size:9pt;margin-bottom:10px;line-height:1.8}
+        table{width:100%;border-collapse:collapse;margin-bottom:10px}
+        th,td{border:1px solid #000;padding:5px 10px;font-size:10pt;vertical-align:top}
+        th{background:#f0f0f0;font-weight:600;text-align:center;white-space:nowrap;width:110px}
+        .sec-title{background:#333;color:#fff;font-weight:700;font-size:10pt;padding:4px 10px;text-align:left}
+        .amount-cell{font-size:13pt;font-weight:700;text-align:right;padding-right:16px}
+        .notes-area{min-height:40px}
+        .seal-section{margin-top:18px;display:flex;justify-content:space-between;align-items:flex-start}
+        .seal-left{font-size:8.5pt;color:#555;line-height:1.6;max-width:55%}
+        .seal-boxes{display:flex;gap:0}
+        .seal-box{border:1px solid #000;width:75px;height:65px;text-align:center;font-size:8pt}
+        .seal-box .seal-label{background:#f0f0f0;border-bottom:1px solid #000;padding:2px 0;font-weight:600}
+        .seal-box .seal-space{height:45px}
+        .legal-note{margin-top:10px;font-size:7.5pt;color:#666;text-align:center}
         </style></head><body>
-        <h1>輸送依頼書</h1>
-        <div class="header-info">
-            <div><strong>依頼番号:</strong> ${r.request_number}<br><strong>依頼日:</strong> ${r.request_date || '-'}</div>
-            <div style="text-align:right"><strong>${settings.company_name || '自社名未設定'}</strong><br>${settings.address || ''}<br>TEL: ${settings.phone || ''} FAX: ${settings.fax || ''}</div>
+
+        <h1>輸 送 依 頼 書</h1>
+        <div class="subtitle">標準貨物自動車運送約款 第6条に基づく運送申込書</div>
+
+        <div class="doc-info">
+            依頼番号: <strong>${r.request_number}</strong><br>
+            依頼日: ${r.request_date || today}
         </div>
-        <p><strong>依頼先: ${r.partner_name}</strong></p>
+
+        <div class="parties">
+            <div class="party-box">
+                <div class="party-label">委託事業者（依頼元）</div>
+                <div class="party-name">${settings.company_name || '（未設定）'}</div>
+                ${settings.address || ''}<br>
+                TEL: ${settings.phone || ''}<br>
+                FAX: ${settings.fax || ''}<br>
+                事業者番号: ${settings.registration_number || ''}
+            </div>
+            <div class="party-box">
+                <div class="party-label">受託事業者（依頼先）</div>
+                <div class="party-name">${r.partner_name || '（未設定）'}</div>
+                <br><br><br>
+            </div>
+        </div>
+
         <table>
-            <tr><th>集荷日時</th><td>${r.pickup_date || '-'} ${r.pickup_time || ''}</td></tr>
-            <tr><th>積地</th><td>${r.pickup_address || '-'}</td></tr>
-            <tr><th>積地連絡先</th><td>${r.pickup_contact || '-'}</td></tr>
-            <tr><th>配達日時</th><td>${r.delivery_date || '-'} ${r.delivery_time || ''}</td></tr>
-            <tr><th>卸地</th><td>${r.delivery_address || '-'}</td></tr>
-            <tr><th>卸地連絡先</th><td>${r.delivery_contact || '-'}</td></tr>
-            <tr><th>荷物内容</th><td>${r.cargo_description || '-'}</td></tr>
-            <tr><th>数量</th><td>${r.cargo_quantity || '-'}</td></tr>
-            <tr><th>重量</th><td>${r.cargo_weight ? r.cargo_weight + 'kg' : '-'}</td></tr>
-            <tr><th>車種指定</th><td>${r.vehicle_type_required || '指定なし'}</td></tr>
-            <tr><th>運賃</th><td>¥${(r.freight_amount || 0).toLocaleString()}</td></tr>
-            <tr><th>特記事項</th><td>${r.special_instructions || '-'}</td></tr>
+            <tr><td class="sec-title" colspan="4">集荷情報</td></tr>
+            <tr><th>集荷日</th><td>${r.pickup_date || '-'}</td><th>集荷時刻</th><td>${r.pickup_time || '-'}</td></tr>
+            <tr><th>積地住所</th><td colspan="3">${r.pickup_address || '-'}</td></tr>
+            <tr><th>積地連絡先</th><td colspan="3">${r.pickup_contact || '-'}</td></tr>
         </table>
-        <div class="footer">印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
+
+        <table>
+            <tr><td class="sec-title" colspan="4">配達情報</td></tr>
+            <tr><th>配達日</th><td>${r.delivery_date || '-'}</td><th>配達時刻</th><td>${r.delivery_time || '-'}</td></tr>
+            <tr><th>卸地住所</th><td colspan="3">${r.delivery_address || '-'}</td></tr>
+            <tr><th>卸地連絡先</th><td colspan="3">${r.delivery_contact || '-'}</td></tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="4">貨物情報</td></tr>
+            <tr><th>品名</th><td>${r.cargo_description || '-'}</td><th>荷姿・数量</th><td>${r.cargo_quantity || '-'}</td></tr>
+            <tr><th>重量</th><td>${r.cargo_weight ? r.cargo_weight + 'kg' : '-'}</td><th>車種指定</th><td>${r.vehicle_type_required || '指定なし'}</td></tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">運賃・料金</td></tr>
+            <tr><th>運賃</th><td class="amount-cell">¥${(r.freight_amount || 0).toLocaleString()}-</td></tr>
+            <tr><th>附帯料金</th><td style="text-align:right;padding-right:16px">-</td></tr>
+            <tr><th>合計金額</th><td class="amount-cell">¥${(r.freight_amount || 0).toLocaleString()}-</td></tr>
+            <tr><th>支払方法</th><td>（　締め　　日　/　翌月　　日払い　）</td></tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">特記事項・附帯業務</td></tr>
+            <tr><td colspan="2" class="notes-area">${r.special_instructions || ''}</td></tr>
+        </table>
+
+        <div class="seal-section">
+            <div class="seal-left">
+                上記内容にて運送を依頼いたします。<br>
+                標準貨物自動車運送約款の内容について承諾します。
+            </div>
+            <div class="seal-boxes">
+                <div class="seal-box"><div class="seal-label">委託者</div><div class="seal-space"></div></div>
+                <div class="seal-box"><div class="seal-label">受託者</div><div class="seal-space"></div></div>
+            </div>
+        </div>
+
+        <div class="legal-note">※本書は標準貨物自動車運送約款第6条に基づき作成された運送申込書です。双方で正副を保管してください。</div>
         <script>window.print();<\/script></body></html>`);
 }
 
@@ -2333,43 +2488,125 @@ async function createTransportRequestFromDispatch(dispatchId) {
     openTransportRequestModal(shipmentLike);
 }
 
-// 案件から指示書を印刷（案件一覧の🖨ボタン）
+// 案件から運行指示書を印刷（案件一覧の🖨ボタン）
 async function printShipmentInstruction(shipmentId) {
     const shipments = await apiGet('/shipments');
     const s = shipments.find(x => x.id === shipmentId);
     if (!s) return;
     const settings = await apiGet('/settings');
-    const printWin = window.open('', '_blank', 'width=600,height=800');
-    printWin.document.write(`<!DOCTYPE html><html><head><title>運送指示書</title>
-        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
-        h1{font-size:1.5rem;text-align:center;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
-        table{width:100%;border-collapse:collapse;margin:16px 0}
-        th,td{border:1px solid #333;padding:10px 14px;text-align:left}
-        th{background:#f5f5f5;width:120px;font-size:0.9rem}
-        .header{text-align:right;font-size:0.85rem;margin-bottom:12px}
-        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
-        .sign{margin-top:40px;display:flex;justify-content:space-around}
-        .sign-box{border:1px solid #333;width:120px;height:60px;text-align:center;padding-top:40px;font-size:0.8rem}
+    const today = new Date().toLocaleDateString('ja-JP');
+    const printWin = window.open('', '_blank', 'width=800,height=1000');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>運行指示書</title>
+        <style>
+        @page{size:A4;margin:15mm}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif;padding:20mm 15mm;color:#000;font-size:11pt;line-height:1.5}
+        h1{font-size:18pt;text-align:center;letter-spacing:8pt;margin-bottom:6px;font-weight:700}
+        .subtitle{text-align:center;font-size:9pt;color:#555;margin-bottom:16px}
+        .doc-header{display:flex;justify-content:space-between;margin-bottom:14px;font-size:9.5pt}
+        .doc-header .left{line-height:1.8}
+        .doc-header .right{text-align:right;line-height:1.8}
+        .company-name{font-size:11pt;font-weight:700}
+        table{width:100%;border-collapse:collapse;margin-bottom:10px}
+        th,td{border:1px solid #000;padding:5px 10px;font-size:10pt;vertical-align:top}
+        th{background:#f0f0f0;font-weight:600;text-align:center;white-space:nowrap;width:100px}
+        .sec-title{background:#333;color:#fff;font-weight:700;font-size:10pt;padding:4px 10px;text-align:left}
+        .timeline-table th{width:80px}
+        .notes-area{min-height:45px}
+        .sign-section{margin-top:18px;display:flex;justify-content:flex-end;gap:0}
+        .sign-box{border:1px solid #000;width:80px;height:70px;text-align:center;font-size:8.5pt}
+        .sign-box .sign-label{background:#f0f0f0;border-bottom:1px solid #000;padding:3px 0;font-weight:600}
+        .sign-box .sign-space{height:48px}
+        .driver-input{margin-top:14px;font-size:9.5pt;border:1px solid #000;padding:8px 12px}
+        .driver-input span{display:inline-block;border-bottom:1px solid #000;width:200px;margin:0 8px}
+        .legal-note{margin-top:10px;font-size:7.5pt;color:#666;text-align:center}
         </style></head><body>
-        <h1>運送指示書</h1>
-        <div class="header"><strong>${settings.company_name || ''}</strong><br>TEL: ${settings.phone || ''}</div>
-        <table>
-            <tr><th>案件名</th><td>${s.name || '-'}</td></tr>
-            <tr><th>荷主</th><td>${s.client_name}</td></tr>
-            <tr><th>集荷日時</th><td>${s.pickup_date} ${s.pickup_time || ''} ${s.time_note ? '(' + s.time_note + ')' : ''}</td></tr>
-            <tr><th>積地</th><td>${s.pickup_address}</td></tr>
-            <tr><th>配達日時</th><td>${s.delivery_date} ${s.delivery_time || ''}</td></tr>
-            <tr><th>卸地</th><td>${s.delivery_address}</td></tr>
-            <tr><th>荷物内容</th><td>${s.cargo_description || '-'}</td></tr>
-            <tr><th>重量</th><td>${s.weight ? s.weight + 'kg' : '-'}</td></tr>
-            <tr><th>運賃</th><td>¥${(s.price || 0).toLocaleString()}</td></tr>
-            <tr><th>備考</th><td>${s.notes || '-'}</td></tr>
-        </table>
-        <div class="sign">
-            <div class="sign-box">運行管理者</div>
-            <div class="sign-box">運転者確認</div>
+
+        <h1>運 行 指 示 書</h1>
+        <div class="subtitle">貨物自動車運送事業輸送安全規則 第9条の3</div>
+
+        <div class="doc-header">
+            <div class="left">
+                <span class="company-name">${settings.company_name || ''}</span><br>
+                ${settings.address || ''}<br>
+                TEL: ${settings.phone || ''}<br>
+                事業者番号: ${settings.registration_number || ''}
+            </div>
+            <div class="right">
+                作成日: ${today}<br>
+                指示書番号: SI-${String(s.id).padStart(4,'0')}
+            </div>
         </div>
-        <div class="footer">印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
+
+        <table>
+            <tr>
+                <th>乗務員氏名</th>
+                <td style="font-size:12pt;font-weight:700">（　　　　　　　　　　　　　）</td>
+                <th>車両番号</th>
+                <td style="font-size:12pt;font-weight:700">（　　　　　　　　　　　　　）</td>
+            </tr>
+            <tr>
+                <th>案件名</th>
+                <td colspan="3">${s.name || '-'}</td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="4">運行経路・スケジュール</td></tr>
+        </table>
+        <table class="timeline-table">
+            <tr>
+                <th>区分</th>
+                <th>日付</th>
+                <th>時刻</th>
+                <th>地点・作業内容</th>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">出庫</td>
+                <td style="text-align:center">${s.pickup_date || '-'}</td>
+                <td style="text-align:center;font-weight:600">${s.pickup_time || '　　'}</td>
+                <td>営業所出発 → 積地へ移動</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">積込</td>
+                <td style="text-align:center">${s.pickup_date || '-'}</td>
+                <td style="text-align:center;font-weight:600">${s.pickup_time || '　　'} ${s.time_note ? '(' + s.time_note + ')' : ''}</td>
+                <td>${s.pickup_address || '-'}　（${s.client_name}）</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">荷卸</td>
+                <td style="text-align:center">${s.delivery_date || '-'}</td>
+                <td style="text-align:center;font-weight:600">${s.delivery_time || '　　'}</td>
+                <td>${s.delivery_address || '-'}</td>
+            </tr>
+            <tr>
+                <td style="text-align:center;font-weight:600">帰庫</td>
+                <td style="text-align:center">${s.delivery_date || '-'}</td>
+                <td style="text-align:center;font-weight:600">　　</td>
+                <td>営業所帰着</td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">貨物情報</td></tr>
+            <tr><th>品名</th><td>${s.cargo_description || '-'}</td></tr>
+            <tr><th>重量</th><td>${s.weight ? s.weight + 'kg' : '-'}</td></tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">休憩・注意事項</td></tr>
+            <tr><th>休憩地点</th><td class="notes-area">（　　　　　　　　　　）　休憩時間：　　　分</td></tr>
+            <tr><th>注意箇所</th><td class="notes-area">（運行経路上の危険箇所・工事情報等）</td></tr>
+            <tr><th>備考</th><td class="notes-area">${s.notes || ''}</td></tr>
+        </table>
+
+        <div class="sign-section">
+            <div class="sign-box"><div class="sign-label">運行管理者</div><div class="sign-space"></div></div>
+            <div class="sign-box"><div class="sign-label">補助者</div><div class="sign-space"></div></div>
+            <div class="sign-box"><div class="sign-label">乗務員</div><div class="sign-space"></div></div>
+        </div>
+
+        <div class="legal-note">※正副2部作成し、正本は乗務員が携行、副本は営業所で1年間保管すること（貨物自動車運送事業輸送安全規則 第9条の3）</div>
         <script>window.print();<\/script></body></html>`);
 }
 
@@ -2378,37 +2615,112 @@ async function deleteVehicleNotification(id) {
     await apiDelete(`/vehicle-notifications/${id}`); loadDocuments();
 }
 
-// 車番連絡票PDF印刷
+// 車番連絡票PDF印刷（FAX送付用 A4書式）
 async function printVehicleNotification(id) {
     const vns = await apiGet('/vehicle-notifications');
     const v = vns.find(x => x.id === id);
     if (!v) return;
     const settings = await apiGet('/settings');
-    const printWin = window.open('', '_blank', 'width=600,height=700');
+    const today = new Date().toLocaleDateString('ja-JP');
+    const printWin = window.open('', '_blank', 'width=800,height=1000');
     printWin.document.write(`<!DOCTYPE html><html><head><title>車番連絡票</title>
-        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
-        h1{font-size:1.4rem;text-align:center;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
-        table{width:100%;border-collapse:collapse;margin:12px 0}
-        th,td{border:1px solid #333;padding:8px 12px;text-align:left}
-        th{background:#f5f5f5;width:130px}
-        .from{text-align:right;font-size:0.85rem;margin-bottom:12px}
+        <style>
+        @page{size:A4;margin:15mm}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif;padding:20mm 15mm;color:#000;font-size:11pt;line-height:1.5}
+        h1{font-size:20pt;text-align:center;letter-spacing:12pt;margin-bottom:4px;font-weight:700}
+        .fax-header{border:2px solid #000;padding:12px 16px;margin-bottom:16px}
+        .fax-row{display:flex;justify-content:space-between;font-size:10pt;line-height:2}
+        .fax-row .label{font-weight:600;min-width:50px}
+        .fax-row .value{flex:1;border-bottom:1px solid #999;margin-left:8px;padding-left:4px}
+        .fax-left,.fax-right{width:48%}
+        .fax-parties{display:flex;justify-content:space-between;margin-bottom:0}
+        .date-line{text-align:right;font-size:9.5pt;margin-bottom:14px}
+        table{width:100%;border-collapse:collapse;margin-bottom:10px}
+        th,td{border:2px solid #000;padding:8px 12px;font-size:10.5pt;vertical-align:middle}
+        th{background:#f0f0f0;font-weight:700;text-align:center;width:110px}
+        .sec-title{background:#333;color:#fff;font-weight:700;font-size:10.5pt;padding:5px 12px;text-align:left}
+        .vehicle-number{font-size:20pt;font-weight:900;letter-spacing:3pt;text-align:center}
+        .driver-info{font-size:13pt;font-weight:700}
+        .notes-area{min-height:50px;font-size:10pt}
+        .footer-note{margin-top:14px;font-size:8pt;color:#555;text-align:center;border-top:1px solid #ccc;padding-top:8px}
         </style></head><body>
-        <h1>車番連絡票</h1>
-        <div class="from"><strong>${settings.company_name || ''}</strong><br>TEL: ${settings.phone || ''} FAX: ${settings.fax || ''}</div>
+
+        <h1>車 番 連 絡 票</h1>
+
+        <div class="fax-header">
+            <div class="fax-parties">
+                <div class="fax-left">
+                    <div class="fax-row"><span class="label">宛先</span><span class="value" style="font-size:12pt;font-weight:700">${v.destination_name || '　'} 御中</span></div>
+                    <div class="fax-row"><span class="label">TEL</span><span class="value">${v.destination_contact || '　'}</span></div>
+                </div>
+                <div class="fax-right">
+                    <div class="fax-row"><span class="label">発信</span><span class="value" style="font-weight:600">${settings.company_name || '　'}</span></div>
+                    <div class="fax-row"><span class="label">TEL</span><span class="value">${settings.phone || '　'}</span></div>
+                    <div class="fax-row"><span class="label">FAX</span><span class="value">${settings.fax || '　'}</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="date-line">連絡日: ${v.notification_date || today}　　　No. VN-${String(v.id).padStart(4,'0')}</div>
+
         <table>
-            <tr><th>到着予定日</th><td>${v.arrival_date || '-'}</td></tr>
-            <tr><th>到着予定時刻</th><td>${v.arrival_time || '-'}</td></tr>
-            <tr><th>車番</th><td style="font-size:1.2rem;font-weight:700">${v.vehicle_number || '-'}</td></tr>
-            <tr><th>車種</th><td>${v.vehicle_type || '-'}</td></tr>
-            <tr><th>運転者名</th><td>${v.driver_name || '-'}</td></tr>
-            <tr><th>運転者携帯</th><td>${v.driver_phone || '-'}</td></tr>
-            <tr><th>届け先</th><td>${v.destination_name || '-'}<br>${v.destination_address || ''}</td></tr>
-            <tr><th>届け先担当</th><td>${v.destination_contact || '-'}</td></tr>
-            <tr><th>荷物内容</th><td>${v.cargo_description || '-'}</td></tr>
-            <tr><th>数量</th><td>${v.quantity || '-'}</td></tr>
-            <tr><th>出荷元</th><td>${v.sender_name || '-'}</td></tr>
-            <tr><th>特記事項</th><td>${v.special_notes || '-'}</td></tr>
+            <tr><td class="sec-title" colspan="4">車両・乗務員情報</td></tr>
+            <tr>
+                <th>車番</th>
+                <td class="vehicle-number" colspan="3">${v.vehicle_number || '-'}</td>
+            </tr>
+            <tr>
+                <th>車種</th>
+                <td>${v.vehicle_type || '-'}</td>
+                <th>台数</th>
+                <td style="text-align:center">1台</td>
+            </tr>
+            <tr>
+                <th>乗務員名</th>
+                <td class="driver-info">${v.driver_name || '-'}</td>
+                <th>携帯電話</th>
+                <td class="driver-info">${v.driver_phone || '-'}</td>
+            </tr>
         </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="4">配送情報</td></tr>
+            <tr>
+                <th>到着予定日</th>
+                <td style="font-size:12pt;font-weight:700">${v.arrival_date || '-'}</td>
+                <th>到着時刻</th>
+                <td style="font-size:12pt;font-weight:700">${v.arrival_time || '-'}</td>
+            </tr>
+            <tr>
+                <th>届け先</th>
+                <td colspan="3">${v.destination_name || '-'}<br>${v.destination_address || ''}</td>
+            </tr>
+            <tr>
+                <th>出荷元</th>
+                <td colspan="3">${v.sender_name || '-'}</td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="4">貨物情報</td></tr>
+            <tr>
+                <th>品名</th>
+                <td>${v.cargo_description || '-'}</td>
+                <th>数量</th>
+                <td>${v.quantity || '-'}</td>
+            </tr>
+        </table>
+
+        <table>
+            <tr><td class="sec-title" colspan="2">特記事項・入構注意</td></tr>
+            <tr><td colspan="2" class="notes-area">${v.special_notes || '（特になし）'}</td></tr>
+        </table>
+
+        <div class="footer-note">
+            ※本票はFAX送信用書面です。ご確認の上、ご不明な点がございましたらお問い合わせください。<br>
+            ${settings.company_name || ''} TEL: ${settings.phone || ''} / FAX: ${settings.fax || ''}
+        </div>
         <script>window.print();<\/script></body></html>`);
 }
 
