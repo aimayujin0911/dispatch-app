@@ -194,16 +194,36 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         }
 
         const vDispatches = dispatches.filter(d => d.vehicle_id === v.id);
-        vDispatches.forEach(d => {
+        // 重なりを検出して段(row)を割り当て
+        const lanes = [];
+        const dispatchLanes = vDispatches.map(d => {
             const startMin = timeToMinutes(d.start_time);
             const endMin = timeToMinutes(d.end_time);
-            const totalMin = HOUR_COUNT * 60;
-            const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
-            const width = ((endMin - startMin) / totalMin) * 100;
+            let lane = 0;
+            while (lanes[lane] && lanes[lane] > startMin) { lane++; }
+            lanes[lane] = endMin;
+            return { ...d, lane, startMin, endMin };
+        });
+        const maxLanes = Math.max(lanes.length, 1);
+        const laneHeight = 32;
+        const timelineMinH = maxLanes * laneHeight + 8;
+
+        if (maxLanes > 1) {
+            html = html.replace(
+                `data-vehicle-id="${v.id}" style="grid-column: 2 / -1;"`,
+                `data-vehicle-id="${v.id}" style="grid-column: 2 / -1; min-height:${timelineMinH}px;"`
+            );
+        }
+
+        const totalMin = HOUR_COUNT * 60;
+        dispatchLanes.forEach(d => {
+            const left = ((d.startMin - HOUR_START * 60) / totalMin) * 100;
+            const width = ((d.endMin - d.startMin) / totalMin) * 100;
             const color = getDispatchColor(d.status);
-            // 【機能8】積載効率バッジ
             const capBadge = (d.weight > 0 && d.vehicle_capacity > 0) ? ` [${Math.round(d.weight / d.vehicle_capacity * 100)}%]` : '';
-            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}">`;
+            const top = d.lane * laneHeight + 4;
+            const barH = laneHeight - 6;
+            html += `<div class="gantt-bar ${color}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${d.start_time}-${d.end_time} ${d.driver_name}${capBadge}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}</span>`;
             html += `<span class="gantt-bar-end">${d.end_time} ${d.delivery_address || ''}</span>`;
@@ -1065,29 +1085,36 @@ async function deleteDriver(id) {
 // ===== 案件管理 =====
 async function loadShipments() {
     const shipments = await apiGet('/shipments');
-    document.getElementById('shipments-table').innerHTML = shipments.map(s => `
-        <tr>
+    document.getElementById('shipments-table').innerHTML = shipments.map(s => {
+        const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
+        return `<tr>
+            <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
             <td><strong>${s.client_name}</strong></td>
             <td>${s.cargo_description || '-'}</td>
-            <td>${s.pickup_address}</td>
-            <td>${s.delivery_address}</td>
+            <td>${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.pickup_date}</td>
-            <td>${s.delivery_date}</td>
             <td>¥${s.price.toLocaleString()}</td>
+            <td>${freqLabel || '単発'}</td>
             <td>${statusBadge(s.status)}</td>
             <td>
                 <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteShipment(${s.id})">削除</button>
             </td>
-        </tr>
-    `).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
+        </tr>`;
+    }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
 }
 
 function openShipmentModal(shipment = null) {
     const isEdit = !!shipment;
     const today = new Date().toISOString().split('T')[0];
+    const freqType = shipment?.frequency_type || '単発';
+    const freqDays = (shipment?.frequency_days || '').split(',').filter(Boolean);
     document.getElementById('modal-title').textContent = isEdit ? '案件編集' : '新規案件';
     document.getElementById('modal-body').innerHTML = `
+        <div class="form-group">
+            <label>案件名</label>
+            <input type="text" id="f-s-name" value="${shipment?.name || ''}" placeholder="例: A社定期便">
+        </div>
         <div class="form-group">
             <label>荷主名</label>
             <input type="text" id="f-s-client" value="${shipment?.client_name || ''}">
@@ -1134,6 +1161,20 @@ function openShipmentModal(shipment = null) {
             </div>
         </div>
         <div class="form-group">
+            <label>頻度</label>
+            <select id="f-s-freq-type" onchange="toggleFreqDays()">
+                ${['単発', '毎日', '曜日指定'].map(f =>
+                    `<option ${freqType === f ? 'selected' : ''}>${f}</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group" id="freq-days-group" style="display:${freqType === '曜日指定' ? 'block' : 'none'}">
+            <label>曜日選択</label>
+            <div class="freq-days-row">
+                ${['月', '火', '水', '木', '金', '土', '日'].map(d =>
+                    `<label class="freq-day-check"><input type="checkbox" value="${d}" ${freqDays.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}
+            </div>
+        </div>
+        <div class="form-group">
             <label>備考</label>
             <textarea id="f-s-notes">${shipment?.notes || ''}</textarea>
         </div>
@@ -1144,8 +1185,19 @@ function openShipmentModal(shipment = null) {
     showModal();
 }
 
+function toggleFreqDays() {
+    const type = document.getElementById('f-s-freq-type').value;
+    document.getElementById('freq-days-group').style.display = type === '曜日指定' ? 'block' : 'none';
+}
+
 async function saveShipment(id) {
+    const freqType = document.getElementById('f-s-freq-type').value;
+    let freqDays = '';
+    if (freqType === '曜日指定') {
+        freqDays = [...document.querySelectorAll('#freq-days-group input:checked')].map(cb => cb.value).join(',');
+    }
     const data = {
+        name: document.getElementById('f-s-name').value,
         client_name: document.getElementById('f-s-client').value,
         cargo_description: document.getElementById('f-s-cargo').value,
         weight: parseFloat(document.getElementById('f-s-weight').value),
@@ -1154,6 +1206,8 @@ async function saveShipment(id) {
         pickup_date: document.getElementById('f-s-pickup-date').value,
         delivery_date: document.getElementById('f-s-delivery-date').value,
         price: parseInt(document.getElementById('f-s-price').value),
+        frequency_type: freqType,
+        frequency_days: freqDays,
         status: document.getElementById('f-s-status').value,
         notes: document.getElementById('f-s-notes').value,
     };
@@ -1237,34 +1291,49 @@ async function loadMapMarkers() {
         return;
     }
 
+    // 車両ごとに色を割り当て
+    const vehicleIds = [...new Set(todayDispatches.map(d => d.vehicle_id))];
+    const VEHICLE_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#6366f1'];
+    const vehicleColorMap = {};
+    vehicleIds.forEach((vid, i) => { vehicleColorMap[vid] = VEHICLE_COLORS[i % VEHICLE_COLORS.length]; });
+
+    // 凡例表示
+    const legendHtml = vehicleIds.map(vid => {
+        const d = todayDispatches.find(x => x.vehicle_id === vid);
+        const color = vehicleColorMap[vid];
+        return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:0.8rem"><span style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block"></span>${d.vehicle_number}</span>`;
+    }).join('');
+    const statusEl2 = document.getElementById('map-status');
+    if (statusEl2) statusEl2.innerHTML = `本日の配車: ${todayDispatches.length}件 &nbsp; ${legendHtml}`;
+
     const bounds = [];
     todayDispatches.forEach(d => {
         if (!d.pickup_address && !d.delivery_address) return;
-        const statusColor = d.status === '運行中' ? '#22c55e' : d.status === '予定' ? '#2563eb' : '#94a3b8';
+        const vColor = vehicleColorMap[d.vehicle_id];
         const statusLabel = d.status === '運行中' ? '🟢' : d.status === '予定' ? '🔵' : '⚪';
 
         const pickupCoords = simpleGeocode(d.pickup_address);
         const deliveryCoords = simpleGeocode(d.delivery_address);
 
         if (pickupCoords) {
-            const icon = L.divIcon({ className: 'map-icon', html: `<div style="font-size:20px">${statusLabel}📦</div>`, iconSize: [36, 36] });
+            const icon = L.divIcon({ className: 'map-icon', html: `<div style="background:${vColor};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">積</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
             const m = L.marker(pickupCoords, { icon }).addTo(map)
-                .bindPopup(`<strong>${statusLabel} ${d.vehicle_number}</strong><br>${d.driver_name}<br>📦 ${d.pickup_address}<br>${d.start_time}〜${d.end_time}<br>${statusBadgeHtml(d.status)}`);
+                .bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong><br>${d.driver_name}<br>📦 ${d.pickup_address}<br>${d.start_time}〜${d.end_time}<br>${statusBadgeHtml(d.status)}`);
             mapMarkers.push(m);
             bounds.push(pickupCoords);
         }
         if (deliveryCoords) {
-            const icon = L.divIcon({ className: 'map-icon', html: `<div style="font-size:20px">🏁</div>`, iconSize: [28, 28] });
+            const icon = L.divIcon({ className: 'map-icon', html: `<div style="background:${vColor};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">卸</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
             const m = L.marker(deliveryCoords, { icon }).addTo(map)
-                .bindPopup(`<strong>🏁 卸地</strong><br>${d.delivery_address}<br>${d.vehicle_number} / ${d.driver_name}`);
+                .bindPopup(`<strong style="color:${vColor}">🏁 ${d.vehicle_number}</strong><br>${d.delivery_address}<br>${d.driver_name}`);
             mapMarkers.push(m);
             bounds.push(deliveryCoords);
         }
         if (pickupCoords && deliveryCoords) {
             const line = L.polyline([pickupCoords, deliveryCoords], {
-                color: statusColor, weight: 3, opacity: 0.7, dashArray: '8, 6'
+                color: vColor, weight: 4, opacity: 0.8, dashArray: '8, 6'
             }).addTo(map);
-            line.bindPopup(`${d.vehicle_number}: ${d.pickup_address} → ${d.delivery_address}`);
+            line.bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong>: ${d.pickup_address} → ${d.delivery_address}`);
             mapMarkers.push(line);
         }
     });

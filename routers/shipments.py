@@ -10,6 +10,7 @@ router = APIRouter()
 
 
 class ShipmentCreate(BaseModel):
+    name: str = ""
     client_name: str
     cargo_description: str = ""
     weight: float = 0
@@ -18,11 +19,14 @@ class ShipmentCreate(BaseModel):
     pickup_date: date
     delivery_date: date
     price: int = 0
+    frequency_type: str = "単発"
+    frequency_days: str = ""
     status: str = "未配車"
     notes: str = ""
 
 
 class ShipmentUpdate(BaseModel):
+    name: Optional[str] = None
     client_name: Optional[str] = None
     cargo_description: Optional[str] = None
     weight: Optional[float] = None
@@ -31,6 +35,8 @@ class ShipmentUpdate(BaseModel):
     pickup_date: Optional[date] = None
     delivery_date: Optional[date] = None
     price: Optional[int] = None
+    frequency_type: Optional[str] = None
+    frequency_days: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
 

@@ -37,6 +37,7 @@ class Shipment(Base):
     __tablename__ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), default="")
     client_name = Column(String(100), nullable=False)
     cargo_description = Column(String(200), default="")
     weight = Column(Float, default=0)
@@ -45,6 +46,8 @@ class Shipment(Base):
     pickup_date = Column(Date, nullable=False)
     delivery_date = Column(Date, nullable=False)
     price = Column(Integer, default=0)
+    frequency_type = Column(String(20), default="単発")
+    frequency_days = Column(String(50), default="")
     status = Column(String(20), default="未配車")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)

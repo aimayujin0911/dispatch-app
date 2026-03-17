@@ -67,6 +67,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "vehicle_type": d.vehicle.type if d.vehicle else "",
             "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,
             "driver_name": d.driver.name if d.driver else "",
+            "shipment_name": d.shipment.name if d.shipment else "",
             "client_name": d.shipment.client_name if d.shipment else "",
             "pickup_address": d.shipment.pickup_address if d.shipment else "",
             "delivery_address": d.shipment.delivery_address if d.shipment else "",

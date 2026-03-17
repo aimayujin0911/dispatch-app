@@ -849,6 +849,45 @@ body {
     text-align: right;
 }
 
+/* 頻度曜日チェックボックス */
+.freq-days-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.freq-day-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.freq-day-check:has(input:checked) {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.freq-day-check input { display: none; }
+
+/* 案件名リンク */
+.link-cell {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.link-cell:hover {
+    text-decoration: underline;
+}
+
 /* 地図アイコン */
 .map-icon {
     font-size: 22px;
