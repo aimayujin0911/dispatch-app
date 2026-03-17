@@ -36,14 +36,14 @@ function navigateTo(page) {
 
     const titles = {
         dashboard: 'ダッシュボード', dispatches: '配車表', shipments: '案件管理',
-        vehicles: '車両管理', drivers: 'ドライバー管理', map: '地図表示',
+        clients: '荷主管理', vehicles: '車両管理', drivers: 'ドライバー管理', map: '地図表示',
         revenue: '売上・請求管理', reports: '日報'
     };
     document.getElementById('pageTitle').textContent = titles[page] || '';
 
     const loaders = {
         dashboard: loadDashboard, dispatches: loadDispatchCalendar, shipments: loadShipments,
-        vehicles: loadVehicles, drivers: loadDrivers, map: initMap,
+        clients: loadClients, vehicles: loadVehicles, drivers: loadDrivers, map: initMap,
         revenue: loadRevenue, reports: loadReports
     };
     if (loaders[page]) loaders[page]();
@@ -603,8 +603,8 @@ function calcDuration(start, end) {
 // ===== 配車作成モーダル =====
 async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId, preselectedShipmentId) {
     if (justDragged) { justDragged = false; return; }
-    const [vehicles, drivers, shipments] = await Promise.all([
-        apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments')
+    const [vehicles, drivers, shipments, clients] = await Promise.all([
+        apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments'), apiGet('/clients')
     ]);
     const availableVehicles = vehicles.filter(v => v.status !== '整備中');
     const availableDrivers = drivers.filter(d => d.status !== '非番');
@@ -653,7 +653,13 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
         <div id="manual-address" ${preselectedShipmentId ? 'style="display:none"' : ''}>
             <div class="form-group">
                 <label>荷主名</label>
-                <input type="text" id="f-qd-client" placeholder="荷主名">
+                <div style="display:flex;gap:8px">
+                    <select id="f-qd-client-select" onchange="document.getElementById('f-qd-client').value=this.value" style="flex:1">
+                        <option value="">-- 選択 --</option>
+                        ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                    </select>
+                    <input type="text" id="f-qd-client" placeholder="手入力も可" style="flex:1">
+                </div>
             </div>
             <div class="form-group">
                 <label>積地</label>
@@ -1136,11 +1142,12 @@ async function loadShipments() {
     }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
 }
 
-function openShipmentModal(shipment = null) {
+async function openShipmentModal(shipment = null) {
     const isEdit = !!shipment;
     const today = new Date().toISOString().split('T')[0];
     const freqType = shipment?.frequency_type || '単発';
     const freqDays = (shipment?.frequency_days || '').split(',').filter(Boolean);
+    const clients = await apiGet('/clients');
     document.getElementById('modal-title').textContent = isEdit ? '案件編集' : '新規案件';
     document.getElementById('modal-body').innerHTML = `
         <div class="form-group">
@@ -1149,7 +1156,13 @@ function openShipmentModal(shipment = null) {
         </div>
         <div class="form-group">
             <label>荷主名</label>
-            <input type="text" id="f-s-client" value="${shipment?.client_name || ''}">
+            <div style="display:flex;gap:8px">
+                <select id="f-s-client-select" onchange="onClientSelect()" style="flex:1">
+                    <option value="">-- 選択 or 手入力 --</option>
+                    ${clients.map(c => `<option value="${c.name}" ${shipment?.client_name === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+                </select>
+                <input type="text" id="f-s-client" value="${shipment?.client_name || ''}" placeholder="手入力も可" style="flex:1">
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -1259,6 +1272,87 @@ async function deleteShipment(id) {
     await apiDelete(`/shipments/${id}`); loadShipments();
 }
 
+// ===== 荷主管理 =====
+async function loadClients() {
+    const clients = await apiGet('/clients');
+    document.getElementById('clients-table').innerHTML = clients.map(c => `
+        <tr>
+            <td><strong>${c.name}</strong></td>
+            <td>${c.address || '-'}</td>
+            <td>${c.phone || '-'}</td>
+            <td>${c.contact_person || '-'}</td>
+            <td>${c.notes || '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-edit" onclick="editClient(${c.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteClient(${c.id})">削除</button>
+            </td>
+        </tr>
+    `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">荷主企業が登録されていません</td></tr>';
+}
+
+function openClientModal(client = null) {
+    const isEdit = !!client;
+    document.getElementById('modal-title').textContent = isEdit ? '荷主編集' : '新規荷主';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group">
+            <label>企業名</label>
+            <input type="text" id="f-cl-name" value="${client?.name || ''}">
+        </div>
+        <div class="form-group">
+            <label>住所</label>
+            <input type="text" id="f-cl-address" value="${client?.address || ''}">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>電話番号</label>
+                <input type="text" id="f-cl-phone" value="${client?.phone || ''}">
+            </div>
+            <div class="form-group">
+                <label>担当者</label>
+                <input type="text" id="f-cl-contact" value="${client?.contact_person || ''}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>備考</label>
+            <textarea id="f-cl-notes">${client?.notes || ''}</textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveClient(${client?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
+        </div>`;
+    showModal();
+}
+
+async function saveClient(id) {
+    const data = {
+        name: document.getElementById('f-cl-name').value,
+        address: document.getElementById('f-cl-address').value,
+        phone: document.getElementById('f-cl-phone').value,
+        contact_person: document.getElementById('f-cl-contact').value,
+        notes: document.getElementById('f-cl-notes').value,
+    };
+    if (!data.name) return alert('企業名は必須です');
+    if (id) await apiPut(`/clients/${id}`, data); else await apiPost('/clients', data);
+    closeModal(); loadClients();
+}
+
+async function editClient(id) {
+    const clients = await apiGet('/clients');
+    const c = clients.find(x => x.id === id);
+    if (c) openClientModal(c);
+}
+
+async function deleteClient(id) {
+    if (!confirm('この荷主企業を削除しますか？')) return;
+    await apiDelete(`/clients/${id}`); loadClients();
+}
+
+function onClientSelect() {
+    const sel = document.getElementById('f-s-client-select');
+    const input = document.getElementById('f-s-client');
+    if (sel.value) input.value = sel.value;
+}
+
 // ===== 【機能6】地図表示（GPS動態管理） =====
 const GEOCODE_CACHE = {
     '東京都': [35.6812, 139.7671], '東京都大田区': [35.5614, 139.7160], '東京都大田区平和島': [35.5780, 139.7390],
@@ -1301,7 +1395,25 @@ function initMap() {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
     }
+    // 日付ピッカー初期化
+    const mapDateEl = document.getElementById('map-date');
+    if (mapDateEl && !mapDateEl.value) {
+        mapDateEl.value = fmt(new Date());
+    }
     setTimeout(() => map.invalidateSize(), 100);
+    loadMapMarkers();
+}
+
+function changeMapDate(delta) {
+    const mapDateEl = document.getElementById('map-date');
+    const current = new Date(mapDateEl.value || fmt(new Date()));
+    current.setDate(current.getDate() + delta);
+    mapDateEl.value = fmt(current);
+    loadMapMarkers();
+}
+
+function setMapDateToday() {
+    document.getElementById('map-date').value = fmt(new Date());
     loadMapMarkers();
 }
 
@@ -1310,15 +1422,17 @@ async function loadMapMarkers() {
     mapMarkers.forEach(m => map.removeLayer(m));
     mapMarkers = [];
 
-    // 今日の配車のみ表示
-    const today = fmt(new Date());
-    const todayDispatches = dispatches.filter(d => d.date === today);
+    // 選択日の配車を表示
+    const mapDateEl = document.getElementById('map-date');
+    const selectedDate = mapDateEl ? mapDateEl.value : fmt(new Date());
+    const todayDispatches = dispatches.filter(d => d.date === selectedDate);
+    const dateLabel = selectedDate === fmt(new Date()) ? '本日' : selectedDate;
     const statusEl = document.getElementById('map-status');
-    if (statusEl) statusEl.textContent = `本日の配車: ${todayDispatches.length}件`;
+    if (statusEl) statusEl.textContent = `${dateLabel}の配車: ${todayDispatches.length}件`;
 
     if (todayDispatches.length === 0) {
         const m = L.marker([35.6812, 139.7671]).addTo(map)
-            .bindPopup('<strong>本日の配車なし</strong><br>配車を作成するとここに表示されます').openPopup();
+            .bindPopup(`<strong>${dateLabel}の配車なし</strong><br>配車を作成するとここに表示されます`).openPopup();
         mapMarkers.push(m);
         return;
     }
@@ -1336,7 +1450,7 @@ async function loadMapMarkers() {
         return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:0.8rem"><span style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block"></span>${d.vehicle_number}</span>`;
     }).join('');
     const statusEl2 = document.getElementById('map-status');
-    if (statusEl2) statusEl2.innerHTML = `本日の配車: ${todayDispatches.length}件 &nbsp; ${legendHtml}`;
+    if (statusEl2) statusEl2.innerHTML = `${dateLabel}の配車: ${todayDispatches.length}件 &nbsp; ${legendHtml}`;
 
     const bounds = [];
     todayDispatches.forEach(d => {

@@ -4,6 +4,18 @@ from datetime import datetime
 from database import Base
 
 
+class Client(Base):
+    __tablename__ = "clients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    address = Column(String(200), default="")
+    phone = Column(String(20), default="")
+    contact_person = Column(String(50), default="")
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class Vehicle(Base):
     __tablename__ = "vehicles"
 

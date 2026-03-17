@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from database import engine, Base
-from routers import vehicles, drivers, shipments, dispatches, reports, dashboard
+from routers import vehicles, drivers, shipments, dispatches, reports, dashboard, clients
 
 Base.metadata.create_all(bind=engine)
 
@@ -47,6 +47,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(clients.router, prefix="/api/clients", tags=["clients"])
 app.include_router(vehicles.router, prefix="/api/vehicles", tags=["vehicles"])
 app.include_router(drivers.router, prefix="/api/drivers", tags=["drivers"])
 app.include_router(shipments.router, prefix="/api/shipments", tags=["shipments"])

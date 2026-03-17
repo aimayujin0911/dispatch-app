@@ -22,6 +22,9 @@
             <li class="nav-item" data-page="shipments">
                 <span class="nav-icon">📦</span> 案件管理
             </li>
+            <li class="nav-item" data-page="clients">
+                <span class="nav-icon">🏢</span> 荷主管理
+            </li>
             <li class="nav-item" data-page="vehicles">
                 <span class="nav-icon">🚚</span> 車両管理
             </li>
@@ -116,6 +119,28 @@
             </div>
         </section>
 
+        <!-- 荷主管理 -->
+        <section class="page" id="page-clients">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openClientModal()">+ 荷主追加</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>企業名</th>
+                            <th>住所</th>
+                            <th>電話番号</th>
+                            <th>担当者</th>
+                            <th>備考</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-table"></tbody>
+                </table>
+            </div>
+        </section>
+
         <!-- 車両管理 -->
         <section class="page" id="page-vehicles">
             <div class="page-actions">
@@ -166,6 +191,10 @@
         <!-- 地図表示 -->
         <section class="page" id="page-map">
             <div class="page-actions">
+                <button class="btn btn-sm" onclick="changeMapDate(-1)">◀ 前日</button>
+                <input type="date" id="map-date" onchange="loadMapMarkers()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
+                <button class="btn btn-sm" onclick="changeMapDate(1)">翌日 ▶</button>
+                <button class="btn btn-sm" onclick="setMapDateToday()">今日</button>
                 <button class="btn btn-sm" onclick="loadMapMarkers()">🔄 更新</button>
                 <span id="map-status" style="color:var(--text-light);font-size:0.85rem"></span>
             </div>
@@ -263,6 +292,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=2"></script>
 </body>
 </html>
