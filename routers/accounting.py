@@ -36,16 +36,23 @@ class EntryUpdate(BaseModel):
 
 
 @router.get("")
-def list_entries(month: str = "", db: Session = Depends(get_db)):
+def list_entries(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
     q = db.query(AccountEntry)
+    if year and month:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        q = q.filter(AccountEntry.date >= start, AccountEntry.date < end)
     entries = q.order_by(AccountEntry.date.desc()).all()
     result = []
     for e in entries:
         d = {c.name: getattr(e, c.name) for c in e.__table__.columns}
         d["date"] = str(e.date)
+        d["type"] = e.entry_type
         if d.get("created_at"):
             d["created_at"] = str(d["created_at"])
-        # 車両名取得
         if e.vehicle_id:
             v = db.query(Vehicle).filter(Vehicle.id == e.vehicle_id).first()
             d["vehicle_number"] = v.number if v else ""
@@ -61,31 +68,42 @@ def get_categories():
 
 
 @router.get("/summary")
-def get_summary(month: str = "", db: Session = Depends(get_db)):
-    entries = db.query(AccountEntry).all()
-    if month:
-        entries = [e for e in entries if str(e.date).startswith(month)]
+def get_summary(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
+    q = db.query(AccountEntry)
+    if year and month:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        q = q.filter(AccountEntry.date >= start, AccountEntry.date < end)
+    entries = q.all()
     income = sum(e.amount for e in entries if e.entry_type == "収入")
     expense = sum(e.amount for e in entries if e.entry_type == "支出")
-    by_category = {}
+    categories = {}
     for e in entries:
-        key = e.category or "未分類"
-        by_category[key] = by_category.get(key, 0) + (e.amount if e.entry_type == "収入" else -e.amount)
-    return {"income": income, "expense": expense, "profit": income - expense, "by_category": by_category}
+        if e.entry_type == "支出":
+            key = e.category or "未分類"
+            categories[key] = categories.get(key, 0) + e.amount
+    return {"income": income, "expense": expense, "profit": income - expense, "categories": categories}
 
 
 @router.get("/vehicle-pnl")
-def vehicle_profit_loss(month: str = "", db: Session = Depends(get_db)):
+def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
     """車両ごとの損益計算"""
     vehicles = db.query(Vehicle).all()
-    entries = db.query(AccountEntry).all()
-    if month:
-        entries = [e for e in entries if str(e.date).startswith(month)]
-
-    # 車両ごとの売上は配車→案件から算出
-    dispatches = db.query(Dispatch).all()
-    if month:
-        dispatches = [d for d in dispatches if str(d.date).startswith(month)]
+    q_entries = db.query(AccountEntry)
+    q_dispatches = db.query(Dispatch)
+    if year and month:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        q_entries = q_entries.filter(AccountEntry.date >= start, AccountEntry.date < end)
+        q_dispatches = q_dispatches.filter(Dispatch.date >= start, Dispatch.date < end)
+    entries = q_entries.all()
+    dispatches = q_dispatches.all()
 
     vehicle_revenue = {}
     for d in dispatches:
@@ -133,10 +151,17 @@ def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/import-revenue")
-def import_revenue(month: str, db: Session = Depends(get_db)):
+def import_revenue(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
     """完了案件から売上を自動インポート"""
-    shipments = db.query(Shipment).filter(Shipment.status == "完了").all()
-    month_shipments = [s for s in shipments if str(s.delivery_date).startswith(month)]
+    q = db.query(Shipment).filter(Shipment.status == "完了")
+    if year and month:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        q = q.filter(Shipment.delivery_date >= start, Shipment.delivery_date < end)
+    month_shipments = q.all()
     created = 0
     for s in month_shipments:
         existing = db.query(AccountEntry).filter(

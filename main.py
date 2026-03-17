@@ -9,7 +9,8 @@ from fastapi.responses import HTMLResponse
 from database import engine, Base
 from routers import (vehicles, drivers, shipments, dispatches, reports, dashboard,
                      clients, partners, partner_invoices, transport_requests,
-                     vehicle_notifications, attendance, accounting, export, company_settings)
+                     vehicle_notifications, attendance, accounting, export, company_settings,
+                     vendors)
 
 Base.metadata.create_all(bind=engine)
 
@@ -68,6 +69,27 @@ def seed_on_startup():
             ("company_settings", "smtp_user", "VARCHAR(100) DEFAULT ''"),
             ("company_settings", "smtp_password", "VARCHAR(200) DEFAULT ''"),
             ("company_settings", "sender_email", "VARCHAR(100) DEFAULT ''"),
+            # Phase3: ドライバー拡張
+            ("drivers", "email", "VARCHAR(100) DEFAULT ''"),
+            ("drivers", "password_hash", "VARCHAR(200) DEFAULT ''"),
+            ("drivers", "license_expiry", "VARCHAR(10) DEFAULT ''"),
+            ("drivers", "hire_date", "DATE"),
+            ("drivers", "paid_leave_balance", "REAL DEFAULT 10.0"),
+            # Phase4: 勤怠拡張（運送業日報項目）
+            ("attendance", "vehicle_id", "INTEGER"),
+            ("attendance", "departure_time", "VARCHAR(5) DEFAULT ''"),
+            ("attendance", "return_time", "VARCHAR(5) DEFAULT ''"),
+            ("attendance", "routes", "TEXT DEFAULT ''"),
+            ("attendance", "pre_check_time", "VARCHAR(5) DEFAULT ''"),
+            ("attendance", "post_check_time", "VARCHAR(5) DEFAULT ''"),
+            ("attendance", "alcohol_check", "VARCHAR(20) DEFAULT ''"),
+            ("attendance", "fuel_liters", "REAL DEFAULT 0"),
+            ("attendance", "fuel_cost", "INTEGER DEFAULT 0"),
+            ("attendance", "highway_cost", "INTEGER DEFAULT 0"),
+            ("attendance", "highway_sections", "VARCHAR(200) DEFAULT ''"),
+            ("attendance", "break_location", "VARCHAR(100) DEFAULT ''"),
+            ("attendance", "weather", "VARCHAR(20) DEFAULT ''"),
+            ("attendance", "incidents", "TEXT DEFAULT ''"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -100,6 +122,7 @@ app.include_router(attendance.router, prefix="/api/attendance", tags=["attendanc
 app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
 app.include_router(export.router, prefix="/api/export", tags=["export"])
 app.include_router(company_settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(vendors.router, prefix="/api/vendors", tags=["vendors"])
 
 
 @app.get("/", response_class=HTMLResponse)

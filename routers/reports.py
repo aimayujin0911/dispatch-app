@@ -41,10 +41,18 @@ class ReportUpdate(BaseModel):
 
 
 @router.get("")
-def list_reports(db: Session = Depends(get_db)):
-    reports = db.query(DailyReport).options(
+def list_reports(date: str = "", db: Session = Depends(get_db)):
+    q = db.query(DailyReport).options(
         joinedload(DailyReport.driver)
-    ).order_by(DailyReport.date.desc()).all()
+    )
+    if date:
+        from datetime import date as d
+        try:
+            target = d.fromisoformat(date)
+            q = q.filter(DailyReport.date == target)
+        except ValueError:
+            pass
+    reports = q.order_by(DailyReport.date.desc()).all()
     result = []
     for r in reports:
         result.append({

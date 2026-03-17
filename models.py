@@ -158,27 +158,63 @@ class VehicleNotification(Base):
     created_at = Column(DateTime, default=datetime.now)
 
 
+class Vendor(Base):
+    """取引先（燃料店、ETC会社、整備工場等）"""
+    __tablename__ = "vendors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    vendor_type = Column(String(50), default="")  # 燃料, ETC, 整備, タイヤ, 保険, その他
+    address = Column(String(200), default="")
+    phone = Column(String(20), default="")
+    contact_person = Column(String(50), default="")
+    billing_cycle = Column(String(50), default="月末締め翌月末払い")
+    account_number = Column(String(50), default="")  # 契約番号・顧客番号
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class Attendance(Base):
     __tablename__ = "attendance"
 
     id = Column(Integer, primary_key=True, index=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     date = Column(Date, nullable=False)
     clock_in = Column(String(5), default="")
     clock_out = Column(String(5), default="")
     break_minutes = Column(Integer, default=60)
+    break_location = Column(String(100), default="")
     work_type = Column(String(20), default="通常")
     overtime_minutes = Column(Integer, default=0)
     late_night_minutes = Column(Integer, default=0)
+    # 運行情報
+    departure_time = Column(String(5), default="")  # 出庫時間
+    return_time = Column(String(5), default="")      # 帰庫時間
     distance_km = Column(Float, default=0)
-    allowance = Column(Integer, default=0)
+    routes = Column(Text, default="")  # JSON: 運行経路
+    # 点呼
+    pre_check_time = Column(String(5), default="")   # 出庫前点呼時間
+    post_check_time = Column(String(5), default="")  # 帰庫後点呼時間
+    alcohol_check = Column(String(20), default="")   # 異常なし/要確認
+    # 作業時間
     waiting_time = Column(Integer, default=0)
     loading_time = Column(Integer, default=0)
     unloading_time = Column(Integer, default=0)
+    # 給油・高速
+    fuel_liters = Column(Float, default=0)
+    fuel_cost = Column(Integer, default=0)
+    highway_cost = Column(Integer, default=0)
+    highway_sections = Column(String(200), default="")  # 高速区間
+    # その他
+    allowance = Column(Integer, default=0)
+    weather = Column(String(20), default="")  # 晴/曇/雨/雪
+    incidents = Column(Text, default="")  # 事故・故障等
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
     driver = relationship("Driver")
+    vehicle = relationship("Vehicle", foreign_keys=[vehicle_id])
 
 
 class AccountEntry(Base):
@@ -239,8 +275,13 @@ class Driver(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), nullable=False)
     phone = Column(String(20), default="")
+    email = Column(String(100), default="")
+    password_hash = Column(String(200), default="")
     license_type = Column(String(30), default="普通")
+    license_expiry = Column(String(10), default="")
     status = Column(String(20), default="待機中")
+    hire_date = Column(Date, nullable=True)
+    paid_leave_balance = Column(Float, default=10.0)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 

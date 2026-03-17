@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Attendance, Driver, Dispatch
+from models import Attendance, Driver, Dispatch, Vehicle
 
 router = APIRouter()
 
@@ -15,6 +15,7 @@ class AttendanceCreate(BaseModel):
     clock_in: str = ""
     clock_out: str = ""
     break_minutes: int = 60
+    break_location: str = ""
     work_type: str = "通常"
     overtime_minutes: int = 0
     late_night_minutes: int = 0
@@ -23,6 +24,23 @@ class AttendanceCreate(BaseModel):
     waiting_time: int = 0
     loading_time: int = 0
     unloading_time: int = 0
+    # 運行情報
+    vehicle_id: Optional[int] = None
+    departure_time: str = ""
+    return_time: str = ""
+    routes: str = ""
+    # 点呼
+    pre_check_time: str = ""
+    post_check_time: str = ""
+    alcohol_check: str = ""
+    # 給油・高速
+    fuel_liters: float = 0
+    fuel_cost: int = 0
+    highway_cost: int = 0
+    highway_sections: str = ""
+    # その他
+    weather: str = ""
+    incidents: str = ""
     notes: str = ""
 
 
@@ -30,6 +48,7 @@ class AttendanceUpdate(BaseModel):
     clock_in: Optional[str] = None
     clock_out: Optional[str] = None
     break_minutes: Optional[int] = None
+    break_location: Optional[str] = None
     work_type: Optional[str] = None
     overtime_minutes: Optional[int] = None
     late_night_minutes: Optional[int] = None
@@ -38,21 +57,51 @@ class AttendanceUpdate(BaseModel):
     waiting_time: Optional[int] = None
     loading_time: Optional[int] = None
     unloading_time: Optional[int] = None
+    # 運行情報
+    vehicle_id: Optional[int] = None
+    departure_time: Optional[str] = None
+    return_time: Optional[str] = None
+    routes: Optional[str] = None
+    # 点呼
+    pre_check_time: Optional[str] = None
+    post_check_time: Optional[str] = None
+    alcohol_check: Optional[str] = None
+    # 給油・高速
+    fuel_liters: Optional[float] = None
+    fuel_cost: Optional[int] = None
+    highway_cost: Optional[int] = None
+    highway_sections: Optional[str] = None
+    # その他
+    weather: Optional[str] = None
+    incidents: Optional[str] = None
     notes: Optional[str] = None
 
 
 @router.get("")
-def list_attendance(month: str = "", driver_id: int = 0, db: Session = Depends(get_db)):
+def list_attendance(year: int = 0, month: int = 0, driver_id: int = 0, db: Session = Depends(get_db)):
     q = db.query(Attendance)
     if driver_id:
         q = q.filter(Attendance.driver_id == driver_id)
+    if year and month:
+        from datetime import date as d
+        start = d(year, month, 1)
+        if month == 12:
+            end = d(year + 1, 1, 1)
+        else:
+            end = d(year, month + 1, 1)
+        q = q.filter(Attendance.date >= start, Attendance.date < end)
     records = q.order_by(Attendance.date.desc()).all()
     result = []
     for a in records:
         driver = db.query(Driver).filter(Driver.id == a.driver_id).first()
+        vehicle = db.query(Vehicle).filter(Vehicle.id == a.vehicle_id).first() if a.vehicle_id else None
         d = {c.name: getattr(a, c.name) for c in a.__table__.columns}
         d["driver_name"] = driver.name if driver else "不明"
+        d["vehicle_number"] = vehicle.number if vehicle else ""
         d["date"] = str(a.date)
+        d["start_time"] = a.clock_in or ""
+        d["end_time"] = a.clock_out or ""
+        d["night_minutes"] = a.late_night_minutes or 0
         if d.get("created_at"):
             d["created_at"] = str(d["created_at"])
         result.append(d)
@@ -74,8 +123,19 @@ def create_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/from-dispatches")
-def generate_from_dispatches(target_date: str, db: Session = Depends(get_db)):
-    dispatches = db.query(Dispatch).filter(Dispatch.date == target_date).all()
+def generate_from_dispatches(year: int = 0, month: int = 0, target_date: str = "", db: Session = Depends(get_db)):
+    if target_date:
+        dispatches = db.query(Dispatch).filter(Dispatch.date == target_date).all()
+    elif year and month:
+        from datetime import date as d
+        start = d(year, month, 1)
+        if month == 12:
+            end = d(year + 1, 1, 1)
+        else:
+            end = d(year, month + 1, 1)
+        dispatches = db.query(Dispatch).filter(Dispatch.date >= start, Dispatch.date < end).all()
+    else:
+        dispatches = []
     created = 0
     for disp in dispatches:
         existing = db.query(Attendance).filter(
@@ -88,9 +148,12 @@ def generate_from_dispatches(target_date: str, db: Session = Depends(get_db)):
         shipment = disp.shipment if disp.shipment_id else None
         att = Attendance(
             driver_id=disp.driver_id,
+            vehicle_id=disp.vehicle_id,
             date=disp.date,
             clock_in=disp.start_time or "",
             clock_out=disp.end_time or "",
+            departure_time=disp.start_time or "",
+            return_time=disp.end_time or "",
             break_minutes=60,
             work_type="通常",
             waiting_time=shipment.waiting_time if shipment else 0,

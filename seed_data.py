@@ -7,7 +7,7 @@ from database import engine, SessionLocal, Base
 from models import (Vehicle, Driver, Shipment, Dispatch, DailyReport, Client,
                     PartnerCompany, PartnerInvoice, PartnerInvoiceItem,
                     TransportRequest, VehicleNotification, Attendance,
-                    AccountEntry, CompanySettings, ClientNote, VehicleCost)
+                    AccountEntry, CompanySettings, ClientNote, VehicleCost, Vendor)
 
 
 def seed():
@@ -42,14 +42,16 @@ def seed():
     db.add_all(vehicles)
     db.flush()
 
-    # ドライバー
+    # ドライバー（メール/パスワード付き → 勤怠アプリログイン可能）
+    import hashlib
+    def h(pw): return hashlib.sha256(pw.encode()).hexdigest()
     drivers = [
-        Driver(name="田中 太郎", phone="090-1234-5678", license_type="大型", status="運行中"),
-        Driver(name="鈴木 一郎", phone="090-2345-6789", license_type="大型", status="運行中"),
-        Driver(name="佐藤 花子", phone="090-3456-7890", license_type="中型", status="待機中"),
-        Driver(name="山田 次郎", phone="090-4567-8901", license_type="大型", status="待機中"),
-        Driver(name="高橋 三郎", phone="090-5678-9012", license_type="けん引", status="非番"),
-        Driver(name="伊藤 美咲", phone="090-6789-0123", license_type="中型", status="待機中"),
+        Driver(name="田中 太郎", phone="090-1234-5678", email="tanaka@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=8.5),
+        Driver(name="鈴木 一郎", phone="090-2345-6789", email="suzuki@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=10.0),
+        Driver(name="佐藤 花子", phone="090-3456-7890", email="sato@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="待機中", paid_leave_balance=12.0),
+        Driver(name="山田 次郎", phone="090-4567-8901", email="yamada@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="待機中", paid_leave_balance=10.0),
+        Driver(name="高橋 三郎", phone="090-5678-9012", license_type="けん引", status="非番", paid_leave_balance=5.0),
+        Driver(name="伊藤 美咲", phone="090-6789-0123", email="ito@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="待機中", paid_leave_balance=10.0),
     ]
     db.add_all(drivers)
     db.flush()
@@ -283,7 +285,33 @@ def seed():
             status="未送付"),
     ])
 
-    # 勤怠データ（過去2週間分、待機・積込・荷卸時間付き）
+    # 取引先（燃料店・ETC会社等）
+    vendor_list = [
+        Vendor(name="出光興産 大田SS", vendor_type="燃料", address="東京都大田区蒲田5-1-1",
+               phone="03-5555-8001", contact_person="給油担当", billing_cycle="月末締め翌月末払い",
+               account_number="OTA-001234"),
+        Vendor(name="ENEOS 品川SS", vendor_type="燃料", address="東京都品川区南品川3-2-1",
+               phone="03-5555-8002", contact_person="店長 渡辺", billing_cycle="月末締め翌月末払い",
+               account_number="SGW-005678"),
+        Vendor(name="ETCコーポレート（NEXCO東日本）", vendor_type="ETC", address="東京都千代田区神田1-1-1",
+               phone="0570-024-024", contact_person="法人窓口", billing_cycle="月末締め翌月20日払い",
+               account_number="ETC-9900123"),
+        Vendor(name="山田自動車整備", vendor_type="整備", address="東京都大田区池上6-1-1",
+               phone="03-5555-8003", contact_person="山田工場長", billing_cycle="都度払い"),
+        Vendor(name="ブリヂストン タイヤ館蒲田", vendor_type="タイヤ", address="東京都大田区西蒲田7-1-1",
+               phone="03-5555-8004", contact_person="タイヤ担当", billing_cycle="月末締め翌月末払い"),
+    ]
+    db.add_all(vendor_list)
+    db.flush()
+
+    # 勤怠データ（過去2週間分、運送業日報項目付き）
+    weather_list = ["晴", "曇", "晴", "雨", "晴", "曇", "晴", "晴", "曇", "晴"]
+    routes_list = [
+        "大田区→横浜港北区（第三京浜）",
+        "大宮→千葉美浜（外環→京葉道路）",
+        "江東区→つくば（常磐道）",
+        "品川→浜松（東名高速）",
+    ]
     for d_offset in range(1, 15):
         d = today - timedelta(days=d_offset)
         if d.weekday() >= 5:  # 土日スキップ
@@ -291,6 +319,10 @@ def seed():
         for drv_idx in range(4):  # 4人分
             clock_in = ["06:00", "07:00", "06:30", "08:00"][drv_idx]
             clock_out = ["17:00", "18:00", "16:30", "19:00"][drv_idx]
+            dep_time = ["05:45", "06:45", "06:15", "07:45"][drv_idx]
+            ret_time = ["17:15", "18:15", "16:45", "19:15"][drv_idx]
+            pre_check = ["05:30", "06:30", "06:00", "07:30"][drv_idx]
+            post_check = ["17:20", "18:20", "16:50", "19:20"][drv_idx]
             # 勤務時間計算
             sh, sm = map(int, clock_in.split(':'))
             eh, em = map(int, clock_out.split(':'))
@@ -300,15 +332,28 @@ def seed():
             if eh >= 22 or sh < 5:
                 late_night = 30
             db.add(Attendance(
-                driver_id=drivers[drv_idx].id, date=d,
+                driver_id=drivers[drv_idx].id,
+                vehicle_id=vehicles[drv_idx].id,
+                date=d,
                 clock_in=clock_in, clock_out=clock_out,
-                break_minutes=60, work_type="通常",
+                departure_time=dep_time, return_time=ret_time,
+                break_minutes=60, break_location=["海老名SA", "三芳PA", "守谷SA", "足柄SA"][drv_idx],
+                work_type="通常",
                 overtime_minutes=overtime, late_night_minutes=late_night,
                 distance_km=[245, 180, 120, 300][drv_idx],
                 allowance=[1000, 1000, 500, 1500][drv_idx],
                 waiting_time=[15, 10, 30, 20][drv_idx],
                 loading_time=[30, 45, 20, 50][drv_idx],
                 unloading_time=[20, 30, 15, 35][drv_idx],
+                pre_check_time=pre_check, post_check_time=post_check,
+                alcohol_check="異常なし",
+                routes=routes_list[drv_idx],
+                fuel_liters=[42, 35, 18, 55][drv_idx],
+                fuel_cost=[5880, 4900, 2520, 7700][drv_idx],
+                highway_cost=[2100, 1800, 1500, 4200][drv_idx],
+                highway_sections=["第三京浜", "外環+京葉道路", "常磐道", "東名高速"][drv_idx],
+                weather=weather_list[d_offset % len(weather_list)],
+                incidents="" if d_offset != 5 or drv_idx != 0 else "左ミラー接触（軽微）",
             ))
 
     # 車両固定費

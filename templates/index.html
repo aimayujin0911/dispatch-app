@@ -41,17 +41,17 @@
                 <span class="nav-icon">🗺️</span> 地図表示
             </li>
             <li style="padding:8px 20px;font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-top:8px">サブアプリ</li>
-            <li class="nav-item" onclick="window.location='/app/billing'">
-                <span class="nav-icon">💰</span> 請求管理
+            <li class="nav-item" onclick="window.open('/app/billing','_blank')">
+                <span class="nav-icon">💰</span> 請求管理 ↗
             </li>
-            <li class="nav-item" onclick="window.location='/app/attendance'">
-                <span class="nav-icon">⏰</span> 勤怠管理
+            <li class="nav-item" onclick="window.open('/app/attendance','_blank')">
+                <span class="nav-icon">⏰</span> 勤怠管理 ↗
             </li>
-            <li class="nav-item" onclick="window.location='/app/accounting'">
-                <span class="nav-icon">📒</span> 会計管理
+            <li class="nav-item" onclick="window.open('/app/accounting','_blank')">
+                <span class="nav-icon">📒</span> 会計管理 ↗
             </li>
-            <li class="nav-item" onclick="window.location='/app/reports'">
-                <span class="nav-icon">📝</span> 日報管理
+            <li class="nav-item" onclick="window.open('/app/reports','_blank')">
+                <span class="nav-icon">📝</span> 日報管理 ↗
             </li>
             <li class="nav-item" data-page="settings">
                 <span class="nav-icon">⚙️</span> 設定
@@ -438,6 +438,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=11"></script>
+    <script src="/static/js/app.js?v=12"></script>
 </body>
 </html>

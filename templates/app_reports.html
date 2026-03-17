@@ -13,7 +13,7 @@
         .topnav a.active { color: #fff; background: rgba(255,255,255,.25); font-weight: 600; }
         .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
         h1 { font-size: 1.5rem; margin-bottom: 1rem; }
-        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
         select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
         .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
         table { width: 100%; border-collapse: collapse; font-size: .85rem; }
@@ -26,7 +26,12 @@
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
         .btn:hover { opacity: .85; }
+        .btn-nav { background: #0d9488; color: #fff; padding: .45rem .65rem; font-size: 1rem; min-width: 36px; justify-content: center; }
         .route-tag { display: inline-block; background: #f0fdfa; color: #0d9488; padding: .15rem .5rem; border-radius: 4px; font-size: .78rem; margin: .1rem; }
+        .summary-bar { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .summary-item { background: #fff; border-radius: 10px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); min-width: 140px; flex: 1; }
+        .summary-item .label { font-size: .78rem; color: #64748b; margin-bottom: .25rem; }
+        .summary-item .value { font-size: 1.35rem; font-weight: 700; color: #14b8a6; }
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
         .modal-overlay.show { display: flex; }
         .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 650px; max-height: 90vh; overflow-y: auto; }
@@ -37,7 +42,13 @@
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
         .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; }
         .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
-        @media (max-width: 768px) { .topnav { overflow-x: auto; } .form-row, .form-row-3 { grid-template-columns: 1fr; } }
+        .no-data { text-align: center; padding: 2rem; color: #94a3b8; }
+        @media (max-width: 768px) {
+            .topnav { overflow-x: auto; }
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .summary-bar { gap: .75rem; }
+            .summary-item { min-width: 100px; }
+        }
     </style>
 </head>
 <body>
@@ -51,11 +62,26 @@
 <div class="container">
     <h1>日報管理</h1>
     <div class="toolbar">
+        <button class="btn btn-nav" onclick="changeDate(-1)" title="前日">◀</button>
         <input type="date" id="targetDate" onchange="loadReports()">
+        <button class="btn btn-nav" onclick="changeDate(1)" title="翌日">▶</button>
+        <select id="driverFilter" onchange="applyFilter()" style="min-width:140px">
+            <option value="">全ドライバー</option>
+        </select>
         <button class="btn btn-primary" onclick="openAddModal()">＋ 追加</button>
         <button class="btn btn-success" onclick="autoGenerate()">🔄 配車から自動生成</button>
         <button class="btn btn-outline" onclick="printDaily()">🖨️ 日報印刷</button>
     </div>
+
+    <div class="summary-bar" id="summaryBar">
+        <div class="summary-item"><div class="label">件数</div><div class="value" id="sumCount">0</div></div>
+        <div class="summary-item"><div class="label">総走行距離</div><div class="value" id="sumDistance">0 km</div></div>
+        <div class="summary-item"><div class="label">総給油量</div><div class="value" id="sumFuel">0 L</div></div>
+        <div class="summary-item"><div class="label">待機時間計</div><div class="value" id="sumWaiting">0 分</div></div>
+        <div class="summary-item"><div class="label">積込時間計</div><div class="value" id="sumLoading">0 分</div></div>
+        <div class="summary-item"><div class="label">荷卸時間計</div><div class="value" id="sumUnloading">0 分</div></div>
+    </div>
+
     <div class="card" style="overflow-x:auto">
         <table>
             <thead><tr>
@@ -76,8 +102,8 @@
             <div class="form-group"><label>ドライバー</label><select id="fDriver"></select></div>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>出発時刻</label><input type="time" id="fDeparture"></div>
-            <div class="form-group"><label>帰着時刻</label><input type="time" id="fReturn"></div>
+            <div class="form-group"><label>出発時刻</label><input type="time" id="fStartTime"></div>
+            <div class="form-group"><label>帰着時刻</label><input type="time" id="fEndTime"></div>
         </div>
         <div class="form-row-3">
             <div class="form-group"><label>待機時間(分)</label><input type="number" id="fWaiting" value="0"></div>
@@ -88,7 +114,7 @@
             <div class="form-group"><label>走行距離(km)</label><input type="number" id="fDistance" step="0.1"></div>
             <div class="form-group"><label>給油量(L)</label><input type="number" id="fFuel" step="0.1"></div>
         </div>
-        <div class="form-group"><label>荷主</label><input type="text" id="fClient"></div>
+        <div class="form-group"><label>荷主</label><input type="text" id="fClientNames"></div>
         <div class="form-group">
             <label>運行経路 (JSON: [{"pickup":"...","delivery":"..."},...])</label>
             <textarea id="fRoutes" rows="3" placeholder='[{"pickup":"東京","delivery":"大阪"}]'></textarea>
@@ -109,18 +135,29 @@ async function apiDelete(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)th
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 
-let reports = [], drivers = [];
+let allReports = [], filteredReports = [], drivers = [];
 
 function initDate(){
-    const d = new Date();
-    document.getElementById('targetDate').value = d.toISOString().slice(0,10);
+    document.getElementById('targetDate').value = new Date().toISOString().slice(0,10);
+}
+
+function changeDate(delta){
+    const input = document.getElementById('targetDate');
+    const d = new Date(input.value);
+    d.setDate(d.getDate() + delta);
+    input.value = d.toISOString().slice(0,10);
+    loadReports();
 }
 
 async function loadDrivers(){
     try {
         const data = await apiGet('/api/drivers');
         drivers = Array.isArray(data) ? data : (data.drivers || []);
-        document.getElementById('fDriver').innerHTML = drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+        const fDriver = document.getElementById('fDriver');
+        fDriver.innerHTML = drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+        const filterSel = document.getElementById('driverFilter');
+        filterSel.innerHTML = '<option value="">全ドライバー</option>' +
+            drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
     } catch(e){console.error(e);}
 }
 
@@ -130,9 +167,20 @@ async function loadReports(){
         let url = '/api/reports';
         if(date) url += `?date=${date}`;
         const data = await apiGet(url);
-        reports = Array.isArray(data) ? data : (data.reports || []);
-        renderTable();
+        allReports = Array.isArray(data) ? data : (data.reports || []);
+        applyFilter();
     } catch(e){console.error(e);}
+}
+
+function applyFilter(){
+    const driverId = document.getElementById('driverFilter').value;
+    if(driverId){
+        filteredReports = allReports.filter(r => String(r.driver_id) === driverId);
+    } else {
+        filteredReports = [...allReports];
+    }
+    renderTable();
+    renderSummary();
 }
 
 function parseRoutes(r){
@@ -147,13 +195,17 @@ function parseRoutes(r){
 function driverName(id){ const d=drivers.find(x=>x.id===id); return d?d.name:'-'; }
 
 function renderTable(){
-    document.getElementById('tblBody').innerHTML = reports.map(r => `<tr>
+    if(filteredReports.length === 0){
+        document.getElementById('tblBody').innerHTML = '<tr><td colspan="13" class="no-data">データがありません</td></tr>';
+        return;
+    }
+    document.getElementById('tblBody').innerHTML = filteredReports.map(r => `<tr>
         <td>${r.date||'-'}</td>
         <td>${r.driver_name||driverName(r.driver_id)}</td>
-        <td>${r.departure_time||'-'}</td><td>${r.return_time||'-'}</td>
+        <td>${r.start_time||'-'}</td><td>${r.end_time||'-'}</td>
         <td>${r.waiting_time||0}</td><td>${r.loading_time||0}</td><td>${r.unloading_time||0}</td>
-        <td>${r.distance_km||'-'}</td><td>${r.fuel_amount||'-'}</td>
-        <td>${r.client_name||'-'}</td>
+        <td>${r.distance_km||'-'}</td><td>${r.fuel_liters||'-'}</td>
+        <td>${r.client_names||'-'}</td>
         <td>${parseRoutes(r.routes)}</td>
         <td>${r.notes||''}</td>
         <td style="white-space:nowrap">
@@ -163,11 +215,26 @@ function renderTable(){
     </tr>`).join('');
 }
 
+function renderSummary(){
+    const list = filteredReports;
+    const sumDist = list.reduce((s,r)=>s+(parseFloat(r.distance_km)||0),0);
+    const sumFuel = list.reduce((s,r)=>s+(parseFloat(r.fuel_liters)||0),0);
+    const sumWait = list.reduce((s,r)=>s+(parseInt(r.waiting_time)||0),0);
+    const sumLoad = list.reduce((s,r)=>s+(parseInt(r.loading_time)||0),0);
+    const sumUnload = list.reduce((s,r)=>s+(parseInt(r.unloading_time)||0),0);
+    document.getElementById('sumCount').textContent = list.length;
+    document.getElementById('sumDistance').textContent = sumDist.toFixed(1) + ' km';
+    document.getElementById('sumFuel').textContent = sumFuel.toFixed(1) + ' L';
+    document.getElementById('sumWaiting').textContent = sumWait + ' 分';
+    document.getElementById('sumLoading').textContent = sumLoad + ' 分';
+    document.getElementById('sumUnloading').textContent = sumUnload + ' 分';
+}
+
 function openAddModal(){
     document.getElementById('editId').value='';
     document.getElementById('formTitle').textContent='日報追加';
     document.getElementById('fDate').value=document.getElementById('targetDate').value;
-    ['fDeparture','fReturn','fClient','fNotes'].forEach(id=>document.getElementById(id).value='');
+    ['fStartTime','fEndTime','fClientNames','fNotes'].forEach(id=>document.getElementById(id).value='');
     ['fWaiting','fLoading','fUnloading'].forEach(id=>document.getElementById(id).value=0);
     document.getElementById('fDistance').value='';
     document.getElementById('fFuel').value='';
@@ -176,19 +243,19 @@ function openAddModal(){
 }
 
 function editReport(id){
-    const r=reports.find(x=>x.id===id); if(!r) return;
+    const r=allReports.find(x=>x.id===id); if(!r) return;
     document.getElementById('editId').value=id;
     document.getElementById('formTitle').textContent='日報編集';
     document.getElementById('fDate').value=r.date||'';
     document.getElementById('fDriver').value=r.driver_id||'';
-    document.getElementById('fDeparture').value=r.departure_time||'';
-    document.getElementById('fReturn').value=r.return_time||'';
+    document.getElementById('fStartTime').value=r.start_time||'';
+    document.getElementById('fEndTime').value=r.end_time||'';
     document.getElementById('fWaiting').value=r.waiting_time||0;
     document.getElementById('fLoading').value=r.loading_time||0;
     document.getElementById('fUnloading').value=r.unloading_time||0;
     document.getElementById('fDistance').value=r.distance_km||'';
-    document.getElementById('fFuel').value=r.fuel_amount||'';
-    document.getElementById('fClient').value=r.client_name||'';
+    document.getElementById('fFuel').value=r.fuel_liters||'';
+    document.getElementById('fClientNames').value=r.client_names||'';
     document.getElementById('fRoutes').value=typeof r.routes==='string'?r.routes:JSON.stringify(r.routes||[]);
     document.getElementById('fNotes').value=r.notes||'';
     openModal('formModal');
@@ -197,47 +264,74 @@ function editReport(id){
 async function saveReport(){
     const id=document.getElementById('editId').value;
     let routes=document.getElementById('fRoutes').value;
-    try { routes=JSON.parse(routes); } catch(e){ routes=[]; }
+    try { JSON.parse(routes); } catch(e){ routes='[]'; }
     const payload={
         date:document.getElementById('fDate').value,
         driver_id:parseInt(document.getElementById('fDriver').value),
-        departure_time:document.getElementById('fDeparture').value,
-        return_time:document.getElementById('fReturn').value,
+        start_time:document.getElementById('fStartTime').value,
+        end_time:document.getElementById('fEndTime').value,
         waiting_time:parseInt(document.getElementById('fWaiting').value)||0,
         loading_time:parseInt(document.getElementById('fLoading').value)||0,
         unloading_time:parseInt(document.getElementById('fUnloading').value)||0,
         distance_km:parseFloat(document.getElementById('fDistance').value)||0,
-        fuel_amount:parseFloat(document.getElementById('fFuel').value)||0,
-        client_name:document.getElementById('fClient').value,
+        fuel_liters:parseFloat(document.getElementById('fFuel').value)||0,
+        client_names:document.getElementById('fClientNames').value,
         routes:routes,
         notes:document.getElementById('fNotes').value,
     };
-    if(id) await apiPut(`/api/reports/${id}`,payload);
-    else await apiPost('/api/reports',payload);
-    closeModal('formModal'); loadReports();
+    try {
+        if(id) await apiPut(`/api/reports/${id}`,payload);
+        else await apiPost('/api/reports',payload);
+        closeModal('formModal');
+        loadReports();
+    } catch(e){
+        alert('保存に失敗しました: ' + e.message);
+    }
 }
 
-async function deleteReport(id){if(!confirm('削除しますか？'))return; await apiDelete(`/api/reports/${id}`); loadReports();}
+async function deleteReport(id){
+    if(!confirm('削除しますか？'))return;
+    try {
+        await apiDelete(`/api/reports/${id}`);
+        loadReports();
+    } catch(e){
+        alert('削除に失敗しました: ' + e.message);
+    }
+}
 
 async function autoGenerate(){
     const date=document.getElementById('targetDate').value;
     if(!date) return alert('日付を選択してください');
     if(!confirm(`${date}の日報を配車データから自動生成しますか？`)) return;
-    await apiPost(`/api/reports/auto-generate?target_date=${date}`,{});
-    loadReports();
+    try {
+        await apiPost(`/api/reports/auto-generate?target_date=${date}`,{});
+        loadReports();
+    } catch(e){
+        alert('自動生成に失敗しました: ' + e.message);
+    }
 }
 
 function printDaily(){
     const date=document.getElementById('targetDate').value;
+    const list=filteredReports;
+    const sumDist=list.reduce((s,r)=>s+(parseFloat(r.distance_km)||0),0);
+    const sumFuel=list.reduce((s,r)=>s+(parseFloat(r.fuel_liters)||0),0);
+    const sumWait=list.reduce((s,r)=>s+(parseInt(r.waiting_time)||0),0);
+    const sumLoad=list.reduce((s,r)=>s+(parseInt(r.loading_time)||0),0);
+    const sumUnload=list.reduce((s,r)=>s+(parseInt(r.unloading_time)||0),0);
     const win=window.open('','_blank');
     win.document.write(`<html><head><meta charset="UTF-8"><title>日報 ${date}</title><style>
         body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse;margin-top:1rem}
         th,td{border:1px solid #ccc;padding:.5rem;text-align:left;font-size:.85rem}th{background:#f0f0f0}
-        h1{font-size:1.3rem}@media print{button{display:none}}</style></head><body>
+        h1{font-size:1.3rem}.summary{margin-top:1rem;font-size:.9rem;color:#555}
+        .total-row td{font-weight:700;background:#f8fafc}
+        @media print{.no-print{display:none}}</style></head><body>
         <h1>運行日報 ${date}</h1>
-        <table><thead><tr><th>ドライバー</th><th>出発</th><th>帰着</th><th>走行km</th><th>給油L</th><th>荷主</th><th>経路</th><th>備考</th></tr></thead><tbody>
-        ${reports.map(r=>`<tr><td>${r.driver_name||driverName(r.driver_id)}</td><td>${r.departure_time||'-'}</td><td>${r.return_time||'-'}</td><td>${r.distance_km||'-'}</td><td>${r.fuel_amount||'-'}</td><td>${r.client_name||'-'}</td><td>${routesText(r.routes)}</td><td>${r.notes||''}</td></tr>`).join('')}
-        </tbody></table><button onclick="window.print()">印刷</button></body></html>`);
+        <table><thead><tr><th>ドライバー</th><th>出発</th><th>帰着</th><th>待機</th><th>積込</th><th>荷卸</th><th>走行km</th><th>給油L</th><th>荷主</th><th>経路</th><th>備考</th></tr></thead><tbody>
+        ${list.map(r=>`<tr><td>${r.driver_name||driverName(r.driver_id)}</td><td>${r.start_time||'-'}</td><td>${r.end_time||'-'}</td><td>${r.waiting_time||0}</td><td>${r.loading_time||0}</td><td>${r.unloading_time||0}</td><td>${r.distance_km||'-'}</td><td>${r.fuel_liters||'-'}</td><td>${r.client_names||'-'}</td><td>${routesText(r.routes)}</td><td>${r.notes||''}</td></tr>`).join('')}
+        <tr class="total-row"><td>合計 (${list.length}件)</td><td colspan="2"></td><td>${sumWait}</td><td>${sumLoad}</td><td>${sumUnload}</td><td>${sumDist.toFixed(1)}</td><td>${sumFuel.toFixed(1)}</td><td colspan="3"></td></tr>
+        </tbody></table>
+        <button class="no-print" onclick="window.print()" style="margin-top:1rem;padding:.5rem 1rem;cursor:pointer">印刷</button></body></html>`);
 }
 
 function routesText(r){

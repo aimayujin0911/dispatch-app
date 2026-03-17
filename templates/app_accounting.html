@@ -12,35 +12,76 @@
         .topnav a:hover { color: #fff; background: rgba(255,255,255,.15); }
         .topnav a.active { color: #fff; background: rgba(255,255,255,.25); font-weight: 600; }
         .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
-        h1, h2 { margin-bottom: 1rem; } h2 { font-size: 1.2rem; }
-        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        h1 { margin-bottom: 1rem; }
+        h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
         .month-sel { display: flex; align-items: center; gap: .5rem; }
-        .month-sel button { background: #8b5cf6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
+        .month-sel button { background: #8b5cf6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; font-size: .9rem; }
+        .month-sel button:hover { background: #7c3aed; }
         .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
         select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        select:focus, input:focus, textarea:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.15); }
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
         .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
         .stat-card .value { font-size: 1.75rem; font-weight: 700; }
         .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: .5rem; }
+        .card-header h2 { margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; font-size: .88rem; }
         th, td { padding: .5rem .7rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
         th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
         tr:hover { background: #f8fafc; }
         .text-right { text-align: right; }
-        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; transition: opacity .15s; }
         .btn-primary { background: #8b5cf6; color: #fff; }
         .btn-success { background: #22c55e; color: #fff; }
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-sm { padding: .2rem .5rem; font-size: .78rem; }
         .btn:hover { opacity: .85; }
-        /* Bar chart */
+        .profit-pos { color: #16a34a; }
+        .profit-neg { color: #ef4444; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 1.5rem; }
+        .tab { padding: .6rem 1.2rem; cursor: pointer; font-size: .9rem; font-weight: 500; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+        .tab:hover { color: #8b5cf6; }
+        .tab.active { color: #8b5cf6; border-bottom-color: #8b5cf6; font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Trend chart */
+        .trend-chart { display: flex; align-items: flex-end; gap: .5rem; height: 220px; padding: 1rem 0; }
+        .trend-month { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .25rem; }
+        .trend-bars { display: flex; gap: 3px; align-items: flex-end; height: 160px; width: 100%; }
+        .trend-bar { flex: 1; border-radius: 3px 3px 0 0; transition: height .4s ease; min-width: 10px; position: relative; }
+        .trend-bar.income { background: #8b5cf6; }
+        .trend-bar.expense { background: #f97316; }
+        .trend-label { font-size: .72rem; color: #64748b; text-align: center; white-space: nowrap; }
+        .trend-value { font-size: .68rem; font-weight: 600; text-align: center; }
+        .trend-legend { display: flex; gap: 1.5rem; justify-content: center; margin-top: .5rem; font-size: .8rem; }
+        .trend-legend span::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: .35rem; vertical-align: middle; }
+        .trend-legend .leg-income::before { background: #8b5cf6; }
+        .trend-legend .leg-expense::before { background: #f97316; }
+
+        /* Bar chart (category) */
         .bar-chart { display: flex; align-items: flex-end; gap: .75rem; height: 180px; padding: .5rem 0; }
         .bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
         .bar { width: 100%; min-width: 30px; background: #8b5cf6; border-radius: 4px 4px 0 0; transition: height .3s; }
         .bar-label { font-size: .72rem; text-align: center; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
         .bar-value { font-size: .72rem; font-weight: 600; }
-        .profit-pos { color: #16a34a; } .profit-neg { color: #ef4444; }
+
+        /* P&L Statement */
+        .pl-table { width: 100%; max-width: 700px; border-collapse: collapse; }
+        .pl-table td { padding: .6rem .8rem; border-bottom: 1px solid #e2e8f0; }
+        .pl-table .pl-header td { font-weight: 700; background: #f1f5f9; font-size: .95rem; }
+        .pl-table .pl-subtotal td { font-weight: 600; border-top: 2px solid #cbd5e1; background: #faf5ff; }
+        .pl-table .pl-total td { font-weight: 700; border-top: 3px double #8b5cf6; background: #f5f3ff; font-size: 1.05rem; }
+        .pl-table .pl-indent td:first-child { padding-left: 2rem; }
+        .pl-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+        /* Modal */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
         .modal-overlay.show { display: flex; }
         .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
@@ -50,7 +91,23 @@
         .form-group input, .form-group select, .form-group textarea { width: 100%; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
         .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
-        @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr; } }
+
+        /* Print */
+        @media print {
+            .topnav, .toolbar, .tabs, .btn, .no-print { display: none !important; }
+            body { background: #fff; }
+            .container { max-width: 100%; padding: 0; }
+            .card { box-shadow: none; border: 1px solid #e2e8f0; break-inside: avoid; }
+            .tab-content { display: block !important; }
+            .tab-content:not(.print-target) { display: none !important; }
+        }
+        @media (max-width: 768px) {
+            .topnav { overflow-x: auto; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .tabs { overflow-x: auto; }
+            .tab { white-space: nowrap; font-size: .82rem; padding: .5rem .8rem; }
+        }
     </style>
 </head>
 <body>
@@ -73,31 +130,131 @@
         <button class="btn btn-success" onclick="importRevenue()">💰 売上自動取込</button>
         <button class="btn btn-outline" onclick="exportCSV()">📥 CSV出力</button>
     </div>
+
     <div class="stats">
         <div class="stat-card"><div class="label">収入合計</div><div class="value" id="statIncome" style="color:#16a34a">-</div></div>
         <div class="stat-card"><div class="label">支出合計</div><div class="value" id="statExpense" style="color:#ef4444">-</div></div>
         <div class="stat-card"><div class="label">利益</div><div class="value" id="statProfit">-</div></div>
+        <div class="stat-card"><div class="label">利益率</div><div class="value" id="statMargin" style="color:#8b5cf6">-</div></div>
     </div>
 
-    <div class="card">
-        <h2>カテゴリ別支出</h2>
-        <div class="bar-chart" id="barChart"></div>
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('tabEntries')">明細</div>
+        <div class="tab" onclick="switchTab('tabTrend')">月次推移</div>
+        <div class="tab" onclick="switchTab('tabPL')">損益計算書</div>
+        <div class="tab" onclick="switchTab('tabCategory')">カテゴリ別</div>
+        <div class="tab" onclick="switchTab('tabVehicle')">車両別損益</div>
+        <div class="tab" onclick="switchTab('tabVendor')">取引先</div>
     </div>
 
-    <div class="card" style="overflow-x:auto">
-        <h2>明細</h2>
-        <table>
-            <thead><tr><th>日付</th><th>種別</th><th>カテゴリ</th><th>車両</th><th>摘要</th><th class="text-right">金額</th><th>操作</th></tr></thead>
-            <tbody id="tblBody"></tbody>
-        </table>
+    <!-- Tab: Entries -->
+    <div class="tab-content active" id="tabEntries">
+        <div class="card" style="overflow-x:auto">
+            <div class="card-header">
+                <h2>明細一覧</h2>
+                <div style="display:flex;gap:.5rem;align-items:center">
+                    <select id="filterType" onchange="renderTable()" style="font-size:.82rem;padding:.3rem .5rem">
+                        <option value="">全種別</option>
+                        <option value="収入">収入のみ</option>
+                        <option value="支出">支出のみ</option>
+                    </select>
+                    <select id="filterCategory" onchange="renderTable()" style="font-size:.82rem;padding:.3rem .5rem">
+                        <option value="">全カテゴリ</option>
+                    </select>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>日付</th><th>種別</th><th>カテゴリ</th><th>車両</th><th>摘要</th><th class="text-right">金額</th><th>操作</th></tr></thead>
+                <tbody id="tblBody"></tbody>
+            </table>
+            <div id="tblEmpty" style="display:none;text-align:center;color:#94a3b8;padding:2rem">データがありません</div>
+        </div>
     </div>
 
-    <div class="card" style="overflow-x:auto">
-        <h2>車両別損益 <button class="btn btn-outline" style="font-size:.78rem;padding:.2rem .6rem;margin-left:.5rem" onclick="openCostModal()">固定費管理</button></h2>
-        <table>
-            <thead><tr><th>車両</th><th class="text-right">売上</th><th class="text-right">燃料費</th><th class="text-right">ETC</th><th class="text-right">その他変動費</th><th class="text-right">固定費</th><th class="text-right">利益</th></tr></thead>
-            <tbody id="pnlBody"></tbody>
-        </table>
+    <!-- Tab: Monthly Trend -->
+    <div class="tab-content" id="tabTrend">
+        <div class="card">
+            <h2>月次推移（6ヶ月）</h2>
+            <div class="trend-chart" id="trendChart"></div>
+            <div class="trend-legend">
+                <span class="leg-income">収入</span>
+                <span class="leg-expense">支出</span>
+            </div>
+        </div>
+        <div class="card" style="overflow-x:auto">
+            <h2>月次推移テーブル</h2>
+            <table>
+                <thead><tr><th>月</th><th class="text-right">収入</th><th class="text-right">支出</th><th class="text-right">利益</th><th class="text-right">利益率</th></tr></thead>
+                <tbody id="trendTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tab: P&L Statement -->
+    <div class="tab-content" id="tabPL">
+        <div class="card">
+            <div class="card-header">
+                <h2 id="plTitle">損益計算書</h2>
+                <button class="btn btn-outline no-print" onclick="printPL()">🖨 印刷</button>
+            </div>
+            <table class="pl-table" id="plTable"></table>
+        </div>
+    </div>
+
+    <!-- Tab: Category Breakdown -->
+    <div class="tab-content" id="tabCategory">
+        <div class="card">
+            <h2>カテゴリ別支出</h2>
+            <div class="bar-chart" id="barChart"></div>
+        </div>
+        <div class="card" style="overflow-x:auto">
+            <h2>カテゴリ別集計</h2>
+            <table>
+                <thead><tr><th>カテゴリ</th><th class="text-right">金額</th><th class="text-right">構成比</th></tr></thead>
+                <tbody id="catTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tab: Vendors -->
+    <div class="tab-content" id="tabVendor">
+        <div class="card" style="overflow-x:auto">
+            <div class="card-header">
+                <h2>取引先一覧</h2>
+                <div style="display:flex;gap:.5rem;align-items:center">
+                    <select id="vendorTypeFilter" onchange="loadVendorList()" style="font-size:.82rem;padding:.3rem .5rem">
+                        <option value="">全種別</option>
+                        <option value="燃料">燃料</option>
+                        <option value="ETC">ETC</option>
+                        <option value="整備">整備</option>
+                        <option value="タイヤ">タイヤ</option>
+                        <option value="保険">保険</option>
+                        <option value="その他">その他</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="openVendorModal()">＋ 取引先追加</button>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>名前</th><th>種別</th><th>電話</th><th>担当者</th><th>請求サイクル</th><th>口座番号</th><th>操作</th></tr></thead>
+                <tbody id="vendorBody"></tbody>
+            </table>
+            <div id="vendorEmpty" style="display:none;text-align:center;color:#94a3b8;padding:2rem">取引先データがありません</div>
+        </div>
+    </div>
+
+    <!-- Tab: Vehicle P&L -->
+    <div class="tab-content" id="tabVehicle">
+        <div class="card" style="overflow-x:auto">
+            <div class="card-header">
+                <h2>車両別損益</h2>
+                <button class="btn btn-outline btn-sm" onclick="openCostModal()">固定費管理</button>
+            </div>
+            <table>
+                <thead><tr><th>車両</th><th class="text-right">売上</th><th class="text-right">燃料費</th><th class="text-right">ETC</th><th class="text-right">その他変動費</th><th class="text-right">固定費</th><th class="text-right">利益</th></tr></thead>
+                <tbody id="pnlBody"></tbody>
+            </table>
+            <div id="pnlEmpty" style="display:none;text-align:center;color:#94a3b8;padding:2rem">データがありません</div>
+        </div>
     </div>
 </div>
 
@@ -108,19 +265,79 @@
         <input type="hidden" id="editId">
         <div class="form-row">
             <div class="form-group"><label>日付</label><input type="date" id="fDate"></div>
-            <div class="form-group"><label>種別</label><select id="fType"><option value="収入">収入</option><option value="支出">支出</option></select></div>
+            <div class="form-group"><label>種別</label><select id="fType" onchange="updateCategoryOptions()"><option value="収入">収入</option><option value="支出">支出</option></select></div>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>カテゴリ</label><select id="fCategory">
-                <option>売上</option><option>燃料費</option><option>ETC</option><option>修繕費</option><option>保険料</option><option>リース料</option><option>人件費</option><option>その他</option>
-            </select></div>
+            <div class="form-group"><label>カテゴリ</label><select id="fCategory"></select></div>
             <div class="form-group"><label>車両</label><select id="fVehicle"><option value="">なし</option></select></div>
         </div>
-        <div class="form-group"><label>摘要</label><input type="text" id="fDescription"></div>
-        <div class="form-group"><label>金額</label><input type="number" id="fAmount"></div>
+        <div class="form-group"><label>摘要</label><input type="text" id="fDescription" placeholder="取引内容を入力"></div>
+        <div class="form-group"><label>金額</label><input type="number" id="fAmount" min="0" placeholder="0"></div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeModal('formModal')">キャンセル</button>
             <button class="btn btn-primary" onclick="saveEntry()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Vendor Add/Edit Modal -->
+<div class="modal-overlay" id="vendorModal">
+    <div class="modal">
+        <h2 id="vendorFormTitle">取引先追加</h2>
+        <input type="hidden" id="vendorEditId">
+        <div class="form-row">
+            <div class="form-group"><label>名前</label><input type="text" id="vName" placeholder="取引先名"></div>
+            <div class="form-group"><label>種別</label>
+                <select id="vType">
+                    <option value="燃料">燃料</option>
+                    <option value="ETC">ETC</option>
+                    <option value="整備">整備</option>
+                    <option value="タイヤ">タイヤ</option>
+                    <option value="保険">保険</option>
+                    <option value="その他">その他</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>電話</label><input type="text" id="vPhone" placeholder="電話番号"></div>
+            <div class="form-group"><label>担当者</label><input type="text" id="vContact" placeholder="担当者名"></div>
+        </div>
+        <div class="form-group"><label>住所</label><input type="text" id="vAddress" placeholder="住所"></div>
+        <div class="form-row">
+            <div class="form-group"><label>請求サイクル</label><input type="text" id="vBillingCycle" placeholder="例: 月末締め翌月払い"></div>
+            <div class="form-group"><label>口座番号</label><input type="text" id="vAccountNumber" placeholder="口座番号"></div>
+        </div>
+        <div class="form-group"><label>備考</label><textarea id="vNotes" rows="2" placeholder="備考"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('vendorModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveVendor()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Cost Import Modal -->
+<div class="modal-overlay" id="bulkCostModal">
+    <div class="modal">
+        <h2>一括費用取込</h2>
+        <div class="form-group"><label>取引先</label><select id="bcVendor" disabled><option value="">選択してください</option></select></div>
+        <div class="form-row">
+            <div class="form-group"><label>日付</label><input type="date" id="bcDate"></div>
+            <div class="form-group"><label>カテゴリ</label>
+                <select id="bcCategory">
+                    <option value="燃料費">燃料費</option>
+                    <option value="高速代(ETC)">高速代(ETC)</option>
+                    <option value="整備費">整備費</option>
+                    <option value="タイヤ代">タイヤ代</option>
+                    <option value="保険料">保険料</option>
+                    <option value="その他">その他</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>摘要</label><input type="text" id="bcDescription" placeholder="内容を入力"></div>
+        <div class="form-group"><label>合計金額</label><input type="number" id="bcAmount" min="0" placeholder="0"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('bulkCostModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="submitBulkCost()">取込実行</button>
         </div>
     </div>
 </div>
@@ -131,13 +348,13 @@
         <h2>車両固定費管理</h2>
         <div class="form-row">
             <div class="form-group"><label>車両</label><select id="cVehicle" onchange="loadVehicleCosts()"></select></div>
-            <div class="form-group"><label>対象月</label><input type="month" id="cMonth"></div>
+            <div class="form-group"><label>対象月</label><input type="month" id="cMonth" onchange="loadVehicleCosts()"></div>
         </div>
         <div id="costFields">
-            <div class="form-group"><label>リース料</label><input type="number" id="cLease" value="0"></div>
-            <div class="form-group"><label>保険料</label><input type="number" id="cInsurance" value="0"></div>
-            <div class="form-group"><label>税金</label><input type="number" id="cTax" value="0"></div>
-            <div class="form-group"><label>その他固定費</label><input type="number" id="cOther" value="0"></div>
+            <div class="form-group"><label>リース料</label><input type="number" id="cLease" value="0" min="0"></div>
+            <div class="form-group"><label>保険料</label><input type="number" id="cInsurance" value="0" min="0"></div>
+            <div class="form-group"><label>税金</label><input type="number" id="cTax" value="0" min="0"></div>
+            <div class="form-group"><label>その他固定費</label><input type="number" id="cOther" value="0" min="0"></div>
         </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeModal('costModal')">キャンセル</button>
@@ -147,182 +364,610 @@
 </div>
 
 <script>
-async function apiGet(u){const r=await fetch(u);if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiPost(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiPut(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiDelete(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error(r.statusText);return r.json();}
-function openModal(id){document.getElementById(id).classList.add('show');}
-function closeModal(id){document.getElementById(id).classList.remove('show');}
-function yen(n){return '¥'+(n||0).toLocaleString();}
+/* ── Category definitions ── */
+const INCOME_CATEGORIES = ['運賃収入', '付帯作業収入', 'その他収入'];
+const EXPENSE_CATEGORIES = ['燃料費', '高速代(ETC)', '修理・整備費', '保険料', '車検費用', 'リース料', '協力会社支払', '給与・手当', '事務所経費', 'タイヤ代', '駐車場代', 'その他支出'];
+const ALL_CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES];
 
-let currentYear,currentMonth,entries=[],vehicles=[],summary={},vehiclePnl=[];
-
-function initMonth(){const d=new Date();currentYear=d.getFullYear();currentMonth=d.getMonth()+1;updateMonthLabel();}
-function changeMonth(delta){currentMonth+=delta;if(currentMonth>12){currentMonth=1;currentYear++;}if(currentMonth<1){currentMonth=12;currentYear--;}updateMonthLabel();loadAll();}
-function updateMonthLabel(){document.getElementById('monthLabel').textContent=`${currentYear}年${currentMonth}月`;}
-
-async function loadVehicles(){
-    try {
-        const data=await apiGet('/api/vehicles');
-        vehicles=Array.isArray(data)?data:(data.vehicles||[]);
-        const opts=vehicles.map(v=>`<option value="${v.id}">${v.number||v.plate_number||v.name||'車両'+v.id}</option>`).join('');
-        document.getElementById('fVehicle').innerHTML='<option value="">なし</option>'+opts;
-        document.getElementById('cVehicle').innerHTML=opts;
-    } catch(e){console.error(e);}
+/* ── API helpers ── */
+async function apiGet(u) {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json();
+}
+async function apiPost(u, d) {
+    const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json();
+}
+async function apiPut(u, d) {
+    const r = await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json();
+}
+async function apiDelete(u) {
+    const r = await fetch(u, { method: 'DELETE' });
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json();
 }
 
-async function loadAll(){ await Promise.all([loadEntries(), loadSummary(), loadPnl()]); }
+/* ── Utilities ── */
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function yen(n) { return '\u00a5' + (n || 0).toLocaleString(); }
+function pct(n, d) { return d ? (n / d * 100).toFixed(1) + '%' : '-'; }
 
-async function loadEntries(){
+/* ── State ── */
+let currentYear, currentMonth;
+let entries = [], vehicles = [], summary = {}, vehiclePnl = [], trendData = [];
+
+/* ── Month navigation ── */
+function initMonth() {
+    const d = new Date();
+    currentYear = d.getFullYear();
+    currentMonth = d.getMonth() + 1;
+    updateMonthLabel();
+}
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    updateMonthLabel();
+    loadAll();
+}
+function updateMonthLabel() {
+    document.getElementById('monthLabel').textContent = `${currentYear}年${currentMonth}月`;
+}
+
+/* ── Tabs ── */
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    const tabNames = { tabEntries: 0, tabTrend: 1, tabPL: 2, tabCategory: 3, tabVehicle: 4, tabVendor: 5 };
+    document.querySelectorAll('.tab')[tabNames[tabId]].classList.add('active');
+    if (tabId === 'tabTrend' && trendData.length === 0) loadTrend();
+    if (tabId === 'tabVendor') loadVendorList();
+}
+
+/* ── Dynamic category select ── */
+function updateCategoryOptions(selected) {
+    const type = document.getElementById('fType').value;
+    const cats = type === '収入' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const sel = document.getElementById('fCategory');
+    sel.innerHTML = cats.map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
+}
+
+/* ── Load vehicles ── */
+async function loadVehicles() {
     try {
-        const data=await apiGet(`/api/accounting?year=${currentYear}&month=${currentMonth}`);
-        entries=Array.isArray(data)?data:(data.entries||[]);
+        const data = await apiGet('/api/vehicles');
+        vehicles = Array.isArray(data) ? data : (data.vehicles || []);
+        const opts = vehicles.map(v => `<option value="${v.id}">${v.number || v.plate_number || v.name || '車両' + v.id}</option>`).join('');
+        document.getElementById('fVehicle').innerHTML = '<option value="">なし</option>' + opts;
+        document.getElementById('cVehicle').innerHTML = opts;
+    } catch (e) { console.error('loadVehicles:', e); }
+}
+
+/* ── Load all data ── */
+async function loadAll() {
+    await Promise.all([loadEntries(), loadSummary(), loadPnl()]);
+    if (document.getElementById('tabTrend').classList.contains('active')) loadTrend();
+}
+
+async function loadEntries() {
+    try {
+        const data = await apiGet(`/api/accounting?year=${currentYear}&month=${currentMonth}`);
+        entries = Array.isArray(data) ? data : (data.entries || []);
+        updateFilterCategories();
         renderTable();
-    } catch(e){console.error(e);}
+    } catch (e) { console.error('loadEntries:', e); }
 }
 
-async function loadSummary(){
+async function loadSummary() {
     try {
-        summary=await apiGet(`/api/accounting/summary?year=${currentYear}&month=${currentMonth}`);
-        renderStats(); renderChart();
-    } catch(e){
-        // Fallback: compute from entries
-        const inc=entries.filter(e=>e.type==='収入').reduce((s,e)=>s+(e.amount||0),0);
-        const exp=entries.filter(e=>e.type==='支出').reduce((s,e)=>s+(e.amount||0),0);
-        summary={income:inc,expense:exp,profit:inc-exp,categories:{}};
-        renderStats(); renderChart();
+        summary = await apiGet(`/api/accounting/summary?year=${currentYear}&month=${currentMonth}`);
+    } catch (e) {
+        const inc = entries.filter(x => (x.type || x.entry_type) === '収入').reduce((s, x) => s + (x.amount || 0), 0);
+        const exp = entries.filter(x => (x.type || x.entry_type) === '支出').reduce((s, x) => s + (x.amount || 0), 0);
+        summary = { income: inc, expense: exp, profit: inc - exp, categories: {} };
     }
+    renderStats();
+    renderChart();
+    renderPLStatement();
+    renderCategoryTable();
 }
 
-async function loadPnl(){
+async function loadPnl() {
     try {
-        const data=await apiGet(`/api/accounting/vehicle-pnl?year=${currentYear}&month=${currentMonth}`);
-        vehiclePnl=Array.isArray(data)?data:(data.vehicles||[]);
+        const data = await apiGet(`/api/accounting/vehicle-pnl?year=${currentYear}&month=${currentMonth}`);
+        vehiclePnl = Array.isArray(data) ? data : (data.vehicles || []);
         renderPnl();
-    } catch(e){console.error(e);}
+    } catch (e) { console.error('loadPnl:', e); }
 }
 
-function renderStats(){
-    document.getElementById('statIncome').textContent=yen(summary.income);
-    document.getElementById('statExpense').textContent=yen(summary.expense);
-    const profit=summary.profit||(summary.income||0)-(summary.expense||0);
-    const el=document.getElementById('statProfit');
-    el.textContent=yen(profit);
-    el.style.color=profit>=0?'#16a34a':'#ef4444';
+/* ── Load 6-month trend ── */
+async function loadTrend() {
+    trendData = [];
+    const promises = [];
+    for (let i = 5; i >= 0; i--) {
+        let y = currentYear, m = currentMonth - i;
+        while (m < 1) { m += 12; y--; }
+        while (m > 12) { m -= 12; y++; }
+        promises.push(
+            apiGet(`/api/accounting/summary?year=${y}&month=${m}`)
+                .then(d => ({ year: y, month: m, income: d.income || 0, expense: d.expense || 0, profit: d.profit || (d.income || 0) - (d.expense || 0) }))
+                .catch(() => ({ year: y, month: m, income: 0, expense: 0, profit: 0 }))
+        );
+    }
+    trendData = await Promise.all(promises);
+    renderTrend();
 }
 
-function renderChart(){
-    const cats=summary.categories||{};
-    const max=Math.max(...Object.values(cats),1);
-    document.getElementById('barChart').innerHTML=Object.entries(cats).map(([k,v])=>
-        `<div class="bar-item"><div class="bar-value">${yen(v)}</div><div class="bar" style="height:${Math.max(v/max*150,4)}px"></div><div class="bar-label">${k}</div></div>`
-    ).join('')||'<div style="color:#94a3b8;padding:2rem">データなし</div>';
+/* ── Render: Stats ── */
+function renderStats() {
+    document.getElementById('statIncome').textContent = yen(summary.income);
+    document.getElementById('statExpense').textContent = yen(summary.expense);
+    const profit = summary.profit || (summary.income || 0) - (summary.expense || 0);
+    const el = document.getElementById('statProfit');
+    el.textContent = yen(profit);
+    el.style.color = profit >= 0 ? '#16a34a' : '#ef4444';
+    const margin = (summary.income || 0) > 0 ? (profit / summary.income * 100).toFixed(1) + '%' : '-';
+    document.getElementById('statMargin').textContent = margin;
 }
 
-function vName(vid){ const v=vehicles.find(x=>x.id===vid); return v?(v.number||v.plate_number||v.name||'車両'+v.id):'-'; }
-
-function renderTable(){
-    document.getElementById('tblBody').innerHTML=entries.map(e=>`<tr>
-        <td>${e.date||'-'}</td><td>${e.type}</td><td>${e.category||'-'}</td>
-        <td>${e.vehicle_id?vName(e.vehicle_id):'-'}</td><td>${e.description||'-'}</td>
-        <td class="text-right">${yen(e.amount)}</td>
-        <td><button class="btn btn-outline" style="padding:.2rem .5rem;font-size:.78rem" onclick="editEntry(${e.id})">編集</button>
-        <button class="btn btn-danger" style="padding:.2rem .5rem;font-size:.78rem" onclick="deleteEntry(${e.id})">削除</button></td>
-    </tr>`).join('');
+/* ── Render: Category bar chart ── */
+function renderChart() {
+    const cats = summary.categories || {};
+    const max = Math.max(...Object.values(cats), 1);
+    document.getElementById('barChart').innerHTML = Object.entries(cats).map(([k, v]) =>
+        `<div class="bar-item"><div class="bar-value">${yen(v)}</div><div class="bar" style="height:${Math.max(v / max * 150, 4)}px"></div><div class="bar-label" title="${k}">${k}</div></div>`
+    ).join('') || '<div style="color:#94a3b8;padding:2rem;width:100%;text-align:center">データなし</div>';
 }
 
-function renderPnl(){
-    document.getElementById('pnlBody').innerHTML=vehiclePnl.map(v=>{
-        const profit=(v.revenue||0)-(v.fuel||0)-(v.etc||0)-(v.other_variable||0)-(v.fixed_cost||0);
+/* ── Render: Category table ── */
+function renderCategoryTable() {
+    const cats = summary.categories || {};
+    const total = Object.values(cats).reduce((s, v) => s + v, 0) || 1;
+    const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+    document.getElementById('catTableBody').innerHTML = sorted.map(([k, v]) =>
+        `<tr><td>${k}</td><td class="text-right">${yen(v)}</td><td class="text-right">${(v / total * 100).toFixed(1)}%</td></tr>`
+    ).join('') || '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:1rem">データなし</td></tr>';
+}
+
+/* ── Render: Trend chart ── */
+function renderTrend() {
+    if (!trendData.length) return;
+    const maxVal = Math.max(...trendData.map(d => Math.max(d.income, d.expense)), 1);
+    document.getElementById('trendChart').innerHTML = trendData.map(d => {
+        const ih = Math.max(d.income / maxVal * 150, 2);
+        const eh = Math.max(d.expense / maxVal * 150, 2);
+        return `<div class="trend-month">
+            <div class="trend-value" style="color:#8b5cf6">${yen(d.income)}</div>
+            <div class="trend-value" style="color:#f97316">${yen(d.expense)}</div>
+            <div class="trend-bars">
+                <div class="trend-bar income" style="height:${ih}px" title="収入: ${yen(d.income)}"></div>
+                <div class="trend-bar expense" style="height:${eh}px" title="支出: ${yen(d.expense)}"></div>
+            </div>
+            <div class="trend-label">${d.month}月</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('trendTableBody').innerHTML = trendData.map(d =>
+        `<tr><td>${d.year}/${d.month}月</td><td class="text-right">${yen(d.income)}</td><td class="text-right">${yen(d.expense)}</td>
+        <td class="text-right ${d.profit >= 0 ? 'profit-pos' : 'profit-neg'}">${yen(d.profit)}</td>
+        <td class="text-right">${pct(d.profit, d.income)}</td></tr>`
+    ).join('');
+}
+
+/* ── Render: P&L Statement ── */
+function renderPLStatement() {
+    const cats = summary.categories || {};
+    const income = summary.income || 0;
+    const expense = summary.expense || 0;
+
+    // Revenue breakdown
+    const rev_untin = cats['運賃収入'] || 0;
+    const rev_futai = cats['付帯作業収入'] || 0;
+    const rev_other = cats['その他収入'] || 0;
+    const totalRevenue = income || (rev_untin + rev_futai + rev_other);
+
+    // COGS: fuel + ETC + subcontractor
+    const cogs_fuel = cats['燃料費'] || 0;
+    const cogs_etc = cats['高速代(ETC)'] || 0;
+    const cogs_sub = cats['協力会社支払'] || 0;
+    const totalCOGS = cogs_fuel + cogs_etc + cogs_sub;
+    const grossProfit = totalRevenue - totalCOGS;
+
+    // SGA: labor + office + insurance + lease + other
+    const sga_labor = cats['給与・手当'] || 0;
+    const sga_office = cats['事務所経費'] || 0;
+    const sga_insurance = cats['保険料'] || 0;
+    const sga_lease = cats['リース料'] || 0;
+    const sga_repair = cats['修理・整備費'] || 0;
+    const sga_shaken = cats['車検費用'] || 0;
+    const sga_tire = cats['タイヤ代'] || 0;
+    const sga_parking = cats['駐車場代'] || 0;
+    const sga_other = cats['その他支出'] || 0;
+    const totalSGA = sga_labor + sga_office + sga_insurance + sga_lease + sga_repair + sga_shaken + sga_tire + sga_parking + sga_other;
+    const operatingProfit = grossProfit - totalSGA;
+
+    document.getElementById('plTitle').textContent = `損益計算書 - ${currentYear}年${currentMonth}月`;
+
+    function plRow(label, amount, cls) {
+        const c = cls ? ` class="${cls}"` : '';
+        const style = amount < 0 ? ' style="color:#ef4444"' : '';
+        return `<tr${c}><td>${label}</td><td${style}>${yen(amount)}</td></tr>`;
+    }
+
+    document.getElementById('plTable').innerHTML = `
+        ${plRow('売上高', 0, 'pl-header')}
+        ${plRow('運賃収入', rev_untin, 'pl-indent')}
+        ${plRow('付帯作業収入', rev_futai, 'pl-indent')}
+        ${plRow('その他収入', rev_other, 'pl-indent')}
+        ${plRow('売上高合計', totalRevenue, 'pl-subtotal')}
+        ${plRow('売上原価', 0, 'pl-header')}
+        ${plRow('燃料費', cogs_fuel, 'pl-indent')}
+        ${plRow('高速代(ETC)', cogs_etc, 'pl-indent')}
+        ${plRow('協力会社支払', cogs_sub, 'pl-indent')}
+        ${plRow('売上原価合計', totalCOGS, 'pl-subtotal')}
+        ${plRow('売上総利益', grossProfit, 'pl-subtotal')}
+        ${plRow('販売費及び一般管理費', 0, 'pl-header')}
+        ${plRow('給与・手当', sga_labor, 'pl-indent')}
+        ${plRow('事務所経費', sga_office, 'pl-indent')}
+        ${plRow('保険料', sga_insurance, 'pl-indent')}
+        ${plRow('リース料', sga_lease, 'pl-indent')}
+        ${plRow('修理・整備費', sga_repair, 'pl-indent')}
+        ${plRow('車検費用', sga_shaken, 'pl-indent')}
+        ${plRow('タイヤ代', sga_tire, 'pl-indent')}
+        ${plRow('駐車場代', sga_parking, 'pl-indent')}
+        ${plRow('その他支出', sga_other, 'pl-indent')}
+        ${plRow('販管費合計', totalSGA, 'pl-subtotal')}
+        ${plRow('営業利益', operatingProfit, 'pl-total')}
+    `;
+}
+
+/* ── Print P&L ── */
+function printPL() {
+    document.getElementById('tabPL').classList.add('print-target');
+    window.print();
+    setTimeout(() => document.getElementById('tabPL').classList.remove('print-target'), 500);
+}
+
+/* ── Render: Entries table ── */
+function vName(vid) {
+    const v = vehicles.find(x => x.id === vid);
+    return v ? (v.number || v.plate_number || v.name || '車両' + v.id) : '-';
+}
+
+function updateFilterCategories() {
+    const usedCats = [...new Set(entries.map(e => e.category).filter(Boolean))];
+    const sel = document.getElementById('filterCategory');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">全カテゴリ</option>' + usedCats.map(c => `<option value="${c}"${c === cur ? ' selected' : ''}>${c}</option>`).join('');
+}
+
+function renderTable() {
+    const typeFilter = document.getElementById('filterType').value;
+    const catFilter = document.getElementById('filterCategory').value;
+    let filtered = entries;
+    if (typeFilter) filtered = filtered.filter(e => (e.type || e.entry_type) === typeFilter);
+    if (catFilter) filtered = filtered.filter(e => e.category === catFilter);
+
+    const empty = document.getElementById('tblEmpty');
+    if (filtered.length === 0) {
+        document.getElementById('tblBody').innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    document.getElementById('tblBody').innerHTML = filtered.map(e => {
+        const entryType = e.type || e.entry_type || '';
+        const typeColor = entryType === '収入' ? 'color:#16a34a' : 'color:#ef4444';
         return `<tr>
-        <td>${v.vehicle_name||vName(v.vehicle_id)}</td>
-        <td class="text-right">${yen(v.revenue)}</td><td class="text-right">${yen(v.fuel)}</td>
-        <td class="text-right">${yen(v.etc)}</td><td class="text-right">${yen(v.other_variable)}</td>
-        <td class="text-right">${yen(v.fixed_cost)}</td>
-        <td class="text-right ${profit>=0?'profit-pos':'profit-neg'}">${yen(profit)}</td></tr>`;
+            <td>${e.date || '-'}</td>
+            <td style="${typeColor};font-weight:500">${entryType}</td>
+            <td>${e.category || '-'}</td>
+            <td>${e.vehicle_id ? (e.vehicle_number || vName(e.vehicle_id)) : '-'}</td>
+            <td>${e.description || '-'}</td>
+            <td class="text-right" style="font-weight:500">${yen(e.amount)}</td>
+            <td style="white-space:nowrap">
+                <button class="btn btn-outline btn-sm" onclick="editEntry(${e.id})">編集</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">削除</button>
+            </td>
+        </tr>`;
     }).join('');
 }
 
-function openAddModal(){
-    document.getElementById('editId').value='';
-    document.getElementById('formTitle').textContent='仕訳追加';
-    ['fDate','fDescription'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('fAmount').value='';
-    document.getElementById('fType').value='支出';
-    document.getElementById('fVehicle').value='';
+/* ── Render: Vehicle P&L ── */
+function renderPnl() {
+    const empty = document.getElementById('pnlEmpty');
+    if (vehiclePnl.length === 0) {
+        document.getElementById('pnlBody').innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    document.getElementById('pnlBody').innerHTML = vehiclePnl.map(v => {
+        const name = v.vehicle_number || vName(v.vehicle_id);
+        const revenue = v.revenue || 0;
+        const expByCat = v.expense_by_category || {};
+        const fuel = expByCat['燃料費'] || 0;
+        const etc = expByCat['高速代(ETC)'] || expByCat['ETC'] || 0;
+        const totalExpense = v.expense || 0;
+        const otherVar = totalExpense - fuel - etc;
+        const fixedCost = v.fixed_cost || 0;
+        const profit = v.profit !== undefined ? v.profit : revenue - totalExpense - fixedCost;
+        return `<tr>
+            <td>${name}</td>
+            <td class="text-right">${yen(revenue)}</td>
+            <td class="text-right">${yen(fuel)}</td>
+            <td class="text-right">${yen(etc)}</td>
+            <td class="text-right">${yen(Math.max(otherVar, 0))}</td>
+            <td class="text-right">${yen(fixedCost)}</td>
+            <td class="text-right ${profit >= 0 ? 'profit-pos' : 'profit-neg'}" style="font-weight:600">${yen(profit)}</td>
+        </tr>`;
+    }).join('');
+}
+
+/* ── Entry CRUD ── */
+function openAddModal() {
+    document.getElementById('editId').value = '';
+    document.getElementById('formTitle').textContent = '仕訳追加';
+    document.getElementById('fDate').value = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+    document.getElementById('fDescription').value = '';
+    document.getElementById('fAmount').value = '';
+    document.getElementById('fType').value = '支出';
+    document.getElementById('fVehicle').value = '';
+    updateCategoryOptions();
     openModal('formModal');
 }
 
-function editEntry(id){
-    const e=entries.find(x=>x.id===id); if(!e) return;
-    document.getElementById('editId').value=id;
-    document.getElementById('formTitle').textContent='仕訳編集';
-    document.getElementById('fDate').value=e.date||'';
-    document.getElementById('fType').value=e.type||'支出';
-    document.getElementById('fCategory').value=e.category||'その他';
-    document.getElementById('fVehicle').value=e.vehicle_id||'';
-    document.getElementById('fDescription').value=e.description||'';
-    document.getElementById('fAmount').value=e.amount||'';
+function editEntry(id) {
+    const e = entries.find(x => x.id === id);
+    if (!e) return;
+    document.getElementById('editId').value = id;
+    document.getElementById('formTitle').textContent = '仕訳編集';
+    document.getElementById('fDate').value = e.date || '';
+    const entryType = e.type || e.entry_type || '支出';
+    document.getElementById('fType').value = entryType;
+    updateCategoryOptions(e.category);
+    document.getElementById('fVehicle').value = e.vehicle_id || '';
+    document.getElementById('fDescription').value = e.description || '';
+    document.getElementById('fAmount').value = e.amount || '';
     openModal('formModal');
 }
 
-async function saveEntry(){
-    const id=document.getElementById('editId').value;
-    const payload={
-        date:document.getElementById('fDate').value,
-        type:document.getElementById('fType').value,
-        category:document.getElementById('fCategory').value,
-        vehicle_id:parseInt(document.getElementById('fVehicle').value)||null,
-        description:document.getElementById('fDescription').value,
-        amount:parseInt(document.getElementById('fAmount').value)||0,
+async function saveEntry() {
+    const id = document.getElementById('editId').value;
+    const payload = {
+        date: document.getElementById('fDate').value,
+        entry_type: document.getElementById('fType').value,
+        category: document.getElementById('fCategory').value,
+        vehicle_id: parseInt(document.getElementById('fVehicle').value) || null,
+        description: document.getElementById('fDescription').value,
+        amount: parseInt(document.getElementById('fAmount').value) || 0,
     };
-    if(id) await apiPut(`/api/accounting/${id}`,payload);
-    else await apiPost('/api/accounting',payload);
-    closeModal('formModal'); loadAll();
+    try {
+        if (id) await apiPut(`/api/accounting/${id}`, payload);
+        else await apiPost('/api/accounting', payload);
+        closeModal('formModal');
+        loadAll();
+    } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+    }
 }
 
-async function deleteEntry(id){if(!confirm('削除しますか？'))return; await apiDelete(`/api/accounting/${id}`); loadAll();}
-
-async function importRevenue(){
-    if(!confirm('売上データを自動取込しますか？'))return;
-    await apiPost('/api/accounting/import-revenue',{year:currentYear,month:currentMonth});
-    loadAll();
+async function deleteEntry(id) {
+    if (!confirm('この仕訳を削除しますか？')) return;
+    try {
+        await apiDelete(`/api/accounting/${id}`);
+        loadAll();
+    } catch (e) {
+        alert('削除に失敗しました: ' + e.message);
+    }
 }
 
-function exportCSV(){ window.open(`/api/export/accounting?year=${currentYear}&month=${currentMonth}`,'_blank'); }
+/* ── Import revenue ── */
+async function importRevenue() {
+    if (!confirm(`${currentYear}年${currentMonth}月の売上データを自動取込しますか？`)) return;
+    try {
+        await apiPost(`/api/accounting/import-revenue?year=${currentYear}&month=${currentMonth}`, {});
+        loadAll();
+    } catch (e) {
+        alert('取込に失敗しました: ' + e.message);
+    }
+}
 
-function openCostModal(){
-    document.getElementById('cMonth').value=`${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+/* ── CSV Export ── */
+function exportCSV() {
+    const typeFilter = document.getElementById('filterType').value;
+    const catFilter = document.getElementById('filterCategory').value;
+    let filtered = entries;
+    if (typeFilter) filtered = filtered.filter(e => (e.type || e.entry_type) === typeFilter);
+    if (catFilter) filtered = filtered.filter(e => e.category === catFilter);
+
+    const bom = '\uFEFF';
+    const header = '日付,種別,カテゴリ,車両,摘要,金額';
+    const rows = filtered.map(e => {
+        const entryType = e.type || e.entry_type || '';
+        const vehicleName = e.vehicle_id ? (e.vehicle_number || vName(e.vehicle_id)) : '';
+        const desc = (e.description || '').replace(/"/g, '""');
+        return `${e.date || ''},${entryType},${e.category || ''},"${vehicleName}","${desc}",${e.amount || 0}`;
+    });
+    const csv = bom + header + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `会計_${currentYear}年${currentMonth}月.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+/* ── Vehicle costs ── */
+function openCostModal() {
+    document.getElementById('cMonth').value = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
     openModal('costModal');
     loadVehicleCosts();
 }
 
-async function loadVehicleCosts(){
+async function loadVehicleCosts() {
     try {
-        const vid=document.getElementById('cVehicle').value;
-        const month=document.getElementById('cMonth').value;
-        if(!vid||!month) return;
-        const data=await apiGet(`/api/accounting/vehicle-costs?vehicle_id=${vid}&month=${month}`);
-        document.getElementById('cLease').value=data.lease||0;
-        document.getElementById('cInsurance').value=data.insurance||0;
-        document.getElementById('cTax').value=data.tax||0;
-        document.getElementById('cOther').value=data.other||0;
-    } catch(e){console.error(e);}
+        const vid = document.getElementById('cVehicle').value;
+        const month = document.getElementById('cMonth').value;
+        if (!vid || !month) return;
+        const data = await apiGet(`/api/accounting/vehicle-costs?vehicle_id=${vid}&month=${month}`);
+        document.getElementById('cLease').value = data.lease || 0;
+        document.getElementById('cInsurance').value = data.insurance || 0;
+        document.getElementById('cTax').value = data.tax || 0;
+        document.getElementById('cOther').value = data.other || 0;
+    } catch (e) { console.error('loadVehicleCosts:', e); }
 }
 
-async function saveVehicleCost(){
-    await apiPost('/api/accounting/vehicle-costs',{
-        vehicle_id:parseInt(document.getElementById('cVehicle').value),
-        month:document.getElementById('cMonth').value,
-        lease:parseInt(document.getElementById('cLease').value)||0,
-        insurance:parseInt(document.getElementById('cInsurance').value)||0,
-        tax:parseInt(document.getElementById('cTax').value)||0,
-        other:parseInt(document.getElementById('cOther').value)||0,
-    });
-    closeModal('costModal'); loadPnl();
+async function saveVehicleCost() {
+    try {
+        await apiPost('/api/accounting/vehicle-costs', {
+            vehicle_id: parseInt(document.getElementById('cVehicle').value),
+            month: document.getElementById('cMonth').value,
+            lease: parseInt(document.getElementById('cLease').value) || 0,
+            insurance: parseInt(document.getElementById('cInsurance').value) || 0,
+            tax: parseInt(document.getElementById('cTax').value) || 0,
+            other: parseInt(document.getElementById('cOther').value) || 0,
+        });
+        closeModal('costModal');
+        loadPnl();
+    } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+    }
 }
 
-initMonth(); loadVehicles().then(()=>loadAll());
+/* ── Vendor Management ── */
+let vendorList = [];
+
+async function loadVendorList() {
+    try {
+        const typeFilter = document.getElementById('vendorTypeFilter').value;
+        const url = typeFilter ? `/api/vendors?vendor_type=${encodeURIComponent(typeFilter)}` : '/api/vendors';
+        const data = await apiGet(url);
+        vendorList = Array.isArray(data) ? data : (data.vendors || []);
+        renderVendorTable();
+    } catch (e) { console.error('loadVendorList:', e); }
+}
+
+function renderVendorTable() {
+    const empty = document.getElementById('vendorEmpty');
+    if (vendorList.length === 0) {
+        document.getElementById('vendorBody').innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    document.getElementById('vendorBody').innerHTML = vendorList.map(v => `<tr>
+        <td>${v.name || '-'}</td>
+        <td>${v.vendor_type || '-'}</td>
+        <td>${v.phone || '-'}</td>
+        <td>${v.contact_person || '-'}</td>
+        <td>${v.billing_cycle || '-'}</td>
+        <td>${v.account_number || '-'}</td>
+        <td style="white-space:nowrap">
+            <button class="btn btn-outline btn-sm" onclick="editVendor(${v.id})">編集</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteVendor(${v.id})">削除</button>
+            <button class="btn btn-success btn-sm" onclick="openBulkCostModal(${v.id}, '${(v.name || '').replace(/'/g, "\\'")}')">一括費用取込</button>
+        </td>
+    </tr>`).join('');
+}
+
+function openVendorModal(vendor) {
+    document.getElementById('vendorEditId').value = vendor ? vendor.id : '';
+    document.getElementById('vendorFormTitle').textContent = vendor ? '取引先編集' : '取引先追加';
+    document.getElementById('vName').value = vendor ? (vendor.name || '') : '';
+    document.getElementById('vType').value = vendor ? (vendor.vendor_type || 'その他') : 'その他';
+    document.getElementById('vPhone').value = vendor ? (vendor.phone || '') : '';
+    document.getElementById('vContact').value = vendor ? (vendor.contact_person || '') : '';
+    document.getElementById('vAddress').value = vendor ? (vendor.address || '') : '';
+    document.getElementById('vBillingCycle').value = vendor ? (vendor.billing_cycle || '') : '';
+    document.getElementById('vAccountNumber').value = vendor ? (vendor.account_number || '') : '';
+    document.getElementById('vNotes').value = vendor ? (vendor.notes || '') : '';
+    openModal('vendorModal');
+}
+
+function editVendor(id) {
+    const v = vendorList.find(x => x.id === id);
+    if (v) openVendorModal(v);
+}
+
+async function saveVendor() {
+    const id = document.getElementById('vendorEditId').value;
+    const payload = {
+        name: document.getElementById('vName').value,
+        vendor_type: document.getElementById('vType').value,
+        address: document.getElementById('vAddress').value,
+        phone: document.getElementById('vPhone').value,
+        contact_person: document.getElementById('vContact').value,
+        billing_cycle: document.getElementById('vBillingCycle').value,
+        account_number: document.getElementById('vAccountNumber').value,
+        notes: document.getElementById('vNotes').value,
+    };
+    try {
+        if (id) await apiPut(`/api/vendors/${id}`, payload);
+        else await apiPost('/api/vendors', payload);
+        closeModal('vendorModal');
+        loadVendorList();
+    } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+    }
+}
+
+async function deleteVendor(id) {
+    if (!confirm('この取引先を削除しますか？')) return;
+    try {
+        await apiDelete(`/api/vendors/${id}`);
+        loadVendorList();
+    } catch (e) {
+        alert('削除に失敗しました: ' + e.message);
+    }
+}
+
+function openBulkCostModal(vendorId, vendorName) {
+    const sel = document.getElementById('bcVendor');
+    sel.innerHTML = `<option value="${vendorId}">${vendorName}</option>`;
+    sel.value = vendorId;
+    document.getElementById('bcDate').value = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+    document.getElementById('bcCategory').value = '燃料費';
+    document.getElementById('bcDescription').value = '';
+    document.getElementById('bcAmount').value = '';
+    openModal('bulkCostModal');
+}
+
+async function submitBulkCost() {
+    const payload = {
+        vendor_id: parseInt(document.getElementById('bcVendor').value),
+        date: document.getElementById('bcDate').value,
+        category: document.getElementById('bcCategory').value,
+        description: document.getElementById('bcDescription').value,
+        total_amount: parseInt(document.getElementById('bcAmount').value) || 0,
+    };
+    if (!payload.date || !payload.total_amount) {
+        alert('日付と金額は必須です');
+        return;
+    }
+    try {
+        await apiPost('/api/vendors/bulk-cost-import', payload);
+        closeModal('bulkCostModal');
+        alert('費用取込が完了しました');
+        loadAll();
+    } catch (e) {
+        alert('取込に失敗しました: ' + e.message);
+    }
+}
+
+/* ── Init ── */
+initMonth();
+updateCategoryOptions();
+loadVehicles().then(() => loadAll());
 </script>
 </body>
 </html>

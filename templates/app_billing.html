@@ -16,7 +16,6 @@
         .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
         .month-sel { display: flex; align-items: center; gap: .5rem; }
         .month-sel button { background: #3b82f6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
-        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
         select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
@@ -34,10 +33,12 @@
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
         .btn:hover { opacity: .85; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
         .badge { padding: .2rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
         .badge-gray { background: #f1f5f9; color: #64748b; }
         .badge-blue { background: #dbeafe; color: #2563eb; }
         .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-yellow { background: #fef9c3; color: #a16207; }
         .bulk-actions { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
         /* Modal */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
@@ -49,6 +50,7 @@
         .form-group input, .form-group select, .form-group textarea { width: 100%; }
         .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
         .text-right { text-align: right; }
+        .btn-group { display: inline-flex; gap: .25rem; }
         @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
@@ -68,7 +70,7 @@
             <span id="monthLabel"></span>
             <button onclick="changeMonth(1)">▶</button>
         </div>
-        <select id="filterStatus" onchange="loadShipments()">
+        <select id="filterStatus" onchange="applyFilter()">
             <option value="">全て</option>
             <option value="未請求">未請求</option>
             <option value="請求済">請求済</option>
@@ -92,7 +94,7 @@
             <thead>
                 <tr>
                     <th><input type="checkbox" id="checkAll" onchange="toggleAll(this)"></th>
-                    <th>案件名</th><th>荷主</th><th>積地→卸地</th><th>配達日</th><th>運賃</th><th>請求状態</th><th>請求日</th><th>操作</th>
+                    <th>案件名</th><th>荷主</th><th>積地→卸地</th><th>配達日</th><th>運賃</th><th>ステータス</th><th>請求状態</th><th>請求日</th><th>操作</th>
                 </tr>
             </thead>
             <tbody id="tblBody"></tbody>
@@ -143,51 +145,84 @@ function updateMonthLabel() {
 }
 function yen(n) { return '¥' + (n || 0).toLocaleString(); }
 
+// All shipments from API for the month (unfiltered)
+let allShipments = [];
+// Displayed shipments (after client-side filter)
 let shipments = [];
 
 async function loadShipments() {
     try {
-        const status = document.getElementById('filterStatus').value;
         let url = `/api/shipments?year=${currentYear}&month=${currentMonth}`;
-        if (status) url += `&billing_status=${encodeURIComponent(status)}`;
         const data = await apiGet(url);
-        shipments = Array.isArray(data) ? data : (data.shipments || []);
-        renderStats();
-        renderTable();
+        allShipments = Array.isArray(data) ? data : (data.shipments || []);
+        applyFilter();
     } catch (e) { console.error(e); }
 }
 
+function applyFilter() {
+    const status = document.getElementById('filterStatus').value;
+    if (status) {
+        shipments = allShipments.filter(s => {
+            const invoiceStatus = s.invoice_status || '未請求';
+            return invoiceStatus === status;
+        });
+    } else {
+        shipments = [...allShipments];
+    }
+    renderStats();
+    renderTable();
+}
+
 function renderStats() {
-    const completed = shipments.filter(s => s.status === '完了' || s.delivery_date);
-    const revenue = completed.reduce((sum, s) => sum + (s.fare || 0), 0);
-    const unbilled = shipments.filter(s => s.billing_status !== '請求済' && s.billing_status !== '入金済').reduce((sum, s) => sum + (s.fare || 0), 0);
+    // Revenue: sum of price for completed shipments across ALL shipments for the month (not filtered)
+    const completed = allShipments.filter(s => s.status === '完了' || s.status === 'completed');
+    const revenue = completed.reduce((sum, s) => sum + (s.price || 0), 0);
+    const unbilled = allShipments.filter(s => {
+        const inv = s.invoice_status || '未請求';
+        return inv !== '請求済' && inv !== '入金済';
+    }).reduce((sum, s) => sum + (s.price || 0), 0);
     document.getElementById('statRevenue').textContent = yen(revenue);
     document.getElementById('statCount').textContent = completed.length;
     document.getElementById('statAvg').textContent = completed.length ? yen(Math.round(revenue / completed.length)) : '-';
     document.getElementById('statUnbilled').textContent = yen(unbilled);
 }
 
-function badgeClass(status) {
+function invoiceBadgeClass(status) {
     if (status === '請求済') return 'badge-blue';
     if (status === '入金済') return 'badge-green';
     return 'badge-gray';
 }
 
+function statusBadgeClass(status) {
+    if (status === '完了' || status === 'completed') return 'badge-green';
+    if (status === '配送中' || status === 'in_progress') return 'badge-yellow';
+    return 'badge-gray';
+}
+
 function renderTable() {
     const tbody = document.getElementById('tblBody');
-    tbody.innerHTML = shipments.map(s => `<tr>
+    tbody.innerHTML = shipments.map(s => {
+        const invoiceStatus = s.invoice_status || '未請求';
+        const isBilled = invoiceStatus === '請求済';
+        const isPaid = invoiceStatus === '入金済';
+        return `<tr>
         <td><input type="checkbox" class="row-check" value="${s.id}"></td>
         <td>${s.name || s.cargo_name || '-'}</td>
         <td>${s.client_name || '-'}</td>
         <td>${s.pickup_address || '-'} → ${s.delivery_address || '-'}</td>
         <td>${s.delivery_date || '-'}</td>
-        <td class="text-right">${yen(s.fare)}</td>
-        <td><span class="badge ${badgeClass(s.billing_status)}">${s.billing_status || '未請求'}</span></td>
-        <td>${s.billing_date || '-'}</td>
+        <td class="text-right">${yen(s.price)}</td>
+        <td><span class="badge ${statusBadgeClass(s.status)}">${s.status || '-'}</span></td>
+        <td><span class="badge ${invoiceBadgeClass(invoiceStatus)}">${invoiceStatus}</span></td>
+        <td>${s.invoice_date || '-'}</td>
         <td>
-            <button class="btn btn-primary" style="padding:.3rem .5rem;font-size:.78rem" onclick="markBilled(${s.id})">請求済</button>
+            <div class="btn-group">
+                <button class="btn btn-primary" style="padding:.3rem .5rem;font-size:.78rem" onclick="markBilled(${s.id})" ${isBilled || isPaid ? 'disabled' : ''}>請求済</button>
+                <button class="btn btn-success" style="padding:.3rem .5rem;font-size:.78rem" onclick="markPaid(${s.id})" ${isPaid ? 'disabled' : ''}>入金済</button>
+            </div>
         </td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
 }
 
 function getCheckedIds() {
@@ -199,7 +234,13 @@ function toggleAll(el) {
 
 async function markBilled(id) {
     const today = new Date().toISOString().slice(0, 10);
-    await apiPut(`/api/shipments/${id}`, { billing_status: '請求済', billing_date: today });
+    await apiPut(`/api/shipments/${id}`, { invoice_status: '請求済', invoice_date: today });
+    loadShipments();
+}
+
+async function markPaid(id) {
+    const today = new Date().toISOString().slice(0, 10);
+    await apiPut(`/api/shipments/${id}`, { invoice_status: '入金済' });
     loadShipments();
 }
 
@@ -207,7 +248,7 @@ async function bulkMarkBilled() {
     const ids = getCheckedIds();
     if (!ids.length) return alert('請求対象を選択してください');
     const today = new Date().toISOString().slice(0, 10);
-    await Promise.all(ids.map(id => apiPut(`/api/shipments/${id}`, { billing_status: '請求済', billing_date: today })));
+    await Promise.all(ids.map(id => apiPut(`/api/shipments/${id}`, { invoice_status: '請求済', invoice_date: today })));
     loadShipments();
 }
 
@@ -221,9 +262,9 @@ function bulkPrint() {
         @media print{button{display:none}}</style></head><body>
         <h1>請求書</h1><p>${currentYear}年${currentMonth}月</p>
         <table><thead><tr><th>案件名</th><th>荷主</th><th>配達日</th><th style="text-align:right">運賃</th></tr></thead><tbody>
-        ${items.map(s => `<tr><td>${s.name || s.cargo_name || ''}</td><td>${s.client_name || ''}</td><td>${s.delivery_date || ''}</td><td style="text-align:right">¥${(s.fare||0).toLocaleString()}</td></tr>`).join('')}
+        ${items.map(s => `<tr><td>${s.name || s.cargo_name || ''}</td><td>${s.client_name || ''}</td><td>${s.delivery_date || ''}</td><td style="text-align:right">¥${(s.price||0).toLocaleString()}</td></tr>`).join('')}
         </tbody></table>
-        <p class="total">合計: ¥${items.reduce((a,s)=>a+(s.fare||0),0).toLocaleString()}</p>
+        <p class="total">合計: ¥${items.reduce((a,s)=>a+(s.price||0),0).toLocaleString()}</p>
         <button onclick="window.print()">印刷</button></body></html>`);
 }
 

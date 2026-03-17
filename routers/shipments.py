@@ -56,8 +56,20 @@ class ShipmentUpdate(BaseModel):
 
 
 @router.get("")
-def list_shipments(db: Session = Depends(get_db)):
-    return db.query(Shipment).order_by(Shipment.pickup_date.desc()).all()
+def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
+    q = db.query(Shipment)
+    if year and month:
+        from datetime import date as d
+        start = d(year, month, 1)
+        if month == 12:
+            end = d(year + 1, 1, 1)
+        else:
+            end = d(year, month + 1, 1)
+        q = q.filter(
+            ((Shipment.delivery_date >= start) & (Shipment.delivery_date < end)) |
+            ((Shipment.pickup_date >= start) & (Shipment.pickup_date < end))
+        )
+    return q.order_by(Shipment.pickup_date.desc()).all()
 
 
 @router.post("")

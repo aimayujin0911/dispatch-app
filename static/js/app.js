@@ -1360,6 +1360,28 @@ function openDriverModal(driver = null) {
                     `<option ${driver?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
         </div>
+        <p style="font-size:.8rem;color:#64748b;margin:12px 0 6px;border-top:1px solid #e2e8f0;padding-top:12px">勤怠アプリ ログイン設定</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>メールアドレス</label>
+                <input type="email" id="f-d-email" value="${driver?.email || ''}" placeholder="driver@example.com">
+            </div>
+            <div class="form-group">
+                <label>パスワード${isEdit ? '（変更時のみ入力）' : ''}</label>
+                <input type="password" id="f-d-password" placeholder="${isEdit ? '変更なしは空欄' : 'パスワード'}">
+            </div>
+        </div>
+        ${isEdit && driver?.has_login ? '<p style="font-size:.78rem;color:#16a34a;margin-bottom:8px">✅ 勤怠アプリログイン設定済み</p>' : ''}
+        <div class="form-row">
+            <div class="form-group">
+                <label>免許有効期限</label>
+                <input type="text" id="f-d-license-exp" value="${driver?.license_expiry || ''}" placeholder="2027-03-15">
+            </div>
+            <div class="form-group">
+                <label>有給残日数</label>
+                <input type="number" id="f-d-leave" value="${driver?.paid_leave_balance ?? 10}" step="0.5">
+            </div>
+        </div>
         <div class="form-group">
             <label>備考</label>
             <textarea id="f-d-notes">${driver?.notes || ''}</textarea>
@@ -1375,10 +1397,15 @@ async function saveDriver(id) {
     const data = {
         name: document.getElementById('f-d-name').value,
         phone: document.getElementById('f-d-phone').value,
+        email: document.getElementById('f-d-email').value,
         license_type: document.getElementById('f-d-license').value,
+        license_expiry: document.getElementById('f-d-license-exp').value,
         status: document.getElementById('f-d-status').value,
+        paid_leave_balance: parseFloat(document.getElementById('f-d-leave').value) || 10,
         notes: document.getElementById('f-d-notes').value,
     };
+    const pw = document.getElementById('f-d-password').value;
+    if (pw) data.password = pw;
     if (!data.name) return alert('名前を入力してください');
     if (id) await apiPut(`/drivers/${id}`, data); else await apiPost('/drivers', data);
     closeModal(); loadDrivers();

@@ -10,42 +10,95 @@
         .topnav { background: #f59e0b; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
         .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
         .topnav a:hover { color: #fff; background: rgba(255,255,255,.15); }
-        .topnav a.active { color: #fff; background: rgba(255,255,255,.25); font-weight: 600; }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
         .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
         h1 { font-size: 1.5rem; margin-bottom: 1rem; }
         .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
         .month-sel { display: flex; align-items: center; gap: .5rem; }
-        .month-sel button { background: #f59e0b; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
-        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
+        .month-sel button { background: #f59e0b; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; font-size: 1rem; }
+        .month-sel button:hover { background: #d97706; }
+        .month-sel span { font-size: 1.1rem; font-weight: 600; min-width: 140px; text-align: center; }
         select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
         .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
         .stat-card .value { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+        .stat-card.highlight { border-left: 4px solid #f59e0b; }
         .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
         table { width: 100%; border-collapse: collapse; font-size: .85rem; }
         th, td { padding: .5rem .6rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; white-space: nowrap; }
         tr:hover { background: #f8fafc; }
         .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
         .btn-primary { background: #f59e0b; color: #fff; }
+        .btn-primary:hover { background: #d97706; }
         .btn-success { background: #22c55e; color: #fff; }
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-blue { background: #3b82f6; color: #fff; }
         .btn:hover { opacity: .85; }
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* Alert */
+        .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; display: none; }
+        .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+        /* Driver info card */
+        .driver-info { display: flex; align-items: center; gap: 1.5rem; padding: 1rem 1.25rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; margin-bottom: 1.5rem; }
+        .driver-info .name { font-size: 1.1rem; font-weight: 700; }
+        .driver-info .detail { font-size: .85rem; color: #64748b; }
+        .driver-info .leave-badge { background: #22c55e; color: #fff; padding: .3rem .8rem; border-radius: 9999px; font-size: .85rem; font-weight: 600; }
+
+        /* Calendar */
+        .calendar { margin-bottom: 1.5rem; }
+        .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; margin-bottom: 1px; }
+        .cal-header div { background: #f59e0b; color: #fff; text-align: center; padding: .5rem; font-weight: 600; font-size: .85rem; }
+        .cal-header div.sat { background: #3b82f6; }
+        .cal-header div.sun { background: #ef4444; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; }
+        .cal-cell { background: #fff; min-height: 100px; padding: .4rem; cursor: pointer; position: relative; transition: background .15s; }
+        .cal-cell:hover { background: #fffbeb; }
+        .cal-cell.empty { background: #f8fafc; cursor: default; }
+        .cal-cell.empty:hover { background: #f8fafc; }
+        .cal-cell .day-num { font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
+        .cal-cell.sat .day-num { color: #3b82f6; }
+        .cal-cell.sun .day-num { color: #ef4444; }
+        .cal-cell .type-dot { width: 100%; height: 4px; border-radius: 2px; margin-bottom: .25rem; }
+        .cal-cell .time-text { font-size: .7rem; color: #64748b; line-height: 1.4; }
+        .cal-cell .vehicle-tag { font-size: .6rem; color: #fff; background: #64748b; padding: .05rem .3rem; border-radius: 3px; display: inline-block; margin-top: .1rem; }
+        .cal-cell .wtype-label { font-size: .65rem; padding: .1rem .3rem; border-radius: 3px; color: #fff; display: inline-block; margin-top: .15rem; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 2vh; }
         .modal-overlay.show { display: flex; }
-        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 95%; max-width: 700px; max-height: 92vh; overflow-y: auto; }
         .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .modal-section { margin-bottom: 1.25rem; padding-bottom: .75rem; border-bottom: 1px solid #e2e8f0; }
+        .modal-section:last-of-type { border-bottom: none; }
+        .modal-section h3 { font-size: .9rem; font-weight: 700; color: #f59e0b; margin-bottom: .75rem; padding-left: .25rem; border-left: 3px solid #f59e0b; }
         .form-group { margin-bottom: .85rem; }
-        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
-        .form-group input, .form-group select { width: 100%; }
+        .form-group label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: .25rem; color: #475569; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+        .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; }
         .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
-        @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr; } }
+
+        .badge { padding: .2rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
+        .btn-group { display: inline-flex; gap: .25rem; }
+
+        @media (max-width: 768px) {
+            .topnav { overflow-x: auto; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            .cal-cell { min-height: 70px; }
+            .cal-cell .time-text { font-size: .6rem; }
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .modal { max-width: 98%; padding: 1rem; }
+        }
     </style>
 </head>
 <body>
+
 <nav class="topnav">
     <a href="/">🚛 配車管理</a>
     <a href="/app/billing">💰 請求</a>
@@ -53,198 +106,836 @@
     <a href="/app/accounting">📒 会計</a>
     <a href="/app/reports">📝 日報</a>
 </nav>
+
 <div class="container">
-    <h1>勤怠管理</h1>
+    <h1>⏰ 勤怠管理</h1>
+
+    <!-- Toolbar -->
     <div class="toolbar">
         <div class="month-sel">
             <button onclick="changeMonth(-1)">◀</button>
             <span id="monthLabel"></span>
             <button onclick="changeMonth(1)">▶</button>
         </div>
-        <select id="driverFilter" onchange="loadAttendance()"><option value="">全ドライバー</option></select>
+        <select id="driverFilter" onchange="onDriverChange()">
+            <option value="">-- ドライバー選択 --</option>
+        </select>
         <button class="btn btn-primary" onclick="openAddModal()">＋ 追加</button>
-        <button class="btn btn-success" onclick="generateFromDispatches()">🔄 配車から自動生成</button>
+        <button class="btn btn-blue" onclick="generateFromDispatches()">📋 配車から自動生成</button>
         <button class="btn btn-outline" onclick="exportCSV()">📥 CSV出力</button>
-        <a href="/m/attendance" class="btn btn-outline">📱 モバイル打刻</a>
     </div>
-    <div class="stats">
-        <div class="stat-card"><div class="label">総出勤日数</div><div class="value" id="statDays">-</div></div>
-        <div class="stat-card"><div class="label">総残業時間</div><div class="value" id="statOT">-</div></div>
-        <div class="stat-card"><div class="label">総深夜時間</div><div class="value" id="statNight">-</div></div>
-        <div class="stat-card"><div class="label">平均勤務時間</div><div class="value" id="statAvg">-</div></div>
+
+    <!-- 36協定アラート -->
+    <div class="alert alert-warning" id="alertWarning">⚠️ 36協定警告: 月間残業時間が45時間を超えています。</div>
+    <div class="alert alert-danger" id="alertDanger">🚨 36協定危険: 月間残業時間が80時間を超えています！直ちに対応が必要です。</div>
+
+    <!-- Stats -->
+    <div class="stats" id="statsArea">
+        <div class="stat-card highlight"><div class="label">出勤日数</div><div class="value" id="sDays">0</div></div>
+        <div class="stat-card"><div class="label">残業時間(h)</div><div class="value" id="sOvertime">0</div></div>
+        <div class="stat-card"><div class="label">深夜時間(h)</div><div class="value" id="sNight">0</div></div>
+        <div class="stat-card"><div class="label">平均勤務時間(h)</div><div class="value" id="sAvg">0</div></div>
+        <div class="stat-card"><div class="label">有給残日数</div><div class="value" id="sLeaveBalance">-</div></div>
+        <div class="stat-card"><div class="label">有給使用日数</div><div class="value" id="sLeaveUsed">0</div></div>
     </div>
-    <div class="card" style="overflow-x:auto">
-        <table>
-            <thead><tr>
-                <th>日付</th><th>ドライバー</th><th>出勤</th><th>退勤</th><th>休憩</th><th>待機</th><th>積込</th><th>荷卸</th><th>種別</th><th>残業</th><th>深夜</th><th>操作</th>
-            </tr></thead>
-            <tbody id="tblBody"></tbody>
-        </table>
+
+    <!-- Driver info + Calendar (shown when driver selected) -->
+    <div id="calendarSection" style="display:none;">
+        <div class="driver-info" id="driverInfoCard">
+            <div>
+                <div class="name" id="diName">-</div>
+                <div class="detail" id="diDetail">-</div>
+            </div>
+            <div class="leave-badge" id="diLeave">有給残: - 日</div>
+        </div>
+
+        <div class="card calendar">
+            <div class="cal-header">
+                <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div><div class="sun">日</div>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+        <h2 style="font-size:1.1rem; margin-bottom:.75rem;">勤怠一覧</h2>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>日付</th><th>ドライバー</th><th>車両</th>
+                        <th>出勤</th><th>退勤</th><th>出庫</th><th>帰庫</th>
+                        <th>休憩</th><th>待機</th><th>積込</th><th>荷卸</th>
+                        <th>種別</th><th>給油L</th><th>高速代</th><th>アルコール</th>
+                        <th>残業(分)</th><th>深夜(分)</th><th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="tBody"></tbody>
+            </table>
+        </div>
+        <p id="noData" style="text-align:center; padding:2rem; color:#94a3b8; display:none;">データがありません</p>
     </div>
 </div>
 
 <!-- Add/Edit Modal -->
-<div class="modal-overlay" id="formModal">
+<div class="modal-overlay" id="modal">
     <div class="modal">
-        <h2 id="formTitle">勤怠追加</h2>
-        <input type="hidden" id="editId">
-        <div class="form-row">
-            <div class="form-group"><label>日付</label><input type="date" id="fDate"></div>
-            <div class="form-group"><label>ドライバー</label><select id="fDriver"></select></div>
+        <h2 id="modalTitle">勤怠登録</h2>
+        <input type="hidden" id="fId">
+
+        <!-- 基本情報セクション -->
+        <div class="modal-section">
+            <h3>基本情報</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="fDate">
+                </div>
+                <div class="form-group">
+                    <label>ドライバー</label>
+                    <select id="fDriver"></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>出勤</label>
+                    <input type="time" id="fStart">
+                </div>
+                <div class="form-group">
+                    <label>退勤</label>
+                    <input type="time" id="fEnd">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>休憩(分)</label>
+                    <input type="number" id="fBreak" value="60" min="0">
+                </div>
+                <div class="form-group">
+                    <label>勤務種別</label>
+                    <select id="fWorkType">
+                        <option value="通常">通常</option>
+                        <option value="休日">休日</option>
+                        <option value="有給">有給</option>
+                        <option value="半休">半休</option>
+                        <option value="欠勤">欠勤</option>
+                    </select>
+                </div>
+            </div>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label>出勤</label><input type="time" id="fStart"></div>
-            <div class="form-group"><label>退勤</label><input type="time" id="fEnd"></div>
+
+        <!-- 運行情報セクション -->
+        <div class="modal-section">
+            <h3>運行情報</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>車両</label>
+                    <select id="fVehicle">
+                        <option value="">-- 選択 --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>走行距離(km)</label>
+                    <input type="number" id="fDistance" min="0" step="0.1" value="">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>出庫時間</label>
+                    <input type="time" id="fDeparture">
+                </div>
+                <div class="form-group">
+                    <label>帰庫時間</label>
+                    <input type="time" id="fReturn">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>運行経路</label>
+                <input type="text" id="fRoutes" placeholder="例: 東京→大阪→名古屋">
+            </div>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label>休憩(分)</label><input type="number" id="fBreak" value="60"></div>
-            <div class="form-group"><label>勤務種別</label><select id="fType"><option>通常</option><option>休日</option><option>有給</option><option>欠勤</option></select></div>
+
+        <!-- 点呼セクション -->
+        <div class="modal-section">
+            <h3>点呼</h3>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>出庫前点呼</label>
+                    <input type="time" id="fPreCheck">
+                </div>
+                <div class="form-group">
+                    <label>帰庫後点呼</label>
+                    <input type="time" id="fPostCheck">
+                </div>
+                <div class="form-group">
+                    <label>アルコール検知</label>
+                    <select id="fAlcohol">
+                        <option value="">--</option>
+                        <option value="異常なし">異常なし</option>
+                        <option value="要確認">要確認</option>
+                    </select>
+                </div>
+            </div>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label>待機時間(分)</label><input type="number" id="fWaiting" value="0"></div>
-            <div class="form-group"><label>積込時間(分)</label><input type="number" id="fLoading" value="0"></div>
+
+        <!-- 作業時間セクション -->
+        <div class="modal-section">
+            <h3>作業時間</h3>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>待機時間(分)</label>
+                    <input type="number" id="fWaiting" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label>積込時間(分)</label>
+                    <input type="number" id="fLoading" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label>荷卸時間(分)</label>
+                    <input type="number" id="fUnloading" value="0" min="0">
+                </div>
+            </div>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label>荷卸時間(分)</label><input type="number" id="fUnloading" value="0"></div>
-            <div class="form-group"><label>残業(分)</label><input type="number" id="fOT" value="0"></div>
+
+        <!-- 給油・高速セクション -->
+        <div class="modal-section">
+            <h3>給油・高速</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>給油量(L)</label>
+                    <input type="number" id="fFuelLiters" min="0" step="0.1" value="">
+                </div>
+                <div class="form-group">
+                    <label>給油金額(円)</label>
+                    <input type="number" id="fFuelCost" min="0" value="">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>高速代(円)</label>
+                    <input type="number" id="fHighwayCost" min="0" value="">
+                </div>
+                <div class="form-group">
+                    <label>高速区間</label>
+                    <input type="text" id="fHighwaySections" placeholder="例: 東名高速 東京IC-名古屋IC">
+                </div>
+            </div>
         </div>
-        <div class="form-group"><label>深夜(分)</label><input type="number" id="fNight" value="0" style="width:50%"></div>
+
+        <!-- その他セクション -->
+        <div class="modal-section">
+            <h3>その他</h3>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>休憩場所</label>
+                    <input type="text" id="fBreakLocation" placeholder="例: 海老名SA">
+                </div>
+                <div class="form-group">
+                    <label>天候</label>
+                    <select id="fWeather">
+                        <option value="">--</option>
+                        <option value="晴">晴</option>
+                        <option value="曇">曇</option>
+                        <option value="雨">雨</option>
+                        <option value="雪">雪</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>手当(円)</label>
+                    <input type="number" id="fAllowance" min="0" value="">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>事故・故障</label>
+                <textarea id="fIncidents" rows="2" placeholder="事故や故障があれば記入"></textarea>
+            </div>
+            <div class="form-group">
+                <label>備考</label>
+                <textarea id="fNotes" rows="2"></textarea>
+            </div>
+        </div>
+
         <div class="modal-actions">
-            <button class="btn btn-outline" onclick="closeModal('formModal')">キャンセル</button>
-            <button class="btn btn-primary" onclick="saveAttendance()">保存</button>
+            <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveRecord()">保存</button>
         </div>
     </div>
 </div>
 
 <script>
-async function apiGet(u){const r=await fetch(u);if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiPost(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiPut(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
-async function apiDelete(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error(r.statusText);return r.json();}
-function openModal(id){document.getElementById(id).classList.add('show');}
-function closeModal(id){document.getElementById(id).classList.remove('show');}
+// ===== State =====
+let currentYear, currentMonth;
+let drivers = [];
+let vehicles = [];
+let records = [];
+let selectedDriverId = '';
 
-let currentYear, currentMonth, records = [], drivers = [];
+// ===== Init =====
+(function init() {
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth() + 1;
+    updateMonthLabel();
+    loadDrivers();
+    loadVehicles();
+})();
 
-function initMonth(){ const d=new Date(); currentYear=d.getFullYear(); currentMonth=d.getMonth()+1; updateMonthLabel(); }
-function changeMonth(delta){ currentMonth+=delta; if(currentMonth>12){currentMonth=1;currentYear++;} if(currentMonth<1){currentMonth=12;currentYear--;} updateMonthLabel(); loadAttendance(); }
-function updateMonthLabel(){ document.getElementById('monthLabel').textContent=`${currentYear}年${currentMonth}月`; }
+function updateMonthLabel() {
+    document.getElementById('monthLabel').textContent = `${currentYear}年${currentMonth}月`;
+}
 
-async function loadDrivers(){
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    updateMonthLabel();
+    loadRecords();
+}
+
+// ===== Drivers =====
+async function loadDrivers() {
     try {
-        const data = await apiGet('/api/drivers');
-        drivers = Array.isArray(data) ? data : (data.drivers || []);
-        const sel = document.getElementById('driverFilter');
-        const fSel = document.getElementById('fDriver');
+        const res = await fetch('/api/drivers');
+        drivers = await res.json();
+        const filter = document.getElementById('driverFilter');
+        const fDriver = document.getElementById('fDriver');
+        filter.innerHTML = '<option value="">-- ドライバー選択 --</option>';
+        fDriver.innerHTML = '';
         drivers.forEach(d => {
-            sel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
-            fSel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+            if (d.status === '退職') return;
+            filter.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+            fDriver.innerHTML += `<option value="${d.id}">${d.name}</option>`;
         });
-    } catch(e){ console.error(e); }
+    } catch (e) {
+        console.error('ドライバー読込失敗:', e);
+    }
+    loadRecords();
 }
 
-async function loadAttendance(){
+// ===== Vehicles =====
+async function loadVehicles() {
     try {
-        const driverId = document.getElementById('driverFilter').value;
+        const res = await fetch('/api/vehicles');
+        vehicles = await res.json();
+        const fVehicle = document.getElementById('fVehicle');
+        fVehicle.innerHTML = '<option value="">-- 選択 --</option>';
+        vehicles.forEach(v => {
+            const label = v.number || v.vehicle_number || v.plate_number || `ID:${v.id}`;
+            fVehicle.innerHTML += `<option value="${v.id}">${label}</option>`;
+        });
+    } catch (e) {
+        console.error('車両読込失敗:', e);
+    }
+}
+
+function onDriverChange() {
+    selectedDriverId = document.getElementById('driverFilter').value;
+    loadRecords();
+}
+
+// ===== Records =====
+async function loadRecords() {
+    try {
         let url = `/api/attendance?year=${currentYear}&month=${currentMonth}`;
-        if(driverId) url += `&driver_id=${driverId}`;
-        const data = await apiGet(url);
-        records = Array.isArray(data) ? data : (data.records || []);
-        renderStats(); renderTable();
-    } catch(e){ console.error(e); }
+        if (selectedDriverId) url += `&driver_id=${selectedDriverId}`;
+        const res = await fetch(url);
+        records = await res.json();
+    } catch (e) {
+        console.error('勤怠読込失敗:', e);
+        records = [];
+    }
+    renderAll();
 }
 
-function renderStats(){
-    const days = records.length;
-    const ot = records.reduce((s,r)=>s+(r.overtime_minutes||0),0);
-    const night = records.reduce((s,r)=>s+(r.night_minutes||0),0);
-    const totalMin = records.reduce((s,r)=>{
-        if(r.start_time && r.end_time){ const st=toMin(r.start_time),en=toMin(r.end_time); return s+(en-st-(r.break_minutes||0)); }
-        return s;
-    },0);
-    document.getElementById('statDays').textContent = days+'日';
-    document.getElementById('statOT').textContent = (ot/60).toFixed(1)+'h';
-    document.getElementById('statNight').textContent = (night/60).toFixed(1)+'h';
-    document.getElementById('statAvg').textContent = days ? (totalMin/days/60).toFixed(1)+'h' : '-';
-}
-function toMin(t){ const [h,m]=(t||'').split(':').map(Number); return (h||0)*60+(m||0); }
-
-function renderTable(){
-    document.getElementById('tblBody').innerHTML = records.map(r => `<tr>
-        <td>${r.date||'-'}</td>
-        <td>${r.driver_name || driverName(r.driver_id)}</td>
-        <td>${r.start_time||'-'}</td><td>${r.end_time||'-'}</td>
-        <td>${r.break_minutes||0}</td><td>${r.waiting_time||0}</td><td>${r.loading_time||0}</td><td>${r.unloading_time||0}</td>
-        <td>${r.work_type||'通常'}</td><td>${r.overtime_minutes||0}</td><td>${r.night_minutes||0}</td>
-        <td><button class="btn btn-outline" style="padding:.2rem .5rem;font-size:.78rem" onclick="editRecord(${r.id})">編集</button>
-        <button class="btn btn-danger" style="padding:.2rem .5rem;font-size:.78rem" onclick="deleteRecord(${r.id})">削除</button></td>
-    </tr>`).join('');
-}
-function driverName(id){ const d=drivers.find(d=>d.id===id); return d?d.name:'-'; }
-
-function openAddModal(){
-    document.getElementById('editId').value='';
-    document.getElementById('formTitle').textContent='勤怠追加';
-    ['fDate','fStart','fEnd'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('fBreak').value=60;
-    ['fWaiting','fLoading','fUnloading','fOT','fNight'].forEach(id=>document.getElementById(id).value=0);
-    openModal('formModal');
+function renderAll() {
+    renderStats();
+    renderAlerts();
+    renderCalendar();
+    renderTable();
 }
 
-function editRecord(id){
-    const r = records.find(x=>x.id===id); if(!r) return;
-    document.getElementById('editId').value=id;
-    document.getElementById('formTitle').textContent='勤怠編集';
-    document.getElementById('fDate').value=r.date||'';
-    document.getElementById('fDriver').value=r.driver_id||'';
-    document.getElementById('fStart').value=r.start_time||'';
-    document.getElementById('fEnd').value=r.end_time||'';
-    document.getElementById('fBreak').value=r.break_minutes||0;
-    document.getElementById('fType').value=r.work_type||'通常';
-    document.getElementById('fWaiting').value=r.waiting_time||0;
-    document.getElementById('fLoading').value=r.loading_time||0;
-    document.getElementById('fUnloading').value=r.unloading_time||0;
-    document.getElementById('fOT').value=r.overtime_minutes||0;
-    document.getElementById('fNight').value=r.night_minutes||0;
-    openModal('formModal');
+// ===== Stats =====
+function renderStats() {
+    const workDays = records.filter(r => r.work_type === '通常' || r.work_type === '休日' || r.work_type === '半休').length;
+    const totalOvertime = records.reduce((s, r) => s + (r.overtime_minutes || 0), 0);
+    const totalNight = records.reduce((s, r) => s + (r.night_minutes || r.late_night_minutes || 0), 0);
+    const leaveUsed = records.filter(r => r.work_type === '有給').length + records.filter(r => r.work_type === '半休').length * 0.5;
+
+    // Average work hours
+    let totalWorkMin = 0, countWork = 0;
+    records.forEach(r => {
+        const cin = r.clock_in || r.start_time;
+        const cout = r.clock_out || r.end_time;
+        if (cin && cout) {
+            const diff = timeDiffMinutes(cin, cout) - (r.break_minutes || 0);
+            if (diff > 0) { totalWorkMin += diff; countWork++; }
+        }
+    });
+    const avgHours = countWork > 0 ? (totalWorkMin / countWork / 60).toFixed(1) : '0';
+
+    document.getElementById('sDays').textContent = workDays;
+    document.getElementById('sOvertime').textContent = (totalOvertime / 60).toFixed(1);
+    document.getElementById('sNight').textContent = (totalNight / 60).toFixed(1);
+    document.getElementById('sAvg').textContent = avgHours;
+    document.getElementById('sLeaveUsed').textContent = leaveUsed;
+
+    // Leave balance from driver
+    if (selectedDriverId) {
+        const drv = drivers.find(d => d.id == selectedDriverId);
+        const bal = drv && drv.paid_leave_balance != null ? drv.paid_leave_balance : '-';
+        document.getElementById('sLeaveBalance').textContent = bal;
+    } else {
+        document.getElementById('sLeaveBalance').textContent = '-';
+    }
 }
 
-async function saveAttendance(){
-    const id = document.getElementById('editId').value;
-    const payload = {
+function renderAlerts() {
+    const totalOvertime = records.reduce((s, r) => s + (r.overtime_minutes || 0), 0);
+    const w = document.getElementById('alertWarning');
+    const d = document.getElementById('alertDanger');
+    w.style.display = 'none';
+    d.style.display = 'none';
+    if (totalOvertime > 4800) { // > 80h = 4800min
+        d.style.display = 'block';
+    } else if (totalOvertime > 2700) { // > 45h = 2700min
+        w.style.display = 'block';
+    }
+}
+
+function timeDiffMinutes(t1, t2) {
+    const [h1, m1] = t1.split(':').map(Number);
+    const [h2, m2] = t2.split(':').map(Number);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60;
+    return diff;
+}
+
+// ===== Calendar =====
+function renderCalendar() {
+    const section = document.getElementById('calendarSection');
+    if (!selectedDriverId) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+
+    // Driver info
+    const drv = drivers.find(d => d.id == selectedDriverId);
+    if (drv) {
+        document.getElementById('diName').textContent = drv.name;
+        document.getElementById('diDetail').textContent = `TEL: ${drv.phone || '-'}　Email: ${drv.email || '-'}`;
+        const bal = drv.paid_leave_balance != null ? drv.paid_leave_balance : '-';
+        document.getElementById('diLeave').textContent = `有給残: ${bal} 日`;
+    }
+
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    const firstDay = new Date(currentYear, currentMonth - 1, 1);
+    const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+    // JS: 0=Sun ... 6=Sat. Calendar columns: Mon=0, Tue=1 ... Sun=6
+    let startDow = firstDay.getDay(); // 0=Sun
+    startDow = startDow === 0 ? 6 : startDow - 1;
+
+    // Build record map by date
+    const recMap = {};
+    records.forEach(r => {
+        const d = r.date ? r.date.substring(0, 10) : '';
+        if (d) recMap[d] = r;
+    });
+
+    // Empty cells before first day
+    for (let i = 0; i < startDow; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell empty';
+        grid.appendChild(cell);
+    }
+
+    const workTypeColors = {
+        '通常': '#3b82f6',
+        '休日': '#f59e0b',
+        '有給': '#22c55e',
+        '半休': '#a3e635',
+        '欠勤': '#ef4444'
+    };
+
+    for (let day = 1; day <= lastDay; day++) {
+        const cell = document.createElement('div');
+        const dow = (startDow + day - 1) % 7; // 0=Mon ... 6=Sun
+        cell.className = 'cal-cell';
+        if (dow === 5) cell.classList.add('sat');
+        if (dow === 6) cell.classList.add('sun');
+
+        const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const rec = recMap[dateStr];
+
+        let html = `<div class="day-num">${day}</div>`;
+
+        if (rec) {
+            const color = workTypeColors[rec.work_type] || '#e2e8f0';
+            html += `<div class="type-dot" style="background:${color}"></div>`;
+
+            // Show vehicle tag if vehicle info exists
+            if (rec.vehicle_id) {
+                const vNum = rec.vehicle_number || ('車両' + rec.vehicle_id);
+                html += `<span class="vehicle-tag">🚛 ${vNum}</span> `;
+            }
+
+            // Show departure_time - return_time if available, otherwise clock_in/clock_out
+            const dep = rec.departure_time;
+            const ret = rec.return_time;
+            const cin = rec.clock_in || rec.start_time || '';
+            const cout = rec.clock_out || rec.end_time || '';
+
+            if (dep || ret) {
+                html += `<div class="time-text">${dep ? dep.substring(0,5) : '?'} - ${ret ? ret.substring(0,5) : '?'}</div>`;
+            } else if (cin || cout) {
+                html += `<div class="time-text">${cin ? cin.substring(0,5) : '?'} - ${cout ? cout.substring(0,5) : '?'}</div>`;
+            }
+            html += `<span class="wtype-label" style="background:${color}">${rec.work_type}</span>`;
+        } else {
+            html += `<div class="type-dot" style="background:#e2e8f0"></div>`;
+        }
+
+        cell.innerHTML = html;
+        cell.onclick = () => openEditForDate(dateStr, rec);
+        grid.appendChild(cell);
+    }
+
+    // Trailing empty cells to complete last row
+    const totalCells = startDow + lastDay;
+    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let i = 0; i < remaining; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell empty';
+        grid.appendChild(cell);
+    }
+}
+
+// ===== Table =====
+function renderTable() {
+    const tbody = document.getElementById('tBody');
+    const noData = document.getElementById('noData');
+
+    if (records.length === 0) {
+        tbody.innerHTML = '';
+        noData.style.display = 'block';
+        return;
+    }
+    noData.style.display = 'none';
+
+    const sorted = [...records].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    tbody.innerHTML = sorted.map(r => {
+        const cin = r.clock_in || r.start_time || '';
+        const cout = r.clock_out || r.end_time || '';
+        const dep = r.departure_time || '';
+        const ret = r.return_time || '';
+        const wtColor = {'通常':'#3b82f6','休日':'#f59e0b','有給':'#22c55e','半休':'#a3e635','欠勤':'#ef4444'}[r.work_type] || '#94a3b8';
+        const alcoholColor = r.alcohol_check === '要確認' ? 'color:#ef4444;font-weight:700' : '';
+        return `<tr>
+            <td>${r.date || ''}</td>
+            <td>${r.driver_name || ''}</td>
+            <td>${r.vehicle_number || ''}</td>
+            <td>${cin ? cin.substring(0,5) : ''}</td>
+            <td>${cout ? cout.substring(0,5) : ''}</td>
+            <td>${dep ? dep.substring(0,5) : ''}</td>
+            <td>${ret ? ret.substring(0,5) : ''}</td>
+            <td>${r.break_minutes != null ? r.break_minutes : ''}</td>
+            <td>${r.waiting_time != null ? r.waiting_time : ''}</td>
+            <td>${r.loading_time != null ? r.loading_time : ''}</td>
+            <td>${r.unloading_time != null ? r.unloading_time : ''}</td>
+            <td><span style="color:${wtColor};font-weight:600">${r.work_type || ''}</span></td>
+            <td>${r.fuel_liters != null ? r.fuel_liters : ''}</td>
+            <td>${r.highway_cost != null ? r.highway_cost.toLocaleString() : ''}</td>
+            <td><span style="${alcoholColor}">${r.alcohol_check || ''}</span></td>
+            <td>${r.overtime_minutes != null ? r.overtime_minutes : ''}</td>
+            <td>${r.night_minutes != null ? r.night_minutes : (r.late_night_minutes != null ? r.late_night_minutes : '')}</td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-outline" style="padding:.25rem .5rem;font-size:.8rem" onclick="openEditModal(${r.id})">編集</button>
+                    <button class="btn btn-danger" style="padding:.25rem .5rem;font-size:.8rem" onclick="deleteRecord(${r.id})">削除</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ===== Helper: safely get time substring =====
+function timeShort(val) {
+    if (!val) return '';
+    return val.substring(0, 5);
+}
+
+// ===== Modal =====
+function resetModalFields() {
+    document.getElementById('fId').value = '';
+    document.getElementById('fDate').value = '';
+    document.getElementById('fStart').value = '';
+    document.getElementById('fEnd').value = '';
+    document.getElementById('fBreak').value = '60';
+    document.getElementById('fWorkType').value = '通常';
+    document.getElementById('fVehicle').value = '';
+    document.getElementById('fDistance').value = '';
+    document.getElementById('fDeparture').value = '';
+    document.getElementById('fReturn').value = '';
+    document.getElementById('fRoutes').value = '';
+    document.getElementById('fPreCheck').value = '';
+    document.getElementById('fPostCheck').value = '';
+    document.getElementById('fAlcohol').value = '';
+    document.getElementById('fWaiting').value = '0';
+    document.getElementById('fLoading').value = '0';
+    document.getElementById('fUnloading').value = '0';
+    document.getElementById('fFuelLiters').value = '';
+    document.getElementById('fFuelCost').value = '';
+    document.getElementById('fHighwayCost').value = '';
+    document.getElementById('fHighwaySections').value = '';
+    document.getElementById('fBreakLocation').value = '';
+    document.getElementById('fWeather').value = '';
+    document.getElementById('fAllowance').value = '';
+    document.getElementById('fIncidents').value = '';
+    document.getElementById('fNotes').value = '';
+}
+
+function openAddModal() {
+    resetModalFields();
+    document.getElementById('modalTitle').textContent = '勤怠登録';
+    document.getElementById('fDate').value = `${currentYear}-${String(currentMonth).padStart(2,'0')}-01`;
+    if (selectedDriverId) document.getElementById('fDriver').value = selectedDriverId;
+    document.getElementById('modal').classList.add('show');
+}
+
+function openEditForDate(dateStr, rec) {
+    if (rec) {
+        openEditModal(rec.id);
+    } else {
+        resetModalFields();
+        document.getElementById('modalTitle').textContent = '勤怠登録';
+        document.getElementById('fDate').value = dateStr;
+        if (selectedDriverId) document.getElementById('fDriver').value = selectedDriverId;
+        document.getElementById('modal').classList.add('show');
+    }
+}
+
+function openEditModal(id) {
+    const r = records.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('fId').value = r.id;
+    document.getElementById('modalTitle').textContent = '勤怠編集';
+    document.getElementById('fDate').value = r.date ? r.date.substring(0, 10) : '';
+    document.getElementById('fDriver').value = r.driver_id;
+
+    const cin = r.clock_in || r.start_time || '';
+    const cout = r.clock_out || r.end_time || '';
+    document.getElementById('fStart').value = cin ? cin.substring(0, 5) : '';
+    document.getElementById('fEnd').value = cout ? cout.substring(0, 5) : '';
+    document.getElementById('fBreak').value = r.break_minutes != null ? r.break_minutes : 60;
+    document.getElementById('fWorkType').value = r.work_type || '通常';
+
+    // 運行情報
+    document.getElementById('fVehicle').value = r.vehicle_id || '';
+    document.getElementById('fDistance').value = r.distance_km != null ? r.distance_km : '';
+    document.getElementById('fDeparture').value = r.departure_time ? r.departure_time.substring(0, 5) : '';
+    document.getElementById('fReturn').value = r.return_time ? r.return_time.substring(0, 5) : '';
+    document.getElementById('fRoutes').value = r.routes || '';
+
+    // 点呼
+    document.getElementById('fPreCheck').value = r.pre_check_time ? r.pre_check_time.substring(0, 5) : '';
+    document.getElementById('fPostCheck').value = r.post_check_time ? r.post_check_time.substring(0, 5) : '';
+    document.getElementById('fAlcohol').value = r.alcohol_check || '';
+
+    // 作業時間
+    document.getElementById('fWaiting').value = r.waiting_time != null ? r.waiting_time : 0;
+    document.getElementById('fLoading').value = r.loading_time != null ? r.loading_time : 0;
+    document.getElementById('fUnloading').value = r.unloading_time != null ? r.unloading_time : 0;
+
+    // 給油・高速
+    document.getElementById('fFuelLiters').value = r.fuel_liters != null ? r.fuel_liters : '';
+    document.getElementById('fFuelCost').value = r.fuel_cost != null ? r.fuel_cost : '';
+    document.getElementById('fHighwayCost').value = r.highway_cost != null ? r.highway_cost : '';
+    document.getElementById('fHighwaySections').value = r.highway_sections || '';
+
+    // その他
+    document.getElementById('fBreakLocation').value = r.break_location || '';
+    document.getElementById('fWeather').value = r.weather || '';
+    document.getElementById('fAllowance').value = r.allowance != null ? r.allowance : '';
+    document.getElementById('fIncidents').value = r.incidents || '';
+    document.getElementById('fNotes').value = r.notes || '';
+
+    document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('show');
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// ===== Helper: get form value or null for optional fields =====
+function getValOrNull(id) {
+    const v = document.getElementById(id).value;
+    return v !== '' ? v : null;
+}
+function getIntOrNull(id) {
+    const v = document.getElementById(id).value;
+    return v !== '' ? parseInt(v) : null;
+}
+function getFloatOrNull(id) {
+    const v = document.getElementById(id).value;
+    return v !== '' ? parseFloat(v) : null;
+}
+
+// ===== Save =====
+async function saveRecord() {
+    const id = document.getElementById('fId').value;
+
+    const allFields = {
         date: document.getElementById('fDate').value,
         driver_id: parseInt(document.getElementById('fDriver').value),
-        start_time: document.getElementById('fStart').value,
-        end_time: document.getElementById('fEnd').value,
-        break_minutes: parseInt(document.getElementById('fBreak').value)||0,
-        work_type: document.getElementById('fType').value,
-        waiting_time: parseInt(document.getElementById('fWaiting').value)||0,
-        loading_time: parseInt(document.getElementById('fLoading').value)||0,
-        unloading_time: parseInt(document.getElementById('fUnloading').value)||0,
-        overtime_minutes: parseInt(document.getElementById('fOT').value)||0,
-        night_minutes: parseInt(document.getElementById('fNight').value)||0,
+        clock_in: document.getElementById('fStart').value || null,
+        clock_out: document.getElementById('fEnd').value || null,
+        break_minutes: parseInt(document.getElementById('fBreak').value) || 0,
+        work_type: document.getElementById('fWorkType').value,
+        vehicle_id: getIntOrNull('fVehicle'),
+        distance_km: getFloatOrNull('fDistance'),
+        departure_time: getValOrNull('fDeparture'),
+        return_time: getValOrNull('fReturn'),
+        routes: getValOrNull('fRoutes'),
+        pre_check_time: getValOrNull('fPreCheck'),
+        post_check_time: getValOrNull('fPostCheck'),
+        alcohol_check: getValOrNull('fAlcohol'),
+        waiting_time: parseInt(document.getElementById('fWaiting').value) || 0,
+        loading_time: parseInt(document.getElementById('fLoading').value) || 0,
+        unloading_time: parseInt(document.getElementById('fUnloading').value) || 0,
+        fuel_liters: getFloatOrNull('fFuelLiters'),
+        fuel_cost: getIntOrNull('fFuelCost'),
+        highway_cost: getIntOrNull('fHighwayCost'),
+        highway_sections: getValOrNull('fHighwaySections'),
+        break_location: getValOrNull('fBreakLocation'),
+        weather: getValOrNull('fWeather'),
+        allowance: getIntOrNull('fAllowance'),
+        incidents: getValOrNull('fIncidents'),
+        notes: document.getElementById('fNotes').value || null
     };
-    if(id) await apiPut(`/api/attendance/${id}`, payload);
-    else await apiPost('/api/attendance', payload);
-    closeModal('formModal'); loadAttendance();
+
+    try {
+        let res;
+        if (id) {
+            // Update - send all editable fields (exclude date and driver_id)
+            const updatePayload = { ...allFields };
+            delete updatePayload.date;
+            delete updatePayload.driver_id;
+            res = await fetch(`/api/attendance/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+        } else {
+            res = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(allFields)
+            });
+        }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || '保存に失敗しました');
+        }
+        closeModal();
+        loadRecords();
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
-async function deleteRecord(id){ if(!confirm('削除しますか？')) return; await apiDelete(`/api/attendance/${id}`); loadAttendance(); }
-
-async function generateFromDispatches(){
-    if(!confirm('配車データから勤怠を自動生成しますか？')) return;
-    await apiPost(`/api/attendance/from-dispatches`, { year: currentYear, month: currentMonth });
-    loadAttendance();
+// ===== Delete =====
+async function deleteRecord(id) {
+    if (!confirm('この勤怠記録を削除しますか？')) return;
+    try {
+        const res = await fetch(`/api/attendance/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('削除に失敗しました');
+        loadRecords();
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
-async function exportCSV(){
-    const driverId = document.getElementById('driverFilter').value;
-    let url = `/api/export/attendance?year=${currentYear}&month=${currentMonth}`;
-    if(driverId) url += `&driver_id=${driverId}`;
-    window.open(url, '_blank');
+// ===== Generate from dispatches =====
+async function generateFromDispatches() {
+    if (!confirm(`${currentYear}年${currentMonth}月の配車データから勤怠を自動生成しますか？`)) return;
+    try {
+        const res = await fetch(`/api/attendance/from-dispatches?year=${currentYear}&month=${currentMonth}`, {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || '自動生成に失敗しました');
+        }
+        const result = await res.json();
+        alert(`${result.created || 0}件の勤怠を生成しました。`);
+        loadRecords();
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
-initMonth(); loadDrivers().then(()=>loadAttendance());
+// ===== CSV Export =====
+function exportCSV() {
+    if (records.length === 0) { alert('エクスポートするデータがありません。'); return; }
+
+    const headers = [
+        '日付','ドライバー','車両','出勤','退勤','出庫時間','帰庫時間',
+        '休憩(分)','待機(分)','積込(分)','荷卸(分)','種別',
+        '走行距離(km)','運行経路',
+        '出庫前点呼','帰庫後点呼','アルコール検知',
+        '給油量(L)','給油金額','高速代','高速区間',
+        '休憩場所','天候','手当','事故・故障',
+        '残業(分)','深夜(分)','備考'
+    ];
+    const rows = records.map(r => [
+        r.date || '',
+        r.driver_name || '',
+        r.vehicle_number || '',
+        (r.clock_in || r.start_time || ''),
+        (r.clock_out || r.end_time || ''),
+        r.departure_time || '',
+        r.return_time || '',
+        r.break_minutes != null ? r.break_minutes : '',
+        r.waiting_time != null ? r.waiting_time : '',
+        r.loading_time != null ? r.loading_time : '',
+        r.unloading_time != null ? r.unloading_time : '',
+        r.work_type || '',
+        r.distance_km != null ? r.distance_km : '',
+        r.routes || '',
+        r.pre_check_time || '',
+        r.post_check_time || '',
+        r.alcohol_check || '',
+        r.fuel_liters != null ? r.fuel_liters : '',
+        r.fuel_cost != null ? r.fuel_cost : '',
+        r.highway_cost != null ? r.highway_cost : '',
+        r.highway_sections || '',
+        r.break_location || '',
+        r.weather || '',
+        r.allowance != null ? r.allowance : '',
+        r.incidents || '',
+        r.overtime_minutes != null ? r.overtime_minutes : '',
+        r.night_minutes != null ? r.night_minutes : (r.late_night_minutes != null ? r.late_night_minutes : ''),
+        r.notes || ''
+    ]);
+
+    const bom = '\uFEFF';
+    const csv = bom + [headers, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `勤怠_${currentYear}${String(currentMonth).padStart(2,'0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
