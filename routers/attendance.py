@@ -20,6 +20,9 @@ class AttendanceCreate(BaseModel):
     late_night_minutes: int = 0
     distance_km: float = 0
     allowance: int = 0
+    waiting_time: int = 0
+    loading_time: int = 0
+    unloading_time: int = 0
     notes: str = ""
 
 
@@ -32,6 +35,9 @@ class AttendanceUpdate(BaseModel):
     late_night_minutes: Optional[int] = None
     distance_km: Optional[float] = None
     allowance: Optional[int] = None
+    waiting_time: Optional[int] = None
+    loading_time: Optional[int] = None
+    unloading_time: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -56,12 +62,10 @@ def list_attendance(month: str = "", driver_id: int = 0, db: Session = Depends(g
 @router.post("")
 def create_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
     att = Attendance(**data.model_dump())
-    # 自動計算: 残業時間
     if att.clock_in and att.clock_out:
         work_mins = _time_diff(att.clock_in, att.clock_out) - att.break_minutes
-        if work_mins > 480:  # 8時間超
+        if work_mins > 480:
             att.overtime_minutes = work_mins - 480
-        # 深夜時間計算 (22:00-05:00)
         att.late_night_minutes = _calc_late_night(att.clock_in, att.clock_out)
     db.add(att)
     db.commit()
@@ -80,6 +84,8 @@ def generate_from_dispatches(target_date: str, db: Session = Depends(get_db)):
         ).first()
         if existing:
             continue
+        # 案件の作業時間を取得
+        shipment = disp.shipment if disp.shipment_id else None
         att = Attendance(
             driver_id=disp.driver_id,
             date=disp.date,
@@ -87,6 +93,9 @@ def generate_from_dispatches(target_date: str, db: Session = Depends(get_db)):
             clock_out=disp.end_time or "",
             break_minutes=60,
             work_type="通常",
+            waiting_time=shipment.waiting_time if shipment else 0,
+            loading_time=shipment.loading_time if shipment else 0,
+            unloading_time=shipment.unloading_time if shipment else 0,
         )
         if att.clock_in and att.clock_out:
             work_mins = _time_diff(att.clock_in, att.clock_out) - att.break_minutes
@@ -105,7 +114,6 @@ def update_attendance(att_id: int, data: AttendanceUpdate, db: Session = Depends
         raise HTTPException(status_code=404, detail="勤怠記録が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(att, key, value)
-    # 再計算
     if att.clock_in and att.clock_out:
         work_mins = _time_diff(att.clock_in, att.clock_out) - att.break_minutes
         att.overtime_minutes = max(0, work_mins - 480)
@@ -135,12 +143,10 @@ def _calc_late_night(start: str, end: str) -> int:
     start_min = sh * 60 + sm
     end_min = eh * 60 + em
     late_night = 0
-    # 22:00 (1320) - 24:00 (1440)
     ln_start = 22 * 60
     ln_end = 24 * 60
     if end_min > ln_start:
         late_night += min(end_min, ln_end) - max(start_min, ln_start)
-    # 0:00 - 5:00 (300)
     early_end = 5 * 60
     if start_min < early_end:
         late_night += min(end_min, early_end) - start_min

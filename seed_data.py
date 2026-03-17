@@ -2,12 +2,12 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from database import engine, SessionLocal, Base
 from models import (Vehicle, Driver, Shipment, Dispatch, DailyReport, Client,
                     PartnerCompany, PartnerInvoice, PartnerInvoiceItem,
                     TransportRequest, VehicleNotification, Attendance,
-                    AccountEntry, CompanySettings)
+                    AccountEntry, CompanySettings, ClientNote, VehicleCost)
 
 
 def seed():
@@ -26,6 +26,7 @@ def seed():
         representative="代表取締役 佐藤一郎",
         registration_number="T1234567890123",
         bank_info="みずほ銀行 蒲田支店 普通 1234567",
+        notes="一般貨物自動車運送事業",
     )
     db.add(settings)
 
@@ -53,20 +54,53 @@ def seed():
     db.add_all(drivers)
     db.flush()
 
-    # 荷主企業
+    # 荷主企業（請求先情報付き）
     clients = [
-        Client(name="ABC物流", address="東京都大田区南蒲田1-1-1", phone="03-1234-5678", fax="03-1234-5679", contact_person="鈴木部長"),
-        Client(name="XYZ商事", address="埼玉県さいたま市大宮区桜木町1-1", phone="048-123-4567", fax="048-123-4568", contact_person="田中課長"),
-        Client(name="山本建設", address="東京都江東区有明3-3-3", phone="03-2345-6789", contact_person="山本社長"),
-        Client(name="日本通商", address="東京都品川区東品川2-2-2", phone="03-3456-7890", fax="03-3456-7891", contact_person="佐々木主任"),
-        Client(name="太陽食品", address="千葉県船橋市本町5-5-5", phone="047-123-4567", contact_person="中村係長"),
-        Client(name="関東運輸", address="東京都墨田区錦糸1-1-1", phone="03-4567-8901", contact_person="高橋部長"),
-        Client(name="東海配送", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-123-4567", contact_person="伊藤店長"),
-        Client(name="北関東商事", address="群馬県高崎市栄町1-1-1", phone="027-123-4567", contact_person="小林課長"),
-        Client(name="湘南物流", address="神奈川県藤沢市藤沢1-1-1", phone="0466-12-3456", contact_person="渡辺部長"),
+        Client(name="ABC物流", address="東京都大田区南蒲田1-1-1", phone="03-1234-5678", fax="03-1234-5679",
+               contact_person="鈴木部長",
+               billing_address="東京都大田区南蒲田1-1-1 経理部宛", billing_contact="経理 山田",
+               billing_email="keiri@abc-logistics.co.jp", payment_terms="月末締め翌月末払い",
+               credit_limit=5000000, tax_id="T9876543210123"),
+        Client(name="XYZ商事", address="埼玉県さいたま市大宮区桜木町1-1", phone="048-123-4567", fax="048-123-4568",
+               contact_person="田中課長",
+               billing_address="埼玉県さいたま市大宮区桜木町1-1", billing_contact="経理 佐藤",
+               billing_email="billing@xyz-trading.co.jp", payment_terms="月末締め翌月末払い",
+               credit_limit=3000000),
+        Client(name="山本建設", address="東京都江東区有明3-3-3", phone="03-2345-6789",
+               contact_person="山本社長",
+               billing_email="yamamoto@yamaken.co.jp", payment_terms="20日締め翌月末払い",
+               credit_limit=2000000),
+        Client(name="日本通商", address="東京都品川区東品川2-2-2", phone="03-3456-7890", fax="03-3456-7891",
+               contact_person="佐々木主任",
+               billing_address="東京都品川区東品川2-2-2 管理部", billing_contact="管理部 木村",
+               billing_email="accounts@nihon-tsusho.co.jp", payment_terms="月末締め翌月末払い",
+               credit_limit=10000000, tax_id="T1111222233334"),
+        Client(name="太陽食品", address="千葉県船橋市本町5-5-5", phone="047-123-4567",
+               contact_person="中村係長",
+               billing_email="nakamura@taiyo-foods.co.jp", payment_terms="月末締め翌月末払い"),
+        Client(name="関東運輸", address="東京都墨田区錦糸1-1-1", phone="03-4567-8901",
+               contact_person="高橋部長", payment_terms="月末締め翌月末払い"),
+        Client(name="東海配送", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-123-4567",
+               contact_person="伊藤店長", payment_terms="20日締め翌月末払い"),
+        Client(name="北関東商事", address="群馬県高崎市栄町1-1-1", phone="027-123-4567",
+               contact_person="小林課長", payment_terms="月末締め翌月末払い"),
+        Client(name="湘南物流", address="神奈川県藤沢市藤沢1-1-1", phone="0466-12-3456",
+               contact_person="渡辺部長", billing_email="watanabe@shonan-logi.co.jp",
+               payment_terms="月末締め翌月末払い"),
     ]
     db.add_all(clients)
     db.flush()
+
+    # 荷主連絡履歴
+    client_notes = [
+        ClientNote(client_id=clients[0].id, content="月次定例ミーティング実施。来月から週3回→週5回に増便希望あり。", created_by="佐藤"),
+        ClientNote(client_id=clients[0].id, content="増便の見積り¥425,000/月で提出済み。返答待ち。", created_by="佐藤"),
+        ClientNote(client_id=clients[1].id, content="冷蔵便の温度管理について要望あり。庫内温度3℃以下を希望。", created_by="田中"),
+        ClientNote(client_id=clients[3].id, content="精密機器輸送の保険について問い合わせあり。別途見積り中。", created_by="佐藤"),
+    ]
+    for note in client_notes:
+        note.date = datetime.now() - timedelta(days=client_notes.index(note) * 3)
+    db.add_all(client_notes)
 
     # 協力会社
     partners = [
@@ -80,41 +114,48 @@ def seed():
     db.add_all(partners)
     db.flush()
 
-    # 案件
+    # 案件（待機・積込・荷卸時間付き）
     shipments = [
         Shipment(name="ABC家電定期便", client_name="ABC物流", cargo_description="家電製品", weight=3000,
                  pickup_address="東京都大田区平和島", delivery_address="神奈川県横浜市港北区",
                  pickup_date=today, pickup_time="06:00", delivery_date=today, delivery_time="12:00",
                  time_note="午前必着", price=85000, status="配車済",
+                 waiting_time=15, loading_time=30, unloading_time=20,
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         Shipment(name="XYZ冷蔵便", client_name="XYZ商事", cargo_description="食品(冷蔵)", weight=8000,
                  pickup_address="埼玉県さいたま市大宮区", delivery_address="千葉県千葉市美浜区",
                  pickup_date=today, pickup_time="08:00", delivery_date=today, delivery_time="16:00",
                  price=120000, status="配車済",
+                 waiting_time=10, loading_time=45, unloading_time=30,
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="山本建材輸送", client_name="山本建設", cargo_description="建材", weight=5000,
                  pickup_address="東京都江東区有明", delivery_address="茨城県つくば市",
                  pickup_date=today, delivery_date=today + timedelta(days=1), price=95000, status="未配車",
+                 waiting_time=20, loading_time=60, unloading_time=45,
                  time_note="AM指定", frequency_type="単発", frequency_days=""),
         Shipment(name="日本通商精密機器", client_name="日本通商", cargo_description="精密機器", weight=1500,
                  pickup_address="東京都品川区東品川", delivery_address="静岡県浜松市中区",
                  pickup_date=today + timedelta(days=1), pickup_time="09:00", delivery_date=today + timedelta(days=1), delivery_time="18:00",
                  time_note="取扱注意・時間厳守", price=150000, status="未配車",
+                 waiting_time=30, loading_time=40, unloading_time=40,
                  frequency_type="曜日指定", frequency_days="火,木"),
         Shipment(name="太陽飲料配送", client_name="太陽食品", cargo_description="飲料", weight=6000,
                  pickup_address="千葉県船橋市", delivery_address="東京都新宿区",
                  pickup_date=today + timedelta(days=2), pickup_time="07:00", delivery_date=today + timedelta(days=2), delivery_time="11:00",
                  price=65000, status="未配車",
+                 waiting_time=5, loading_time=20, unloading_time=15,
                  frequency_type="毎日", frequency_days=""),
         # 完了済み(売上データ用)
         Shipment(name="関東雑貨便", client_name="関東運輸", cargo_description="雑貨", weight=2000,
                  pickup_address="東京都墨田区", delivery_address="神奈川県川崎市",
                  pickup_date=today - timedelta(days=1), delivery_date=today - timedelta(days=1), price=55000, status="完了",
+                 waiting_time=10, loading_time=15, unloading_time=10,
                  frequency_type="曜日指定", frequency_days="月,火,水,木,金"),
         Shipment(name="東海部品輸送", client_name="東海配送", cargo_description="自動車部品", weight=7000,
                  pickup_address="神奈川県横浜市鶴見区", delivery_address="静岡県沼津市",
                  pickup_date=today - timedelta(days=2), delivery_date=today - timedelta(days=2), price=180000, status="完了",
                  invoice_status="請求済", invoice_date=today - timedelta(days=1),
+                 waiting_time=20, loading_time=50, unloading_time=35,
                  frequency_type="単発", frequency_days=""),
         Shipment(name="北関東衣料便", client_name="北関東商事", cargo_description="衣料品", weight=3500,
                  pickup_address="群馬県高崎市", delivery_address="東京都渋谷区",
@@ -146,19 +187,23 @@ def seed():
     db.add_all(dispatches_data)
     db.flush()
 
-    # 日報
+    # 日報（待機・積込・荷卸時間付き）
     reports = [
         DailyReport(driver_id=drivers[0].id, date=today - timedelta(days=1),
                     start_time="06:30", end_time="18:00", distance_km=245.5, fuel_liters=42.0,
+                    waiting_time=25, loading_time=30, unloading_time=20,
                     notes="首都高渋滞あり"),
         DailyReport(driver_id=drivers[1].id, date=today - timedelta(days=1),
                     start_time="07:00", end_time="17:30", distance_km=180.0, fuel_liters=35.0,
+                    waiting_time=10, loading_time=45, unloading_time=30,
                     notes="問題なし"),
         DailyReport(driver_id=drivers[2].id, date=today - timedelta(days=1),
                     start_time="08:00", end_time="16:00", distance_km=120.0, fuel_liters=18.0,
+                    waiting_time=30, loading_time=20, unloading_time=15,
                     notes="荷受け待ち30分"),
         DailyReport(driver_id=drivers[0].id, date=today - timedelta(days=2),
                     start_time="05:00", end_time="19:00", distance_km=310.0, fuel_liters=55.0,
+                    waiting_time=40, loading_time=60, unloading_time=35,
                     notes="長距離運行"),
     ]
     db.add_all(reports)
@@ -238,7 +283,7 @@ def seed():
             status="未送付"),
     ])
 
-    # 勤怠データ（過去2週間分）
+    # 勤怠データ（過去2週間分、待機・積込・荷卸時間付き）
     for d_offset in range(1, 15):
         d = today - timedelta(days=d_offset)
         if d.weekday() >= 5:  # 土日スキップ
@@ -261,33 +306,57 @@ def seed():
                 overtime_minutes=overtime, late_night_minutes=late_night,
                 distance_km=[245, 180, 120, 300][drv_idx],
                 allowance=[1000, 1000, 500, 1500][drv_idx],
+                waiting_time=[15, 10, 30, 20][drv_idx],
+                loading_time=[30, 45, 20, 50][drv_idx],
+                unloading_time=[20, 30, 15, 35][drv_idx],
             ))
 
+    # 車両固定費
+    vehicle_costs = [
+        VehicleCost(vehicle_id=vehicles[0].id, cost_type="リース料", amount=180000, frequency="月額", notes="ウイング車リース"),
+        VehicleCost(vehicle_id=vehicles[0].id, cost_type="任意保険", amount=360000, frequency="年額", notes="対人対物無制限"),
+        VehicleCost(vehicle_id=vehicles[0].id, cost_type="自賠責保険", amount=30000, frequency="年額"),
+        VehicleCost(vehicle_id=vehicles[1].id, cost_type="リース料", amount=200000, frequency="月額", notes="冷蔵車リース（冷凍機含む）"),
+        VehicleCost(vehicle_id=vehicles[1].id, cost_type="任意保険", amount=380000, frequency="年額"),
+        VehicleCost(vehicle_id=vehicles[2].id, cost_type="ローン", amount=120000, frequency="月額", notes="残り24回"),
+        VehicleCost(vehicle_id=vehicles[2].id, cost_type="任意保険", amount=300000, frequency="年額"),
+        VehicleCost(vehicle_id=vehicles[3].id, cost_type="リース料", amount=250000, frequency="月額", notes="トレーラーリース"),
+        VehicleCost(vehicle_id=vehicles[3].id, cost_type="任意保険", amount=420000, frequency="年額"),
+        VehicleCost(vehicle_id=vehicles[4].id, cost_type="任意保険", amount=360000, frequency="年額"),
+        VehicleCost(vehicle_id=vehicles[5].id, cost_type="リース料", amount=100000, frequency="月額", notes="バンリース"),
+        VehicleCost(vehicle_id=vehicles[5].id, cost_type="任意保険", amount=280000, frequency="年額"),
+    ]
+    db.add_all(vehicle_costs)
+
     # 会計データ
-    # 収入（完了案件から）
-    for s in shipments:
+    # 収入（完了案件から、車両紐付き）
+    completed_vehicle_map = {0: vehicles[0].id, 1: vehicles[3].id}  # shipment index → vehicle_id
+    for idx, s in enumerate(shipments):
         if s.status == "完了":
+            v_id = completed_vehicle_map.get(idx)
             db.add(AccountEntry(
                 date=s.delivery_date, entry_type="収入", category="運賃収入",
                 description=f"{s.client_name}: {s.pickup_address} → {s.delivery_address}",
-                amount=s.price, related_shipment_id=s.id))
+                amount=s.price, related_shipment_id=s.id,
+                vehicle_id=v_id))
 
-    # 支出
+    # 支出（車両紐付き）
     expenses = [
-        (today - timedelta(days=1), "燃料費", "軽油 200L @140円", 28000),
-        (today - timedelta(days=2), "高速代", "首都高+東名 品川→浜松", 8500),
-        (today - timedelta(days=3), "燃料費", "軽油 150L @140円", 21000),
-        (today - timedelta(days=3), "高速代", "関越道 練馬→高崎", 4200),
-        (today - timedelta(days=5), "修理・整備費", "千葉500お7890 タイヤ交換4本", 120000),
-        (today - timedelta(days=7), "保険料", "車両保険 月額分", 85000),
-        (today - timedelta(days=7), "リース料", "大宮400え3456 月額リース", 250000),
-        (today - timedelta(days=10), "協力会社支払", "丸一運送 2月分", 280000),
-        (today - timedelta(days=10), "給与・手当", "ドライバー手当 3月前半", 180000),
-        (today - timedelta(days=12), "事務所経費", "事務所家賃 3月分", 150000),
-        (today - timedelta(days=14), "燃料費", "軽油 250L @140円", 35000),
+        (today - timedelta(days=1), "燃料費", "軽油 200L @140円", 28000, vehicles[0].id),
+        (today - timedelta(days=2), "高速代(ETC)", "首都高+東名 品川→浜松", 8500, vehicles[0].id),
+        (today - timedelta(days=3), "燃料費", "軽油 150L @140円", 21000, vehicles[1].id),
+        (today - timedelta(days=3), "高速代(ETC)", "関越道 練馬→高崎", 4200, vehicles[2].id),
+        (today - timedelta(days=5), "タイヤ代", "千葉500お7890 タイヤ交換4本", 120000, vehicles[4].id),
+        (today - timedelta(days=7), "保険料", "車両保険 月額分", 85000, None),
+        (today - timedelta(days=7), "リース料", "大宮400え3456 月額リース", 250000, vehicles[3].id),
+        (today - timedelta(days=10), "協力会社支払", "丸一運送 2月分", 280000, None),
+        (today - timedelta(days=10), "給与・手当", "ドライバー手当 3月前半", 180000, None),
+        (today - timedelta(days=12), "事務所経費", "事務所家賃 3月分", 150000, None),
+        (today - timedelta(days=14), "燃料費", "軽油 250L @140円", 35000, vehicles[3].id),
+        (today - timedelta(days=2), "駐車場代", "月極駐車場 3月分", 50000, None),
     ]
-    for d, cat, desc, amt in expenses:
-        db.add(AccountEntry(date=d, entry_type="支出", category=cat, description=desc, amount=amt))
+    for d, cat, desc, amt, v_id in expenses:
+        db.add(AccountEntry(date=d, entry_type="支出", category=cat, description=desc, amount=amt, vehicle_id=v_id))
 
     db.commit()
     db.close()

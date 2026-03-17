@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会計管理 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #8b5cf6; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.15); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.25); font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        h1, h2 { margin-bottom: 1rem; } h2 { font-size: 1.2rem; }
+        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .month-sel { display: flex; align-items: center; gap: .5rem; }
+        .month-sel button { background: #8b5cf6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
+        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
+        select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th, td { padding: .5rem .7rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        tr:hover { background: #f8fafc; }
+        .text-right { text-align: right; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #8b5cf6; color: #fff; }
+        .btn-success { background: #22c55e; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn:hover { opacity: .85; }
+        /* Bar chart */
+        .bar-chart { display: flex; align-items: flex-end; gap: .75rem; height: 180px; padding: .5rem 0; }
+        .bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+        .bar { width: 100%; min-width: 30px; background: #8b5cf6; border-radius: 4px 4px 0 0; transition: height .3s; }
+        .bar-label { font-size: .72rem; text-align: center; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+        .bar-value { font-size: .72rem; font-weight: 600; }
+        .profit-pos { color: #16a34a; } .profit-neg { color: #ef4444; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .form-group { margin-bottom: .85rem; }
+        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+        .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
+        @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing">💰 請求</a>
+    <a href="/app/attendance">⏰ 勤怠</a>
+    <a href="/app/accounting" class="active">📒 会計</a>
+    <a href="/app/reports">📝 日報</a>
+</nav>
+<div class="container">
+    <h1>会計管理</h1>
+    <div class="toolbar">
+        <div class="month-sel">
+            <button onclick="changeMonth(-1)">◀</button>
+            <span id="monthLabel"></span>
+            <button onclick="changeMonth(1)">▶</button>
+        </div>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 追加</button>
+        <button class="btn btn-success" onclick="importRevenue()">💰 売上自動取込</button>
+        <button class="btn btn-outline" onclick="exportCSV()">📥 CSV出力</button>
+    </div>
+    <div class="stats">
+        <div class="stat-card"><div class="label">収入合計</div><div class="value" id="statIncome" style="color:#16a34a">-</div></div>
+        <div class="stat-card"><div class="label">支出合計</div><div class="value" id="statExpense" style="color:#ef4444">-</div></div>
+        <div class="stat-card"><div class="label">利益</div><div class="value" id="statProfit">-</div></div>
+    </div>
+
+    <div class="card">
+        <h2>カテゴリ別支出</h2>
+        <div class="bar-chart" id="barChart"></div>
+    </div>
+
+    <div class="card" style="overflow-x:auto">
+        <h2>明細</h2>
+        <table>
+            <thead><tr><th>日付</th><th>種別</th><th>カテゴリ</th><th>車両</th><th>摘要</th><th class="text-right">金額</th><th>操作</th></tr></thead>
+            <tbody id="tblBody"></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="overflow-x:auto">
+        <h2>車両別損益 <button class="btn btn-outline" style="font-size:.78rem;padding:.2rem .6rem;margin-left:.5rem" onclick="openCostModal()">固定費管理</button></h2>
+        <table>
+            <thead><tr><th>車両</th><th class="text-right">売上</th><th class="text-right">燃料費</th><th class="text-right">ETC</th><th class="text-right">その他変動費</th><th class="text-right">固定費</th><th class="text-right">利益</th></tr></thead>
+            <tbody id="pnlBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Entry Modal -->
+<div class="modal-overlay" id="formModal">
+    <div class="modal">
+        <h2 id="formTitle">仕訳追加</h2>
+        <input type="hidden" id="editId">
+        <div class="form-row">
+            <div class="form-group"><label>日付</label><input type="date" id="fDate"></div>
+            <div class="form-group"><label>種別</label><select id="fType"><option value="収入">収入</option><option value="支出">支出</option></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>カテゴリ</label><select id="fCategory">
+                <option>売上</option><option>燃料費</option><option>ETC</option><option>修繕費</option><option>保険料</option><option>リース料</option><option>人件費</option><option>その他</option>
+            </select></div>
+            <div class="form-group"><label>車両</label><select id="fVehicle"><option value="">なし</option></select></div>
+        </div>
+        <div class="form-group"><label>摘要</label><input type="text" id="fDescription"></div>
+        <div class="form-group"><label>金額</label><input type="number" id="fAmount"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('formModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveEntry()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Vehicle Cost Modal -->
+<div class="modal-overlay" id="costModal">
+    <div class="modal">
+        <h2>車両固定費管理</h2>
+        <div class="form-row">
+            <div class="form-group"><label>車両</label><select id="cVehicle" onchange="loadVehicleCosts()"></select></div>
+            <div class="form-group"><label>対象月</label><input type="month" id="cMonth"></div>
+        </div>
+        <div id="costFields">
+            <div class="form-group"><label>リース料</label><input type="number" id="cLease" value="0"></div>
+            <div class="form-group"><label>保険料</label><input type="number" id="cInsurance" value="0"></div>
+            <div class="form-group"><label>税金</label><input type="number" id="cTax" value="0"></div>
+            <div class="form-group"><label>その他固定費</label><input type="number" id="cOther" value="0"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('costModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveVehicleCost()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+async function apiGet(u){const r=await fetch(u);if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiPost(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiPut(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiDelete(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error(r.statusText);return r.json();}
+function openModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+function yen(n){return '¥'+(n||0).toLocaleString();}
+
+let currentYear,currentMonth,entries=[],vehicles=[],summary={},vehiclePnl=[];
+
+function initMonth(){const d=new Date();currentYear=d.getFullYear();currentMonth=d.getMonth()+1;updateMonthLabel();}
+function changeMonth(delta){currentMonth+=delta;if(currentMonth>12){currentMonth=1;currentYear++;}if(currentMonth<1){currentMonth=12;currentYear--;}updateMonthLabel();loadAll();}
+function updateMonthLabel(){document.getElementById('monthLabel').textContent=`${currentYear}年${currentMonth}月`;}
+
+async function loadVehicles(){
+    try {
+        const data=await apiGet('/api/vehicles');
+        vehicles=Array.isArray(data)?data:(data.vehicles||[]);
+        const opts=vehicles.map(v=>`<option value="${v.id}">${v.number||v.plate_number||v.name||'車両'+v.id}</option>`).join('');
+        document.getElementById('fVehicle').innerHTML='<option value="">なし</option>'+opts;
+        document.getElementById('cVehicle').innerHTML=opts;
+    } catch(e){console.error(e);}
+}
+
+async function loadAll(){ await Promise.all([loadEntries(), loadSummary(), loadPnl()]); }
+
+async function loadEntries(){
+    try {
+        const data=await apiGet(`/api/accounting?year=${currentYear}&month=${currentMonth}`);
+        entries=Array.isArray(data)?data:(data.entries||[]);
+        renderTable();
+    } catch(e){console.error(e);}
+}
+
+async function loadSummary(){
+    try {
+        summary=await apiGet(`/api/accounting/summary?year=${currentYear}&month=${currentMonth}`);
+        renderStats(); renderChart();
+    } catch(e){
+        // Fallback: compute from entries
+        const inc=entries.filter(e=>e.type==='収入').reduce((s,e)=>s+(e.amount||0),0);
+        const exp=entries.filter(e=>e.type==='支出').reduce((s,e)=>s+(e.amount||0),0);
+        summary={income:inc,expense:exp,profit:inc-exp,categories:{}};
+        renderStats(); renderChart();
+    }
+}
+
+async function loadPnl(){
+    try {
+        const data=await apiGet(`/api/accounting/vehicle-pnl?year=${currentYear}&month=${currentMonth}`);
+        vehiclePnl=Array.isArray(data)?data:(data.vehicles||[]);
+        renderPnl();
+    } catch(e){console.error(e);}
+}
+
+function renderStats(){
+    document.getElementById('statIncome').textContent=yen(summary.income);
+    document.getElementById('statExpense').textContent=yen(summary.expense);
+    const profit=summary.profit||(summary.income||0)-(summary.expense||0);
+    const el=document.getElementById('statProfit');
+    el.textContent=yen(profit);
+    el.style.color=profit>=0?'#16a34a':'#ef4444';
+}
+
+function renderChart(){
+    const cats=summary.categories||{};
+    const max=Math.max(...Object.values(cats),1);
+    document.getElementById('barChart').innerHTML=Object.entries(cats).map(([k,v])=>
+        `<div class="bar-item"><div class="bar-value">${yen(v)}</div><div class="bar" style="height:${Math.max(v/max*150,4)}px"></div><div class="bar-label">${k}</div></div>`
+    ).join('')||'<div style="color:#94a3b8;padding:2rem">データなし</div>';
+}
+
+function vName(vid){ const v=vehicles.find(x=>x.id===vid); return v?(v.number||v.plate_number||v.name||'車両'+v.id):'-'; }
+
+function renderTable(){
+    document.getElementById('tblBody').innerHTML=entries.map(e=>`<tr>
+        <td>${e.date||'-'}</td><td>${e.type}</td><td>${e.category||'-'}</td>
+        <td>${e.vehicle_id?vName(e.vehicle_id):'-'}</td><td>${e.description||'-'}</td>
+        <td class="text-right">${yen(e.amount)}</td>
+        <td><button class="btn btn-outline" style="padding:.2rem .5rem;font-size:.78rem" onclick="editEntry(${e.id})">編集</button>
+        <button class="btn btn-danger" style="padding:.2rem .5rem;font-size:.78rem" onclick="deleteEntry(${e.id})">削除</button></td>
+    </tr>`).join('');
+}
+
+function renderPnl(){
+    document.getElementById('pnlBody').innerHTML=vehiclePnl.map(v=>{
+        const profit=(v.revenue||0)-(v.fuel||0)-(v.etc||0)-(v.other_variable||0)-(v.fixed_cost||0);
+        return `<tr>
+        <td>${v.vehicle_name||vName(v.vehicle_id)}</td>
+        <td class="text-right">${yen(v.revenue)}</td><td class="text-right">${yen(v.fuel)}</td>
+        <td class="text-right">${yen(v.etc)}</td><td class="text-right">${yen(v.other_variable)}</td>
+        <td class="text-right">${yen(v.fixed_cost)}</td>
+        <td class="text-right ${profit>=0?'profit-pos':'profit-neg'}">${yen(profit)}</td></tr>`;
+    }).join('');
+}
+
+function openAddModal(){
+    document.getElementById('editId').value='';
+    document.getElementById('formTitle').textContent='仕訳追加';
+    ['fDate','fDescription'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('fAmount').value='';
+    document.getElementById('fType').value='支出';
+    document.getElementById('fVehicle').value='';
+    openModal('formModal');
+}
+
+function editEntry(id){
+    const e=entries.find(x=>x.id===id); if(!e) return;
+    document.getElementById('editId').value=id;
+    document.getElementById('formTitle').textContent='仕訳編集';
+    document.getElementById('fDate').value=e.date||'';
+    document.getElementById('fType').value=e.type||'支出';
+    document.getElementById('fCategory').value=e.category||'その他';
+    document.getElementById('fVehicle').value=e.vehicle_id||'';
+    document.getElementById('fDescription').value=e.description||'';
+    document.getElementById('fAmount').value=e.amount||'';
+    openModal('formModal');
+}
+
+async function saveEntry(){
+    const id=document.getElementById('editId').value;
+    const payload={
+        date:document.getElementById('fDate').value,
+        type:document.getElementById('fType').value,
+        category:document.getElementById('fCategory').value,
+        vehicle_id:parseInt(document.getElementById('fVehicle').value)||null,
+        description:document.getElementById('fDescription').value,
+        amount:parseInt(document.getElementById('fAmount').value)||0,
+    };
+    if(id) await apiPut(`/api/accounting/${id}`,payload);
+    else await apiPost('/api/accounting',payload);
+    closeModal('formModal'); loadAll();
+}
+
+async function deleteEntry(id){if(!confirm('削除しますか？'))return; await apiDelete(`/api/accounting/${id}`); loadAll();}
+
+async function importRevenue(){
+    if(!confirm('売上データを自動取込しますか？'))return;
+    await apiPost('/api/accounting/import-revenue',{year:currentYear,month:currentMonth});
+    loadAll();
+}
+
+function exportCSV(){ window.open(`/api/export/accounting?year=${currentYear}&month=${currentMonth}`,'_blank'); }
+
+function openCostModal(){
+    document.getElementById('cMonth').value=`${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+    openModal('costModal');
+    loadVehicleCosts();
+}
+
+async function loadVehicleCosts(){
+    try {
+        const vid=document.getElementById('cVehicle').value;
+        const month=document.getElementById('cMonth').value;
+        if(!vid||!month) return;
+        const data=await apiGet(`/api/accounting/vehicle-costs?vehicle_id=${vid}&month=${month}`);
+        document.getElementById('cLease').value=data.lease||0;
+        document.getElementById('cInsurance').value=data.insurance||0;
+        document.getElementById('cTax').value=data.tax||0;
+        document.getElementById('cOther').value=data.other||0;
+    } catch(e){console.error(e);}
+}
+
+async function saveVehicleCost(){
+    await apiPost('/api/accounting/vehicle-costs',{
+        vehicle_id:parseInt(document.getElementById('cVehicle').value),
+        month:document.getElementById('cMonth').value,
+        lease:parseInt(document.getElementById('cLease').value)||0,
+        insurance:parseInt(document.getElementById('cInsurance').value)||0,
+        tax:parseInt(document.getElementById('cTax').value)||0,
+        other:parseInt(document.getElementById('cOther').value)||0,
+    });
+    closeModal('costModal'); loadPnl();
+}
+
+initMonth(); loadVehicles().then(()=>loadAll());
+</script>
+</body>
+</html>

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import os
+import re
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -7,6 +9,8 @@ from database import get_db
 from models import PartnerInvoice, PartnerInvoiceItem, PartnerCompany
 
 router = APIRouter()
+
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 
 
 class InvoiceItemCreate(BaseModel):
@@ -28,6 +32,7 @@ class InvoiceCreate(BaseModel):
     period_start: Optional[date] = None
     period_end: Optional[date] = None
     notes: str = ""
+    pdf_filename: str = ""
     items: List[InvoiceItemCreate] = []
 
 
@@ -62,6 +67,7 @@ def list_invoices(db: Session = Depends(get_db)):
             "period_start": str(inv.period_start) if inv.period_start else None,
             "period_end": str(inv.period_end) if inv.period_end else None,
             "notes": inv.notes,
+            "pdf_filename": inv.pdf_filename or "",
             "items": [{"id": it.id, "date": str(it.date) if it.date else None, "description": it.description, "amount": it.amount, "notes": it.notes} for it in items],
         }
         result.append(d)
@@ -82,6 +88,91 @@ def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
     return {"id": inv.id}
 
 
+@router.post("/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """PDFアップロード→テキスト抽出→請求情報を自動解析"""
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    filename = f"invoice_{int(__import__('time').time())}_{file.filename}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    content = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    # PDF内テキスト抽出を試みる（簡易解析）
+    extracted = _extract_invoice_data(content)
+    extracted["pdf_filename"] = filename
+
+    return extracted
+
+
+def _extract_invoice_data(pdf_bytes: bytes) -> dict:
+    """PDFバイトデータから請求情報を簡易抽出"""
+    text = ""
+    try:
+        # pdfminerが使える場合
+        from pdfminer.high_level import extract_text
+        import io
+        text = extract_text(io.BytesIO(pdf_bytes))
+    except ImportError:
+        pass
+
+    if not text:
+        try:
+            # PyPDF2フォールバック
+            import PyPDF2
+            import io
+            reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+            for page in reader.pages:
+                text += page.extract_text() or ""
+        except ImportError:
+            pass
+
+    if not text:
+        return {"extracted_text": "", "auto_parsed": False}
+
+    # テキストから金額・日付・請求番号を正規表現で抽出
+    result = {"extracted_text": text[:2000], "auto_parsed": True}
+
+    # 合計金額パターン
+    amount_patterns = [
+        r'合計[金額\s]*[¥￥]?\s*([0-9,]+)',
+        r'請求金額[\s:：]*[¥￥]?\s*([0-9,]+)',
+        r'ご請求額[\s:：]*[¥￥]?\s*([0-9,]+)',
+        r'[¥￥]\s*([0-9,]{4,})',
+    ]
+    for p in amount_patterns:
+        m = re.search(p, text)
+        if m:
+            result["total_amount"] = int(m.group(1).replace(",", ""))
+            break
+
+    # 消費税
+    tax_patterns = [r'消費税[額\s]*[¥￥]?\s*([0-9,]+)', r'税額[\s:：]*[¥￥]?\s*([0-9,]+)']
+    for p in tax_patterns:
+        m = re.search(p, text)
+        if m:
+            result["tax_amount"] = int(m.group(1).replace(",", ""))
+            break
+
+    # 請求番号
+    num_patterns = [r'請求番号[:\s：]*([A-Z0-9\-]+)', r'No[.\s:：]*([A-Z0-9\-]+)']
+    for p in num_patterns:
+        m = re.search(p, text)
+        if m:
+            result["invoice_number"] = m.group(1)
+            break
+
+    # 日付
+    date_patterns = [r'(\d{4})[年/\-](\d{1,2})[月/\-](\d{1,2})']
+    dates = re.findall(date_patterns[0], text)
+    if dates:
+        result["invoice_date"] = f"{dates[0][0]}-{int(dates[0][1]):02d}-{int(dates[0][2]):02d}"
+        if len(dates) > 1:
+            result["due_date"] = f"{dates[1][0]}-{int(dates[1][1]):02d}-{int(dates[1][2]):02d}"
+
+    return result
+
+
 @router.put("/{invoice_id}")
 def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db)):
     inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id).first()
@@ -100,6 +191,11 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
         db.delete(item)
     inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id).first()
     if inv:
+        # PDFファイルも削除
+        if inv.pdf_filename:
+            pdf_path = os.path.join(UPLOAD_DIR, inv.pdf_filename)
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
         db.delete(inv)
     db.commit()
     return {"ok": True}

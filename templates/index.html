@@ -40,17 +40,18 @@
             <li class="nav-item" data-page="map">
                 <span class="nav-icon">🗺️</span> 地図表示
             </li>
-            <li class="nav-item" data-page="revenue">
-                <span class="nav-icon">💰</span> 売上・請求
+            <li style="padding:8px 20px;font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-top:8px">サブアプリ</li>
+            <li class="nav-item" onclick="window.location='/app/billing'">
+                <span class="nav-icon">💰</span> 請求管理
             </li>
-            <li class="nav-item" data-page="attendance">
+            <li class="nav-item" onclick="window.location='/app/attendance'">
                 <span class="nav-icon">⏰</span> 勤怠管理
             </li>
-            <li class="nav-item" data-page="accounting">
-                <span class="nav-icon">📒</span> 会計
+            <li class="nav-item" onclick="window.location='/app/accounting'">
+                <span class="nav-icon">📒</span> 会計管理
             </li>
-            <li class="nav-item" data-page="reports">
-                <span class="nav-icon">📝</span> 日報
+            <li class="nav-item" onclick="window.location='/app/reports'">
+                <span class="nav-icon">📝</span> 日報管理
             </li>
             <li class="nav-item" data-page="settings">
                 <span class="nav-icon">⚙️</span> 設定
@@ -150,7 +151,8 @@
                             <th>住所</th>
                             <th>電話番号</th>
                             <th>担当者</th>
-                            <th>備考</th>
+                            <th>請求先メール</th>
+                            <th>支払条件</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -312,12 +314,24 @@
 
         <!-- 地図表示 -->
         <section class="page" id="page-map">
-            <div class="page-actions">
+            <div class="page-actions" style="flex-wrap:wrap;gap:6px">
                 <button class="btn btn-sm" onclick="changeMapDate(-1)">◀ 前日</button>
                 <input type="date" id="map-date" onchange="loadMapMarkers()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
                 <button class="btn btn-sm" onclick="changeMapDate(1)">翌日 ▶</button>
                 <button class="btn btn-sm" onclick="setMapDateToday()">今日</button>
                 <button class="btn btn-sm" onclick="loadMapMarkers()">🔄 更新</button>
+                <select id="map-filter-vehicle" onchange="loadMapMarkers()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem">
+                    <option value="">全車両</option>
+                </select>
+                <select id="map-filter-client" onchange="loadMapMarkers()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem">
+                    <option value="">全荷主</option>
+                </select>
+                <select id="map-filter-status" onchange="loadMapMarkers()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem">
+                    <option value="">全ステータス</option>
+                    <option value="予定">予定</option>
+                    <option value="運行中">運行中</option>
+                    <option value="完了">完了</option>
+                </select>
                 <span id="map-status" style="color:var(--text-light);font-size:0.85rem"></span>
             </div>
             <div class="map-wrapper">
@@ -325,159 +339,8 @@
             </div>
         </section>
 
-        <!-- 売上・請求管理 -->
-        <section class="page" id="page-revenue">
-            <div class="page-actions">
-                <button class="btn btn-sm" onclick="changeRevMonth(-1)">◀ 前月</button>
-                <input type="month" id="rev-month" onchange="loadRevenue()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
-                <button class="btn btn-sm" onclick="changeRevMonth(1)">翌月 ▶</button>
-                <button class="btn btn-sm" onclick="setRevMonthCurrent()">今月</button>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-card green">
-                    <div class="stat-label">月間売上</div>
-                    <div class="stat-value" id="rev-monthly">¥0</div>
-                </div>
-                <div class="stat-card blue">
-                    <div class="stat-label">月間完了件数</div>
-                    <div class="stat-value" id="rev-completed">0</div>
-                </div>
-                <div class="stat-card orange">
-                    <div class="stat-label">平均単価</div>
-                    <div class="stat-value" id="rev-avg">¥0</div>
-                </div>
-                <div class="stat-card purple">
-                    <div class="stat-label">未請求額</div>
-                    <div class="stat-value" id="rev-uninvoiced">¥0</div>
-                </div>
-            </div>
-            <div class="dashboard-grid">
-                <div class="card">
-                    <h3>車両別売上</h3>
-                    <div id="rev-by-vehicle"></div>
-                </div>
-                <div class="card">
-                    <h3>荷主別売上</h3>
-                    <div id="rev-by-client"></div>
-                </div>
-            </div>
-            <div class="card" style="margin-top:16px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-                    <h3 style="margin:0">案件別 請求管理</h3>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <select id="rev-filter-invoice" onchange="loadRevenue()" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem">
-                            <option value="">全て</option>
-                            <option value="未請求">未請求のみ</option>
-                            <option value="請求済">請求済のみ</option>
-                            <option value="入金済">入金済のみ</option>
-                        </select>
-                        <button class="btn btn-sm" onclick="bulkInvoice()">📄 一括請求済にする</button>
-                        <button class="btn btn-sm btn-primary" onclick="printInvoiceList()">🖨 請求書印刷</button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table class="data-table" id="invoice-table">
-                        <thead>
-                            <tr>
-                                <th><input type="checkbox" id="rev-check-all" onchange="toggleAllInvoiceChecks(this)"></th>
-                                <th>案件名</th>
-                                <th>荷主</th>
-                                <th>積地 → 卸地</th>
-                                <th>配達日</th>
-                                <th>運賃</th>
-                                <th>請求状態</th>
-                                <th>請求日</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="revenue-table"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- 勤怠管理 -->
-        <section class="page" id="page-attendance">
-            <div class="page-actions">
-                <button class="btn btn-primary" onclick="openAttendanceModal()">+ 勤怠登録</button>
-                <button class="btn btn-sm" onclick="generateAttendanceFromDispatches()">⚡ 配車から自動生成</button>
-                <button class="btn btn-sm" onclick="location.href='/api/export/attendance'" title="CSV出力">📥 CSV</button>
-                <input type="month" id="att-month" onchange="loadAttendance()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
-                <select id="att-driver-filter" onchange="loadAttendance()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem">
-                    <option value="">全ドライバー</option>
-                </select>
-            </div>
-            <div class="stats-grid" id="att-summary"></div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>ドライバー</th>
-                            <th>出勤</th>
-                            <th>退勤</th>
-                            <th>休憩(分)</th>
-                            <th>勤務種別</th>
-                            <th>残業(分)</th>
-                            <th>深夜(分)</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendance-table"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- 会計 -->
-        <section class="page" id="page-accounting">
-            <div class="page-actions">
-                <button class="btn btn-primary" onclick="openAccountEntryModal()">+ 仕訳登録</button>
-                <button class="btn btn-sm" onclick="importRevenueToAccounting()">⚡ 売上自動取込</button>
-                <button class="btn btn-sm" onclick="location.href='/api/export/accounting'" title="CSV出力">📥 CSV</button>
-                <input type="month" id="acc-month" onchange="loadAccounting()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
-            </div>
-            <div class="stats-grid" id="acc-summary"></div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>種別</th>
-                            <th>カテゴリ</th>
-                            <th>摘要</th>
-                            <th>金額</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="accounting-table"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- 日報 -->
-        <section class="page" id="page-reports">
-            <div class="page-actions">
-                <button class="btn btn-primary" onclick="openReportModal()">+ 日報作成</button>
-                <button class="btn btn-sm" onclick="autoGenerateReports()">⚡ 配車から自動生成</button>
-            </div>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>ドライバー</th>
-                            <th>出発時刻</th>
-                            <th>帰着時刻</th>
-                            <th>走行距離(km)</th>
-                            <th>給油量(L)</th>
-                            <th>備考</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reports-table"></tbody>
-                </table>
-            </div>
-        </section>
+        <!-- 売上・請求・勤怠・会計・日報は別アプリへ移行 -->
+        <!-- /app/billing, /app/attendance, /app/accounting, /app/reports -->
 
         <!-- 設定 -->
         <section class="page" id="page-settings">
@@ -516,8 +379,45 @@
                     <label>振込先情報</label>
                     <textarea id="s-bank-info" placeholder="○○銀行 ○○支店 普通 1234567"></textarea>
                 </div>
+                <div class="form-group">
+                    <label>備考</label>
+                    <textarea id="s-notes" placeholder="その他備考"></textarea>
+                </div>
                 <div class="form-actions">
                     <button class="btn btn-primary" onclick="saveCompanySettings()">保存</button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+                <h3 style="margin-bottom:16px">メール送信設定（SMTP）</h3>
+                <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px">請求書メール送付に使用するSMTP設定です</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SMTPホスト</label>
+                        <input type="text" id="s-smtp-host" placeholder="smtp.gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label>ポート</label>
+                        <input type="number" id="s-smtp-port" placeholder="587">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SMTPユーザー</label>
+                        <input type="text" id="s-smtp-user" placeholder="user@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>SMTPパスワード</label>
+                        <input type="password" id="s-smtp-password" placeholder="アプリパスワード">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>送信元メールアドレス</label>
+                    <input type="text" id="s-sender-email" placeholder="billing@example.com（空欄の場合SMTPユーザーを使用）">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="saveCompanySettings()">保存</button>
+                    <button class="btn" onclick="testSmtp()" style="margin-left:8px">テスト送信</button>
                 </div>
             </div>
         </section>
@@ -538,6 +438,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=10"></script>
+    <script src="/static/js/app.js?v=11"></script>
 </body>
 </html>

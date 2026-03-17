@@ -16,6 +16,12 @@ class CompanySettings(Base):
     registration_number = Column(String(50), default="")
     bank_info = Column(Text, default="")
     notes = Column(Text, default="")
+    # SMTP設定（請求書メール送付用）
+    smtp_host = Column(String(100), default="")
+    smtp_port = Column(Integer, default=587)
+    smtp_user = Column(String(100), default="")
+    smtp_password = Column(String(200), default="")
+    sender_email = Column(String(100), default="")
 
 
 class Client(Base):
@@ -29,6 +35,26 @@ class Client(Base):
     contact_person = Column(String(50), default="")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
+    # 請求先情報
+    billing_address = Column(String(200), default="")
+    billing_contact = Column(String(50), default="")
+    billing_email = Column(String(100), default="")
+    payment_terms = Column(String(50), default="月末締め翌月末払い")
+    credit_limit = Column(Integer, default=0)
+    tax_id = Column(String(50), default="")
+    bank_info = Column(Text, default="")
+
+
+class ClientNote(Base):
+    __tablename__ = "client_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    date = Column(DateTime, default=datetime.now)
+    content = Column(Text, default="")
+    created_by = Column(String(50), default="")
+
+    client = relationship("Client", backref="notes_log")
 
 
 class PartnerCompany(Base):
@@ -61,6 +87,7 @@ class PartnerInvoice(Base):
     period_start = Column(Date, nullable=True)
     period_end = Column(Date, nullable=True)
     notes = Column(Text, default="")
+    pdf_filename = Column(String(200), default="")
     created_at = Column(DateTime, default=datetime.now)
 
     partner = relationship("PartnerCompany")
@@ -145,6 +172,9 @@ class Attendance(Base):
     late_night_minutes = Column(Integer, default=0)
     distance_km = Column(Float, default=0)
     allowance = Column(Integer, default=0)
+    waiting_time = Column(Integer, default=0)
+    loading_time = Column(Integer, default=0)
+    unloading_time = Column(Integer, default=0)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
@@ -162,8 +192,28 @@ class AccountEntry(Base):
     amount = Column(Integer, default=0)
     related_shipment_id = Column(Integer, nullable=True)
     related_partner_id = Column(Integer, nullable=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
+
+    vehicle = relationship("Vehicle", foreign_keys=[vehicle_id])
+
+
+class VehicleCost(Base):
+    """車両ごとの固定費用（月額リース料、保険料等）"""
+    __tablename__ = "vehicle_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
+    cost_type = Column(String(50), default="")  # リース料, 保険料, 車検費用 etc
+    amount = Column(Integer, default=0)
+    frequency = Column(String(20), default="月額")  # 月額, 年額, 一回
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    notes = Column(String(200), default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    vehicle = relationship("Vehicle")
 
 
 class Vehicle(Base):
@@ -219,6 +269,10 @@ class Shipment(Base):
     status = Column(String(20), default="未配車")
     invoice_status = Column(String(20), default="未請求")
     invoice_date = Column(Date, nullable=True)
+    # 作業時間
+    waiting_time = Column(Integer, default=0)
+    loading_time = Column(Integer, default=0)
+    unloading_time = Column(Integer, default=0)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
@@ -255,6 +309,11 @@ class DailyReport(Base):
     end_time = Column(String(5), default="")
     distance_km = Column(Float, default=0)
     fuel_liters = Column(Float, default=0)
+    waiting_time = Column(Integer, default=0)
+    loading_time = Column(Integer, default=0)
+    unloading_time = Column(Integer, default=0)
+    routes = Column(Text, default="")  # JSON: 運行経路情報
+    client_names = Column(String(200), default="")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 

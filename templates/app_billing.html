@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>請求管理 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #3b82f6; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.1); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .month-sel { display: flex; align-items: center; gap: .5rem; }
+        .month-sel button { background: #3b82f6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
+        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
+        select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th, td { padding: .6rem .75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        tr:hover { background: #f8fafc; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-success { background: #22c55e; color: #fff; }
+        .btn-warning { background: #f59e0b; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn:hover { opacity: .85; }
+        .badge { padding: .2rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
+        .badge-gray { background: #f1f5f9; color: #64748b; }
+        .badge-blue { background: #dbeafe; color: #2563eb; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .bulk-actions { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; }
+        .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
+        .text-right { text-align: right; }
+        @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing" class="active">💰 請求</a>
+    <a href="/app/attendance">⏰ 勤怠</a>
+    <a href="/app/accounting">📒 会計</a>
+    <a href="/app/reports">📝 日報</a>
+</nav>
+<div class="container">
+    <h1>請求管理</h1>
+    <div class="toolbar">
+        <div class="month-sel">
+            <button onclick="changeMonth(-1)">◀</button>
+            <span id="monthLabel"></span>
+            <button onclick="changeMonth(1)">▶</button>
+        </div>
+        <select id="filterStatus" onchange="loadShipments()">
+            <option value="">全て</option>
+            <option value="未請求">未請求</option>
+            <option value="請求済">請求済</option>
+            <option value="入金済">入金済</option>
+        </select>
+    </div>
+    <div class="stats">
+        <div class="stat-card"><div class="label">月間売上</div><div class="value" id="statRevenue">-</div></div>
+        <div class="stat-card"><div class="label">完了件数</div><div class="value" id="statCount">-</div></div>
+        <div class="stat-card"><div class="label">平均単価</div><div class="value" id="statAvg">-</div></div>
+        <div class="stat-card"><div class="label">未請求額</div><div class="value" id="statUnbilled">-</div></div>
+    </div>
+    <div class="card">
+        <div class="bulk-actions">
+            <button class="btn btn-primary" onclick="bulkMarkBilled()">✅ 一括請求済</button>
+            <button class="btn btn-outline" onclick="bulkPrint()">🖨️ 請求書印刷</button>
+            <button class="btn btn-warning" onclick="openEmailModal()">📧 メール送付</button>
+        </div>
+        <div style="overflow-x:auto">
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="checkAll" onchange="toggleAll(this)"></th>
+                    <th>案件名</th><th>荷主</th><th>積地→卸地</th><th>配達日</th><th>運賃</th><th>請求状態</th><th>請求日</th><th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="tblBody"></tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<!-- Email Modal -->
+<div class="modal-overlay" id="emailModal">
+    <div class="modal">
+        <h2>📧 請求書メール送付</h2>
+        <div class="form-group"><label>宛先メール</label><input type="email" id="emailTo"></div>
+        <div class="form-group"><label>件名</label><input type="text" id="emailSubject" value="請求書のご送付"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('emailModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="sendInvoiceEmail()">送信</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- API helpers ---
+const apiBase = '';
+async function apiGet(url) { const r = await fetch(apiBase + url); if (!r.ok) throw new Error(r.statusText); return r.json(); }
+async function apiPost(url, data) { const r = await fetch(apiBase + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!r.ok) throw new Error(r.statusText); return r.json(); }
+async function apiPut(url, data) { const r = await fetch(apiBase + url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); if (!r.ok) throw new Error(r.statusText); return r.json(); }
+async function apiDelete(url) { const r = await fetch(apiBase + url, { method: 'DELETE' }); if (!r.ok) throw new Error(r.statusText); return r.json(); }
+
+// --- Modal helpers ---
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// --- Month selector ---
+let currentYear, currentMonth;
+function initMonth() {
+    const d = new Date(); currentYear = d.getFullYear(); currentMonth = d.getMonth() + 1;
+    updateMonthLabel();
+}
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    updateMonthLabel(); loadShipments();
+}
+function updateMonthLabel() {
+    document.getElementById('monthLabel').textContent = `${currentYear}年${currentMonth}月`;
+}
+function yen(n) { return '¥' + (n || 0).toLocaleString(); }
+
+let shipments = [];
+
+async function loadShipments() {
+    try {
+        const status = document.getElementById('filterStatus').value;
+        let url = `/api/shipments?year=${currentYear}&month=${currentMonth}`;
+        if (status) url += `&billing_status=${encodeURIComponent(status)}`;
+        const data = await apiGet(url);
+        shipments = Array.isArray(data) ? data : (data.shipments || []);
+        renderStats();
+        renderTable();
+    } catch (e) { console.error(e); }
+}
+
+function renderStats() {
+    const completed = shipments.filter(s => s.status === '完了' || s.delivery_date);
+    const revenue = completed.reduce((sum, s) => sum + (s.fare || 0), 0);
+    const unbilled = shipments.filter(s => s.billing_status !== '請求済' && s.billing_status !== '入金済').reduce((sum, s) => sum + (s.fare || 0), 0);
+    document.getElementById('statRevenue').textContent = yen(revenue);
+    document.getElementById('statCount').textContent = completed.length;
+    document.getElementById('statAvg').textContent = completed.length ? yen(Math.round(revenue / completed.length)) : '-';
+    document.getElementById('statUnbilled').textContent = yen(unbilled);
+}
+
+function badgeClass(status) {
+    if (status === '請求済') return 'badge-blue';
+    if (status === '入金済') return 'badge-green';
+    return 'badge-gray';
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tblBody');
+    tbody.innerHTML = shipments.map(s => `<tr>
+        <td><input type="checkbox" class="row-check" value="${s.id}"></td>
+        <td>${s.name || s.cargo_name || '-'}</td>
+        <td>${s.client_name || '-'}</td>
+        <td>${s.pickup_address || '-'} → ${s.delivery_address || '-'}</td>
+        <td>${s.delivery_date || '-'}</td>
+        <td class="text-right">${yen(s.fare)}</td>
+        <td><span class="badge ${badgeClass(s.billing_status)}">${s.billing_status || '未請求'}</span></td>
+        <td>${s.billing_date || '-'}</td>
+        <td>
+            <button class="btn btn-primary" style="padding:.3rem .5rem;font-size:.78rem" onclick="markBilled(${s.id})">請求済</button>
+        </td>
+    </tr>`).join('');
+}
+
+function getCheckedIds() {
+    return [...document.querySelectorAll('.row-check:checked')].map(c => parseInt(c.value));
+}
+function toggleAll(el) {
+    document.querySelectorAll('.row-check').forEach(c => c.checked = el.checked);
+}
+
+async function markBilled(id) {
+    const today = new Date().toISOString().slice(0, 10);
+    await apiPut(`/api/shipments/${id}`, { billing_status: '請求済', billing_date: today });
+    loadShipments();
+}
+
+async function bulkMarkBilled() {
+    const ids = getCheckedIds();
+    if (!ids.length) return alert('請求対象を選択してください');
+    const today = new Date().toISOString().slice(0, 10);
+    await Promise.all(ids.map(id => apiPut(`/api/shipments/${id}`, { billing_status: '請求済', billing_date: today })));
+    loadShipments();
+}
+
+function bulkPrint() {
+    const ids = getCheckedIds();
+    const items = ids.length ? shipments.filter(s => ids.includes(s.id)) : shipments;
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><meta charset="UTF-8"><title>請求書</title><style>
+        body{font-family:sans-serif;padding:2rem}table{width:100%;border-collapse:collapse;margin-top:1rem}
+        th,td{border:1px solid #ccc;padding:.5rem;text-align:left}th{background:#f0f0f0}.total{font-size:1.2rem;font-weight:bold;margin-top:1rem}
+        @media print{button{display:none}}</style></head><body>
+        <h1>請求書</h1><p>${currentYear}年${currentMonth}月</p>
+        <table><thead><tr><th>案件名</th><th>荷主</th><th>配達日</th><th style="text-align:right">運賃</th></tr></thead><tbody>
+        ${items.map(s => `<tr><td>${s.name || s.cargo_name || ''}</td><td>${s.client_name || ''}</td><td>${s.delivery_date || ''}</td><td style="text-align:right">¥${(s.fare||0).toLocaleString()}</td></tr>`).join('')}
+        </tbody></table>
+        <p class="total">合計: ¥${items.reduce((a,s)=>a+(s.fare||0),0).toLocaleString()}</p>
+        <button onclick="window.print()">印刷</button></body></html>`);
+}
+
+async function openEmailModal() {
+    const ids = getCheckedIds();
+    if (!ids.length) return alert('送付対象を選択してください');
+    const s = shipments.find(sh => sh.id === ids[0]);
+    if (s && s.client_id) {
+        try {
+            const client = await apiGet(`/api/clients/${s.client_id}`);
+            document.getElementById('emailTo').value = client.billing_email || client.email || '';
+        } catch(e) {}
+    }
+    document.getElementById('emailSubject').value = `${currentYear}年${currentMonth}月 請求書のご送付`;
+    openModal('emailModal');
+}
+
+async function sendInvoiceEmail() {
+    const ids = getCheckedIds();
+    await apiPost('/api/settings/send-invoice', {
+        shipment_ids: ids,
+        to: document.getElementById('emailTo').value,
+        subject: document.getElementById('emailSubject').value
+    });
+    closeModal('emailModal');
+    alert('送信しました');
+}
+
+initMonth();
+loadShipments();
+</script>
+</body>
+</html>

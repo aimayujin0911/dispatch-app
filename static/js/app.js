@@ -38,7 +38,6 @@ function navigateTo(page) {
         dashboard: 'ダッシュボード', dispatches: '配車表', shipments: '案件管理',
         clients: '荷主管理', partners: '協力会社管理', vehicles: '車両管理', drivers: 'ドライバー管理',
         documents: '書類管理', map: '地図表示',
-        revenue: '売上・請求管理', attendance: '勤怠管理', accounting: '会計', reports: '日報',
         settings: '設定'
     };
     document.getElementById('pageTitle').textContent = titles[page] || '';
@@ -47,8 +46,7 @@ function navigateTo(page) {
         dashboard: loadDashboard, dispatches: loadDispatchCalendar, shipments: loadShipments,
         clients: loadClients, partners: loadPartners, vehicles: loadVehicles, drivers: loadDrivers,
         documents: loadDocuments, map: initMap,
-        revenue: loadRevenue, attendance: loadAttendance, accounting: loadAccounting,
-        reports: loadReports, settings: loadCompanySettings
+        settings: loadCompanySettings
     };
     if (loaders[page]) loaders[page]();
     document.getElementById('sidebar').classList.remove('open');
@@ -523,33 +521,61 @@ async function onShipmentDragEnd(e) {
 
     if (!targetVehicleId) return;
 
-    // ドライバー選択モーダルを開く（車両・時間・案件はドロップから確定）
-    const drivers = await apiGet('/drivers');
-    const availableDrivers = drivers.filter(d => d.status !== '非番');
-    const endMin = timeToMinutes(dropTime) + 60;
-    const endTime = minutesToTime(Math.min(endMin, HOUR_END * 60));
+    // 案件の指定時間を取得
+    const allShipments = await apiGet('/shipments');
+    const shipment = allShipments.find(s => s.id === shipmentId);
+    const hasPresetTimes = shipment && shipment.pickup_time && shipment.delivery_time;
 
-    document.getElementById('modal-title').textContent = '配車確定 - ドライバー選択';
+    // 指定時間がある場合はそれを使う
+    let startTime = dropTime;
+    let endTime;
+    if (hasPresetTimes) {
+        startTime = shipment.pickup_time;
+        endTime = shipment.delivery_time;
+    } else {
+        const endMin = timeToMinutes(dropTime) + 60;
+        endTime = minutesToTime(Math.min(endMin, HOUR_END * 60));
+    }
+
+    // ドライバー＋協力会社選択モーダル
+    const drivers = await apiGet('/drivers');
+    const partners = await apiGet('/partners');
+    const availableDrivers = drivers.filter(d => d.status !== '非番');
+
+    const presetNote = hasPresetTimes ? `<div style="margin-bottom:12px;padding:8px 12px;background:#fef3c7;border-radius:6px;font-size:0.82rem;color:#92400e">⚠ この案件には指定時間（${shipment.pickup_time}〜${shipment.delivery_time}）が設定されています${shipment.time_note ? ' / ' + shipment.time_note : ''}</div>` : '';
+
+    document.getElementById('modal-title').textContent = '配車確定';
     document.getElementById('modal-body').innerHTML = `
         <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
             <div><strong>日付:</strong> ${dayStr}</div>
-            <div><strong>時間:</strong> ${dropTime} 〜 ${endTime}</div>
+            <div><strong>時間:</strong> ${startTime} 〜 ${endTime}</div>
+            ${shipment ? `<div><strong>荷主:</strong> ${shipment.client_name}</div>` : ''}
         </div>
-        <div class="form-group">
-            <label>ドライバー</label>
-            <select id="f-sd-driver">
-                <option value="">-- 選択 --</option>
-                ${availableDrivers.map(d => `<option value="${d.id}">${d.name} (${d.license_type}) [${d.status}]</option>`).join('')}
-            </select>
+        ${presetNote}
+        <div class="form-row">
+            <div class="form-group">
+                <label>ドライバー（自社）</label>
+                <select id="f-sd-driver" onchange="document.getElementById('f-sd-partner').value=''">
+                    <option value="">-- 選択 --</option>
+                    ${availableDrivers.map(d => `<option value="${d.id}">${d.name} (${d.license_type})</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>または 協力会社</label>
+                <select id="f-sd-partner" onchange="document.getElementById('f-sd-driver').value=''">
+                    <option value="">-- 選択 --</option>
+                    ${partners.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                </select>
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label>開始時刻</label>
-                <input type="time" id="f-sd-start" value="${dropTime}">
+                <input type="time" id="f-sd-start" value="${startTime}" ${hasPresetTimes ? `data-preset="${shipment.pickup_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
             </div>
             <div class="form-group">
                 <label>終了時刻</label>
-                <input type="time" id="f-sd-end" value="${endTime}">
+                <input type="time" id="f-sd-end" value="${endTime}" ${hasPresetTimes ? `data-preset="${shipment.delivery_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
             </div>
         </div>
         <div class="form-actions">
@@ -559,14 +585,23 @@ async function onShipmentDragEnd(e) {
     showModal();
 }
 
+function warnTimeChange(el, presetStart, presetEnd) {
+    if (!confirm(`この案件には指定時間（${presetStart}〜${presetEnd}）が設定されています。\n変更しますか？`)) {
+        document.getElementById('f-sd-start').value = presetStart;
+        document.getElementById('f-sd-end').value = presetEnd;
+    }
+}
+
 async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
-    const driverId = parseInt(document.getElementById('f-sd-driver').value);
-    if (!driverId) return alert('ドライバーを選択してください');
+    const driverId = parseInt(document.getElementById('f-sd-driver').value) || 0;
+    const partnerId = parseInt(document.getElementById('f-sd-partner').value) || 0;
+    if (!driverId && !partnerId) return alert('ドライバーまたは協力会社を選択してください');
     const startTime = document.getElementById('f-sd-start').value;
     const endTime = document.getElementById('f-sd-end').value;
-    await apiPost('/dispatches', {
+    const result = await apiPost('/dispatches', {
         vehicle_id: vehicleId,
-        driver_id: driverId,
+        driver_id: driverId || null,
+        partner_id: partnerId || null,
         shipment_id: shipmentId,
         date: dayStr,
         start_time: startTime,
@@ -574,6 +609,36 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
     });
     closeModal();
     loadDispatchCalendar();
+
+    // 協力会社選択時は輸送依頼書を即時表示
+    if (partnerId && shipmentId) {
+        createTransportRequestFromShipmentAndShow(shipmentId, partnerId);
+    }
+}
+
+async function createTransportRequestFromShipmentAndShow(shipmentId, partnerId) {
+    const shipments = await apiGet('/shipments');
+    const s = shipments.find(x => x.id === shipmentId);
+    if (!s) return;
+    const result = await apiPost('/transport-requests', {
+        partner_id: partnerId,
+        shipment_id: shipmentId,
+        request_date: new Date().toISOString().split('T')[0],
+        pickup_date: s.pickup_date,
+        pickup_time: s.pickup_time || '',
+        delivery_date: s.delivery_date,
+        delivery_time: s.delivery_time || '',
+        pickup_address: s.pickup_address,
+        delivery_address: s.delivery_address,
+        cargo_description: s.cargo_description || '',
+        cargo_weight: s.weight || 0,
+        freight_amount: s.price || 0,
+        status: '下書き',
+    });
+    if (result.id) {
+        // 輸送依頼書を即時ポップアップ表示
+        setTimeout(() => printTransportRequest(result.id), 500);
+    }
 }
 
 // ===== ガントバーリサイズ =====
@@ -1337,7 +1402,7 @@ async function loadShipments() {
         const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
         return `<tr>
             <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
-            <td><strong>${s.client_name}</strong></td>
+            <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
             <td>${s.cargo_description || '-'}</td>
             <td>${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.pickup_date}</td>
@@ -1419,6 +1484,20 @@ async function openShipmentModal(shipment = null) {
             <label>時間備考（AM指定、午前必着など）</label>
             <input type="text" id="f-s-time-note" value="${shipment?.time_note || ''}" placeholder="例: AM指定、13:00-15:00">
         </div>
+        <div class="form-row" style="background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:8px">
+            <div class="form-group">
+                <label>待機時間(分)</label>
+                <input type="number" id="f-s-waiting" value="${shipment?.waiting_time || 0}" min="0">
+            </div>
+            <div class="form-group">
+                <label>積込時間(分)</label>
+                <input type="number" id="f-s-loading" value="${shipment?.loading_time || 0}" min="0">
+            </div>
+            <div class="form-group">
+                <label>荷卸時間(分)</label>
+                <input type="number" id="f-s-unloading" value="${shipment?.unloading_time || 0}" min="0">
+            </div>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label>運賃(円)</label>
@@ -1484,6 +1563,9 @@ async function saveShipment(id) {
         frequency_type: freqType,
         frequency_days: freqDays,
         status: document.getElementById('f-s-status').value,
+        waiting_time: parseInt(document.getElementById('f-s-waiting').value) || 0,
+        loading_time: parseInt(document.getElementById('f-s-loading').value) || 0,
+        unloading_time: parseInt(document.getElementById('f-s-unloading').value) || 0,
         notes: document.getElementById('f-s-notes').value,
     };
     if (!data.client_name || !data.pickup_address || !data.delivery_address) return alert('荷主名、積地、卸地は必須です');
@@ -1507,45 +1589,47 @@ async function loadClients() {
     const clients = await apiGet('/clients');
     document.getElementById('clients-table').innerHTML = clients.map(c => `
         <tr>
-            <td><strong>${c.name}</strong></td>
+            <td><a href="#" onclick="event.preventDefault();openClientDetailModal(${c.id})" style="color:#2563eb;font-weight:600">${c.name}</a></td>
             <td>${c.address || '-'}</td>
             <td>${c.phone || '-'}</td>
             <td>${c.contact_person || '-'}</td>
-            <td>${c.notes || '-'}</td>
+            <td>${c.billing_email || '-'}</td>
+            <td>${c.payment_terms || '-'}</td>
             <td>
+                <button class="btn btn-sm" onclick="openClientDetailModal(${c.id})" title="詳細">📋</button>
                 <button class="btn btn-sm btn-edit" onclick="editClient(${c.id})">編集</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteClient(${c.id})">削除</button>
             </td>
         </tr>
-    `).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">荷主企業が登録されていません</td></tr>';
+    `).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">荷主企業が登録されていません</td></tr>';
 }
 
 function openClientModal(client = null) {
     const isEdit = !!client;
     document.getElementById('modal-title').textContent = isEdit ? '荷主編集' : '新規荷主';
     document.getElementById('modal-body').innerHTML = `
-        <div class="form-group">
-            <label>企業名</label>
-            <input type="text" id="f-cl-name" value="${client?.name || ''}">
+        <div class="form-group"><label>企業名</label><input type="text" id="f-cl-name" value="${client?.name || ''}"></div>
+        <div class="form-group"><label>住所</label><input type="text" id="f-cl-address" value="${client?.address || ''}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>電話番号</label><input type="text" id="f-cl-phone" value="${client?.phone || ''}"></div>
+            <div class="form-group"><label>FAX</label><input type="text" id="f-cl-fax" value="${client?.fax || ''}"></div>
         </div>
-        <div class="form-group">
-            <label>住所</label>
-            <input type="text" id="f-cl-address" value="${client?.address || ''}">
+        <div class="form-group"><label>担当者</label><input type="text" id="f-cl-contact" value="${client?.contact_person || ''}"></div>
+        <h4 style="margin:16px 0 8px;padding-top:12px;border-top:1px solid #e2e8f0;color:#475569">請求先情報</h4>
+        <div class="form-group"><label>請求先住所</label><input type="text" id="f-cl-billing-addr" value="${client?.billing_address || ''}" placeholder="本社と異なる場合のみ"></div>
+        <div class="form-row">
+            <div class="form-group"><label>請求担当者</label><input type="text" id="f-cl-billing-contact" value="${client?.billing_contact || ''}"></div>
+            <div class="form-group"><label>請求先メール</label><input type="email" id="f-cl-billing-email" value="${client?.billing_email || ''}" placeholder="invoice@example.com"></div>
         </div>
         <div class="form-row">
-            <div class="form-group">
-                <label>電話番号</label>
-                <input type="text" id="f-cl-phone" value="${client?.phone || ''}">
-            </div>
-            <div class="form-group">
-                <label>担当者</label>
-                <input type="text" id="f-cl-contact" value="${client?.contact_person || ''}">
-            </div>
+            <div class="form-group"><label>支払条件</label><input type="text" id="f-cl-payment-terms" value="${client?.payment_terms || '月末締め翌月末払い'}"></div>
+            <div class="form-group"><label>与信限度額</label><input type="number" id="f-cl-credit-limit" value="${client?.credit_limit || 0}"></div>
         </div>
-        <div class="form-group">
-            <label>備考</label>
-            <textarea id="f-cl-notes">${client?.notes || ''}</textarea>
+        <div class="form-row">
+            <div class="form-group"><label>適格請求書番号</label><input type="text" id="f-cl-tax-id" value="${client?.tax_id || ''}"></div>
+            <div class="form-group"><label>振込先</label><input type="text" id="f-cl-bank" value="${client?.bank_info || ''}"></div>
         </div>
+        <div class="form-group"><label>備考</label><textarea id="f-cl-notes">${client?.notes || ''}</textarea></div>
         <div class="form-actions">
             <button class="btn" onclick="closeModal()">キャンセル</button>
             <button class="btn btn-primary" onclick="saveClient(${client?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
@@ -1558,7 +1642,15 @@ async function saveClient(id) {
         name: document.getElementById('f-cl-name').value,
         address: document.getElementById('f-cl-address').value,
         phone: document.getElementById('f-cl-phone').value,
+        fax: document.getElementById('f-cl-fax').value,
         contact_person: document.getElementById('f-cl-contact').value,
+        billing_address: document.getElementById('f-cl-billing-addr').value,
+        billing_contact: document.getElementById('f-cl-billing-contact').value,
+        billing_email: document.getElementById('f-cl-billing-email').value,
+        payment_terms: document.getElementById('f-cl-payment-terms').value,
+        credit_limit: parseInt(document.getElementById('f-cl-credit-limit').value) || 0,
+        tax_id: document.getElementById('f-cl-tax-id').value,
+        bank_info: document.getElementById('f-cl-bank').value,
         notes: document.getElementById('f-cl-notes').value,
     };
     if (!data.name) return alert('企業名は必須です');
@@ -1567,14 +1659,76 @@ async function saveClient(id) {
 }
 
 async function editClient(id) {
-    const clients = await apiGet('/clients');
-    const c = clients.find(x => x.id === id);
+    const c = await apiGet(`/clients/${id}`);
     if (c) openClientModal(c);
 }
 
 async function deleteClient(id) {
     if (!confirm('この荷主企業を削除しますか？')) return;
     await apiDelete(`/clients/${id}`); loadClients();
+}
+
+// 荷主詳細モーダル（案件情報からも呼び出し可能）
+async function openClientDetailModal(clientId) {
+    const c = await apiGet(`/clients/${clientId}`);
+    if (!c) return alert('荷主情報が見つかりません');
+    const notesLog = c.notes_log || [];
+    document.getElementById('modal-title').textContent = `荷主詳細: ${c.name}`;
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:0.88rem;margin-bottom:16px">
+            <div><strong>住所:</strong> ${c.address || '-'}</div>
+            <div><strong>電話:</strong> ${c.phone || '-'}</div>
+            <div><strong>FAX:</strong> ${c.fax || '-'}</div>
+            <div><strong>担当者:</strong> ${c.contact_person || '-'}</div>
+        </div>
+        <div style="background:#f0f9ff;padding:12px;border-radius:8px;margin-bottom:16px">
+            <h4 style="margin:0 0 8px;color:#1e40af;font-size:0.9rem">請求先情報</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
+                <div><strong>請求先住所:</strong> ${c.billing_address || c.address || '-'}</div>
+                <div><strong>請求担当:</strong> ${c.billing_contact || '-'}</div>
+                <div><strong>メール:</strong> ${c.billing_email || '-'}</div>
+                <div><strong>支払条件:</strong> ${c.payment_terms || '-'}</div>
+                <div><strong>与信限度:</strong> ¥${(c.credit_limit||0).toLocaleString()}</div>
+                <div><strong>適格番号:</strong> ${c.tax_id || '-'}</div>
+            </div>
+        </div>
+        <div><strong>備考:</strong> ${c.notes || '-'}</div>
+        <h4 style="margin:16px 0 8px;border-top:1px solid #e2e8f0;padding-top:12px">連絡・対応履歴</h4>
+        <div style="max-height:200px;overflow-y:auto;margin-bottom:12px" id="client-notes-list">
+            ${notesLog.length === 0 ? '<p style="color:#94a3b8;font-size:0.85rem">履歴はまだありません</p>' :
+            notesLog.map(n => `<div style="padding:8px 12px;border-left:3px solid #3b82f6;margin-bottom:8px;background:#f8fafc;border-radius:0 6px 6px 0">
+                <div style="font-size:0.75rem;color:#64748b">${n.date} ${n.created_by ? '/ ' + n.created_by : ''}</div>
+                <div style="font-size:0.88rem">${n.content}</div>
+                <button class="btn btn-sm btn-danger" onclick="deleteClientNote(${clientId},${n.id})" style="margin-top:4px;font-size:0.7rem;padding:2px 6px">削除</button>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px">
+            <input type="text" id="f-cl-note-content" placeholder="連絡内容を入力..." style="flex:1">
+            <button class="btn btn-sm btn-primary" onclick="addClientNote(${clientId})">追加</button>
+        </div>
+        <div class="form-actions" style="margin-top:16px">
+            <button class="btn" onclick="editClient(${clientId})">編集</button>
+            <button class="btn" onclick="closeModal()">閉じる</button>
+        </div>`;
+    showModal();
+}
+
+async function openClientDetailByName(name) {
+    const clients = await apiGet('/clients');
+    const c = clients.find(x => x.name === name);
+    if (c) openClientDetailModal(c.id);
+}
+
+async function addClientNote(clientId) {
+    const content = document.getElementById('f-cl-note-content').value.trim();
+    if (!content) return;
+    await apiPost(`/clients/${clientId}/notes`, { content, created_by: '' });
+    openClientDetailModal(clientId);
+}
+
+async function deleteClientNote(clientId, noteId) {
+    await apiDelete(`/clients/${clientId}/notes/${noteId}`);
+    openClientDetailModal(clientId);
 }
 
 function onClientSelect() {
@@ -1631,7 +1785,22 @@ function initMap() {
         mapDateEl.value = fmt(new Date());
     }
     setTimeout(() => map.invalidateSize(), 100);
+    // フィルタ選択肢を更新
+    loadMapFilters();
     loadMapMarkers();
+}
+
+async function loadMapFilters() {
+    const vehicles = await apiGet('/vehicles');
+    const clients = await apiGet('/clients');
+    const vSel = document.getElementById('map-filter-vehicle');
+    const cSel = document.getElementById('map-filter-client');
+    if (vSel && vSel.options.length <= 1) {
+        vehicles.forEach(v => { const o = document.createElement('option'); o.value = v.id; o.textContent = v.number; vSel.appendChild(o); });
+    }
+    if (cSel && cSel.options.length <= 1) {
+        clients.forEach(c => { const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; cSel.appendChild(o); });
+    }
 }
 
 function changeMapDate(delta) {
@@ -1655,7 +1824,15 @@ async function loadMapMarkers() {
     // 選択日の配車を表示
     const mapDateEl = document.getElementById('map-date');
     const selectedDate = mapDateEl ? mapDateEl.value : fmt(new Date());
-    const todayDispatches = dispatches.filter(d => d.date === selectedDate);
+    let todayDispatches = dispatches.filter(d => d.date === selectedDate);
+
+    // フィルタ適用
+    const filterVehicle = document.getElementById('map-filter-vehicle')?.value || '';
+    const filterClient = document.getElementById('map-filter-client')?.value || '';
+    const filterStatus = document.getElementById('map-filter-status')?.value || '';
+    if (filterVehicle) todayDispatches = todayDispatches.filter(d => d.vehicle_id == filterVehicle);
+    if (filterClient) todayDispatches = todayDispatches.filter(d => d.client_name === filterClient);
+    if (filterStatus) todayDispatches = todayDispatches.filter(d => d.status === filterStatus);
     const dateLabel = selectedDate === fmt(new Date()) ? '本日' : selectedDate;
     const statusEl = document.getElementById('map-status');
     if (statusEl) statusEl.textContent = `${dateLabel}の配車: ${todayDispatches.length}件`;
@@ -2092,11 +2269,44 @@ async function openPartnerInvoiceModal() {
             <div class="form-group"><label>消費税</label><input type="number" id="f-pi-tax" value="0"></div>
         </div>
         <div class="form-group"><label>備考</label><textarea id="f-pi-notes"></textarea></div>
+        <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:12px">
+            <label style="font-weight:600;font-size:0.85rem;color:#475569">📎 PDFスキャン読込（自動解析）</label>
+            <input type="file" id="f-pi-pdf" accept=".pdf" onchange="scanPartnerInvoicePDF()" style="margin-top:6px">
+            <div id="f-pi-scan-result" style="font-size:0.82rem;color:#059669;margin-top:4px"></div>
+        </div>
         <div class="form-actions">
             <button class="btn" onclick="closeModal()">キャンセル</button>
             <button class="btn btn-primary" onclick="savePartnerInvoice()">登録</button>
         </div>`;
     showModal();
+}
+
+async function scanPartnerInvoicePDF() {
+    const file = document.getElementById('f-pi-pdf').files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    document.getElementById('f-pi-scan-result').textContent = 'スキャン中...';
+    try {
+        const resp = await fetch('/api/partner-invoices/upload-pdf', { method: 'POST', body: formData });
+        const result = await resp.json();
+        if (result.auto_parsed) {
+            if (result.total_amount) document.getElementById('f-pi-amount').value = result.total_amount;
+            if (result.tax_amount) document.getElementById('f-pi-tax').value = result.tax_amount;
+            if (result.invoice_number) document.getElementById('f-pi-number').value = result.invoice_number;
+            if (result.invoice_date) document.getElementById('f-pi-date').value = result.invoice_date;
+            if (result.due_date) document.getElementById('f-pi-due').value = result.due_date;
+            document.getElementById('f-pi-scan-result').textContent = '✅ PDF解析完了 - 金額等を自動入力しました';
+        } else {
+            document.getElementById('f-pi-scan-result').textContent = '⚠ PDF解析できませんでした（手動入力してください）';
+        }
+        // pdfファイル名を隠しフィールドに保存
+        if (result.pdf_filename) {
+            window._partnerInvoicePdf = result.pdf_filename;
+        }
+    } catch(e) {
+        document.getElementById('f-pi-scan-result').textContent = '❌ アップロードに失敗しました';
+    }
 }
 
 async function savePartnerInvoice() {
@@ -2973,6 +3183,12 @@ async function loadCompanySettings() {
     document.getElementById('s-representative').value = s.representative || '';
     document.getElementById('s-reg-number').value = s.registration_number || '';
     document.getElementById('s-bank-info').value = s.bank_info || '';
+    document.getElementById('s-notes').value = s.notes || '';
+    document.getElementById('s-smtp-host').value = s.smtp_host || '';
+    document.getElementById('s-smtp-port').value = s.smtp_port || '';
+    document.getElementById('s-smtp-user').value = s.smtp_user || '';
+    document.getElementById('s-smtp-password').value = s.smtp_password || '';
+    document.getElementById('s-sender-email').value = s.sender_email || '';
 }
 
 async function saveCompanySettings() {
@@ -2984,6 +3200,12 @@ async function saveCompanySettings() {
         representative: document.getElementById('s-representative').value,
         registration_number: document.getElementById('s-reg-number').value,
         bank_info: document.getElementById('s-bank-info').value,
+        notes: document.getElementById('s-notes').value,
+        smtp_host: document.getElementById('s-smtp-host').value,
+        smtp_port: parseInt(document.getElementById('s-smtp-port').value) || null,
+        smtp_user: document.getElementById('s-smtp-user').value,
+        smtp_password: document.getElementById('s-smtp-password').value,
+        sender_email: document.getElementById('s-sender-email').value,
     };
     await apiPut('/settings', data);
     alert('保存しました');

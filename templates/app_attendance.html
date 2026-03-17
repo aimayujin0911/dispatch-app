@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勤怠管理 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #f59e0b; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.15); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.25); font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .month-sel { display: flex; align-items: center; gap: .5rem; }
+        .month-sel button { background: #f59e0b; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
+        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
+        select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+        th, td { padding: .5rem .6rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        tr:hover { background: #f8fafc; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #f59e0b; color: #fff; }
+        .btn-success { background: #22c55e; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn:hover { opacity: .85; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .form-group { margin-bottom: .85rem; }
+        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
+        .form-group input, .form-group select { width: 100%; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+        .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
+        @media (max-width: 768px) { .topnav { overflow-x: auto; } .stats { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing">💰 請求</a>
+    <a href="/app/attendance" class="active">⏰ 勤怠</a>
+    <a href="/app/accounting">📒 会計</a>
+    <a href="/app/reports">📝 日報</a>
+</nav>
+<div class="container">
+    <h1>勤怠管理</h1>
+    <div class="toolbar">
+        <div class="month-sel">
+            <button onclick="changeMonth(-1)">◀</button>
+            <span id="monthLabel"></span>
+            <button onclick="changeMonth(1)">▶</button>
+        </div>
+        <select id="driverFilter" onchange="loadAttendance()"><option value="">全ドライバー</option></select>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 追加</button>
+        <button class="btn btn-success" onclick="generateFromDispatches()">🔄 配車から自動生成</button>
+        <button class="btn btn-outline" onclick="exportCSV()">📥 CSV出力</button>
+        <a href="/m/attendance" class="btn btn-outline">📱 モバイル打刻</a>
+    </div>
+    <div class="stats">
+        <div class="stat-card"><div class="label">総出勤日数</div><div class="value" id="statDays">-</div></div>
+        <div class="stat-card"><div class="label">総残業時間</div><div class="value" id="statOT">-</div></div>
+        <div class="stat-card"><div class="label">総深夜時間</div><div class="value" id="statNight">-</div></div>
+        <div class="stat-card"><div class="label">平均勤務時間</div><div class="value" id="statAvg">-</div></div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+        <table>
+            <thead><tr>
+                <th>日付</th><th>ドライバー</th><th>出勤</th><th>退勤</th><th>休憩</th><th>待機</th><th>積込</th><th>荷卸</th><th>種別</th><th>残業</th><th>深夜</th><th>操作</th>
+            </tr></thead>
+            <tbody id="tblBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="formModal">
+    <div class="modal">
+        <h2 id="formTitle">勤怠追加</h2>
+        <input type="hidden" id="editId">
+        <div class="form-row">
+            <div class="form-group"><label>日付</label><input type="date" id="fDate"></div>
+            <div class="form-group"><label>ドライバー</label><select id="fDriver"></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>出勤</label><input type="time" id="fStart"></div>
+            <div class="form-group"><label>退勤</label><input type="time" id="fEnd"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>休憩(分)</label><input type="number" id="fBreak" value="60"></div>
+            <div class="form-group"><label>勤務種別</label><select id="fType"><option>通常</option><option>休日</option><option>有給</option><option>欠勤</option></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>待機時間(分)</label><input type="number" id="fWaiting" value="0"></div>
+            <div class="form-group"><label>積込時間(分)</label><input type="number" id="fLoading" value="0"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>荷卸時間(分)</label><input type="number" id="fUnloading" value="0"></div>
+            <div class="form-group"><label>残業(分)</label><input type="number" id="fOT" value="0"></div>
+        </div>
+        <div class="form-group"><label>深夜(分)</label><input type="number" id="fNight" value="0" style="width:50%"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('formModal')">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveAttendance()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+async function apiGet(u){const r=await fetch(u);if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiPost(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiPut(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(!r.ok)throw new Error(r.statusText);return r.json();}
+async function apiDelete(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error(r.statusText);return r.json();}
+function openModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+let currentYear, currentMonth, records = [], drivers = [];
+
+function initMonth(){ const d=new Date(); currentYear=d.getFullYear(); currentMonth=d.getMonth()+1; updateMonthLabel(); }
+function changeMonth(delta){ currentMonth+=delta; if(currentMonth>12){currentMonth=1;currentYear++;} if(currentMonth<1){currentMonth=12;currentYear--;} updateMonthLabel(); loadAttendance(); }
+function updateMonthLabel(){ document.getElementById('monthLabel').textContent=`${currentYear}年${currentMonth}月`; }
+
+async function loadDrivers(){
+    try {
+        const data = await apiGet('/api/drivers');
+        drivers = Array.isArray(data) ? data : (data.drivers || []);
+        const sel = document.getElementById('driverFilter');
+        const fSel = document.getElementById('fDriver');
+        drivers.forEach(d => {
+            sel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+            fSel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+        });
+    } catch(e){ console.error(e); }
+}
+
+async function loadAttendance(){
+    try {
+        const driverId = document.getElementById('driverFilter').value;
+        let url = `/api/attendance?year=${currentYear}&month=${currentMonth}`;
+        if(driverId) url += `&driver_id=${driverId}`;
+        const data = await apiGet(url);
+        records = Array.isArray(data) ? data : (data.records || []);
+        renderStats(); renderTable();
+    } catch(e){ console.error(e); }
+}
+
+function renderStats(){
+    const days = records.length;
+    const ot = records.reduce((s,r)=>s+(r.overtime_minutes||0),0);
+    const night = records.reduce((s,r)=>s+(r.night_minutes||0),0);
+    const totalMin = records.reduce((s,r)=>{
+        if(r.start_time && r.end_time){ const st=toMin(r.start_time),en=toMin(r.end_time); return s+(en-st-(r.break_minutes||0)); }
+        return s;
+    },0);
+    document.getElementById('statDays').textContent = days+'日';
+    document.getElementById('statOT').textContent = (ot/60).toFixed(1)+'h';
+    document.getElementById('statNight').textContent = (night/60).toFixed(1)+'h';
+    document.getElementById('statAvg').textContent = days ? (totalMin/days/60).toFixed(1)+'h' : '-';
+}
+function toMin(t){ const [h,m]=(t||'').split(':').map(Number); return (h||0)*60+(m||0); }
+
+function renderTable(){
+    document.getElementById('tblBody').innerHTML = records.map(r => `<tr>
+        <td>${r.date||'-'}</td>
+        <td>${r.driver_name || driverName(r.driver_id)}</td>
+        <td>${r.start_time||'-'}</td><td>${r.end_time||'-'}</td>
+        <td>${r.break_minutes||0}</td><td>${r.waiting_time||0}</td><td>${r.loading_time||0}</td><td>${r.unloading_time||0}</td>
+        <td>${r.work_type||'通常'}</td><td>${r.overtime_minutes||0}</td><td>${r.night_minutes||0}</td>
+        <td><button class="btn btn-outline" style="padding:.2rem .5rem;font-size:.78rem" onclick="editRecord(${r.id})">編集</button>
+        <button class="btn btn-danger" style="padding:.2rem .5rem;font-size:.78rem" onclick="deleteRecord(${r.id})">削除</button></td>
+    </tr>`).join('');
+}
+function driverName(id){ const d=drivers.find(d=>d.id===id); return d?d.name:'-'; }
+
+function openAddModal(){
+    document.getElementById('editId').value='';
+    document.getElementById('formTitle').textContent='勤怠追加';
+    ['fDate','fStart','fEnd'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('fBreak').value=60;
+    ['fWaiting','fLoading','fUnloading','fOT','fNight'].forEach(id=>document.getElementById(id).value=0);
+    openModal('formModal');
+}
+
+function editRecord(id){
+    const r = records.find(x=>x.id===id); if(!r) return;
+    document.getElementById('editId').value=id;
+    document.getElementById('formTitle').textContent='勤怠編集';
+    document.getElementById('fDate').value=r.date||'';
+    document.getElementById('fDriver').value=r.driver_id||'';
+    document.getElementById('fStart').value=r.start_time||'';
+    document.getElementById('fEnd').value=r.end_time||'';
+    document.getElementById('fBreak').value=r.break_minutes||0;
+    document.getElementById('fType').value=r.work_type||'通常';
+    document.getElementById('fWaiting').value=r.waiting_time||0;
+    document.getElementById('fLoading').value=r.loading_time||0;
+    document.getElementById('fUnloading').value=r.unloading_time||0;
+    document.getElementById('fOT').value=r.overtime_minutes||0;
+    document.getElementById('fNight').value=r.night_minutes||0;
+    openModal('formModal');
+}
+
+async function saveAttendance(){
+    const id = document.getElementById('editId').value;
+    const payload = {
+        date: document.getElementById('fDate').value,
+        driver_id: parseInt(document.getElementById('fDriver').value),
+        start_time: document.getElementById('fStart').value,
+        end_time: document.getElementById('fEnd').value,
+        break_minutes: parseInt(document.getElementById('fBreak').value)||0,
+        work_type: document.getElementById('fType').value,
+        waiting_time: parseInt(document.getElementById('fWaiting').value)||0,
+        loading_time: parseInt(document.getElementById('fLoading').value)||0,
+        unloading_time: parseInt(document.getElementById('fUnloading').value)||0,
+        overtime_minutes: parseInt(document.getElementById('fOT').value)||0,
+        night_minutes: parseInt(document.getElementById('fNight').value)||0,
+    };
+    if(id) await apiPut(`/api/attendance/${id}`, payload);
+    else await apiPost('/api/attendance', payload);
+    closeModal('formModal'); loadAttendance();
+}
+
+async function deleteRecord(id){ if(!confirm('削除しますか？')) return; await apiDelete(`/api/attendance/${id}`); loadAttendance(); }
+
+async function generateFromDispatches(){
+    if(!confirm('配車データから勤怠を自動生成しますか？')) return;
+    await apiPost(`/api/attendance/from-dispatches`, { year: currentYear, month: currentMonth });
+    loadAttendance();
+}
+
+async function exportCSV(){
+    const driverId = document.getElementById('driverFilter').value;
+    let url = `/api/export/attendance?year=${currentYear}&month=${currentMonth}`;
+    if(driverId) url += `&driver_id=${driverId}`;
+    window.open(url, '_blank');
+}
+
+initMonth(); loadDrivers().then(()=>loadAttendance());
+</script>
+</body>
+</html>

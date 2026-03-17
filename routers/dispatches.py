@@ -11,7 +11,8 @@ router = APIRouter()
 
 class DispatchCreate(BaseModel):
     vehicle_id: int
-    driver_id: int
+    driver_id: Optional[int] = None
+    partner_id: Optional[int] = None  # 協力会社ID（ドライバーの代わり）
     shipment_id: Optional[int] = None
     date: date
     end_date: Optional[date] = None
@@ -27,6 +28,7 @@ class DispatchCreate(BaseModel):
 class DispatchUpdate(BaseModel):
     vehicle_id: Optional[int] = None
     driver_id: Optional[int] = None
+    partner_id: Optional[int] = None
     shipment_id: Optional[int] = None
     date: Optional[date] = None
     end_date: Optional[date] = None
@@ -48,7 +50,6 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
     )
     if target_date:
         td = date.fromisoformat(target_date)
-        # 単日 or 日付またぎの配車を含める
         query = query.filter(
             or_(
                 Dispatch.date == td,
@@ -59,7 +60,6 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
         from datetime import timedelta
         start = date.fromisoformat(week_start)
         end = start + timedelta(days=6)
-        # 期間内に重なる配車をすべて取得
         query = query.filter(
             or_(
                 (Dispatch.date >= start) & (Dispatch.date <= end),
@@ -69,6 +69,10 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
     dispatches = query.order_by(Dispatch.date, Dispatch.start_time).all()
     result = []
     for d in dispatches:
+        # 協力会社名取得
+        partner_name = ""
+        if d.notes and d.notes.startswith("partner:"):
+            partner_name = d.notes.split("partner:")[1].split("\n")[0].strip()
         result.append({
             "id": d.id,
             "vehicle_id": d.vehicle_id,
@@ -83,7 +87,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "vehicle_number": d.vehicle.number if d.vehicle else "",
             "vehicle_type": d.vehicle.type if d.vehicle else "",
             "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,
-            "driver_name": d.driver.name if d.driver else "",
+            "driver_name": d.driver.name if d.driver else partner_name or "",
             "shipment_name": d.shipment.name if d.shipment else "",
             "client_name": d.shipment.client_name if d.shipment else "",
             "pickup_address": d.shipment.pickup_address if d.shipment else "",
@@ -91,30 +95,53 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "cargo_description": d.shipment.cargo_description if d.shipment else "",
             "weight": d.shipment.weight if d.shipment else 0,
             "price": d.shipment.price if d.shipment else 0,
+            # 案件の指定時間（D&D用）
+            "pickup_time": d.shipment.pickup_time if d.shipment else "",
+            "delivery_time": d.shipment.delivery_time if d.shipment else "",
+            "time_note": d.shipment.time_note if d.shipment else "",
+            "waiting_time": d.shipment.waiting_time if d.shipment else 0,
+            "loading_time": d.shipment.loading_time if d.shipment else 0,
+            "unloading_time": d.shipment.unloading_time if d.shipment else 0,
         })
     return result
 
 
 @router.post("")
 def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
+    # driver_idが0またはNullの場合、協力会社配車
+    actual_driver_id = data.driver_id
+    notes = data.notes or ""
+    if data.partner_id and not data.driver_id:
+        # 協力会社の場合、ダミードライバーID=最初のドライバーを使う（or partner情報をnotesに保存）
+        from models import PartnerCompany
+        partner = db.query(PartnerCompany).filter(PartnerCompany.id == data.partner_id).first()
+        if partner:
+            notes = f"partner:{partner.name}\n{notes}"
+        # driver_idは必須なので最初のドライバーを仮設定
+        first_driver = db.query(Driver).first()
+        if first_driver:
+            actual_driver_id = first_driver.id
+        else:
+            raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
+    elif not actual_driver_id:
+        raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
+
     dispatch_data = {
         "vehicle_id": data.vehicle_id,
-        "driver_id": data.driver_id,
+        "driver_id": actual_driver_id,
         "date": data.date,
         "end_date": data.end_date,
         "start_time": data.start_time,
         "end_time": data.end_time,
         "status": data.status,
-        "notes": data.notes,
+        "notes": notes,
     }
-    # 案件が指定されていればリンク
     if data.shipment_id:
         dispatch_data["shipment_id"] = data.shipment_id
         shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id).first()
         if shipment:
             shipment.status = "配車済"
     else:
-        # 案件なしの場合、簡易案件を自動作成
         if data.pickup_address and data.delivery_address:
             shipment = Shipment(
                 client_name=data.client_name or "直接入力",
@@ -141,9 +168,10 @@ def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depend
     if not dispatch:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
     update_data = data.model_dump(exclude_unset=True)
-    # pickup_address/delivery_addressはshipmentに保存
     pickup_addr = update_data.pop("pickup_address", None)
     delivery_addr = update_data.pop("delivery_address", None)
+    # partner_idはDispatchモデルにないので除外
+    update_data.pop("partner_id", None)
     for key, value in update_data.items():
         setattr(dispatch, key, value)
     if (pickup_addr is not None or delivery_addr is not None) and dispatch.shipment_id:
