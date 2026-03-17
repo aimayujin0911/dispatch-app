@@ -36,15 +36,19 @@ function navigateTo(page) {
 
     const titles = {
         dashboard: 'ダッシュボード', dispatches: '配車表', shipments: '案件管理',
-        clients: '荷主管理', vehicles: '車両管理', drivers: 'ドライバー管理', map: '地図表示',
-        revenue: '売上・請求管理', reports: '日報'
+        clients: '荷主管理', partners: '協力会社管理', vehicles: '車両管理', drivers: 'ドライバー管理',
+        documents: '書類管理', map: '地図表示',
+        revenue: '売上・請求管理', attendance: '勤怠管理', accounting: '会計', reports: '日報',
+        settings: '設定'
     };
     document.getElementById('pageTitle').textContent = titles[page] || '';
 
     const loaders = {
         dashboard: loadDashboard, dispatches: loadDispatchCalendar, shipments: loadShipments,
-        clients: loadClients, vehicles: loadVehicles, drivers: loadDrivers, map: initMap,
-        revenue: loadRevenue, reports: loadReports
+        clients: loadClients, partners: loadPartners, vehicles: loadVehicles, drivers: loadDrivers,
+        documents: loadDocuments, map: initMap,
+        revenue: loadRevenue, attendance: loadAttendance, accounting: loadAccounting,
+        reports: loadReports, settings: loadCompanySettings
     };
     if (loaders[page]) loaders[page]();
     document.getElementById('sidebar').classList.remove('open');
@@ -852,6 +856,7 @@ async function showDispatchDetail(id) {
             <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
             <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="指示書印刷">🖨 指示書</button>
+            <button class="btn btn-sm" onclick="createVehicleNotificationFromDispatch(${d.id})" title="車番連絡票">📋 車番連絡</button>
             <button class="btn btn-sm" onclick="autoReportFromDispatch(${d.id})" title="日報自動作成">📝 日報作成</button>
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
@@ -1247,6 +1252,7 @@ async function loadShipments() {
             <td>${s.cargo_description || '-'}</td>
             <td>${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.pickup_date}</td>
+            <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
             <td>¥${s.price.toLocaleString()}</td>
             <td>${freqLabel || '単発'}</td>
             <td>${statusBadge(s.status)}</td>
@@ -1255,7 +1261,7 @@ async function loadShipments() {
                 <button class="btn btn-sm btn-danger" onclick="deleteShipment(${s.id})">削除</button>
             </td>
         </tr>`;
-    }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
+    }).join('') || '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
 }
 
 async function openShipmentModal(shipment = null) {
@@ -1304,9 +1310,23 @@ async function openShipmentModal(shipment = null) {
                 <input type="date" id="f-s-pickup-date" value="${shipment?.pickup_date || today}">
             </div>
             <div class="form-group">
+                <label>集荷時間</label>
+                <input type="time" id="f-s-pickup-time" value="${shipment?.pickup_time || ''}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
                 <label>配達日</label>
                 <input type="date" id="f-s-delivery-date" value="${shipment?.delivery_date || today}">
             </div>
+            <div class="form-group">
+                <label>配達時間</label>
+                <input type="time" id="f-s-delivery-time" value="${shipment?.delivery_time || ''}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>時間備考（AM指定、午前必着など）</label>
+            <input type="text" id="f-s-time-note" value="${shipment?.time_note || ''}" placeholder="例: AM指定、13:00-15:00">
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -1365,7 +1385,10 @@ async function saveShipment(id) {
         pickup_address: document.getElementById('f-s-pickup').value,
         delivery_address: document.getElementById('f-s-delivery').value,
         pickup_date: document.getElementById('f-s-pickup-date').value,
+        pickup_time: document.getElementById('f-s-pickup-time').value,
         delivery_date: document.getElementById('f-s-delivery-date').value,
+        delivery_time: document.getElementById('f-s-delivery-time').value,
+        time_note: document.getElementById('f-s-time-note').value,
         price: parseInt(document.getElementById('f-s-price').value),
         frequency_type: freqType,
         frequency_days: freqDays,
@@ -1864,3 +1887,720 @@ function statusBadge(status) {
 
 function showModal() { document.getElementById('modal-overlay').classList.add('active'); }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+
+// ===== 協力会社管理 =====
+async function loadPartners() {
+    const [partners, invoices] = await Promise.all([
+        apiGet('/partners'), apiGet('/partner-invoices')
+    ]);
+    document.getElementById('partners-table').innerHTML = partners.map(p => `<tr>
+        <td><strong>${p.name}</strong></td>
+        <td style="font-size:0.8rem">${p.address || '-'}</td>
+        <td style="font-size:0.8rem">${p.phone || '-'}${p.fax ? '<br>FAX:' + p.fax : ''}</td>
+        <td>${p.contact_person || '-'}</td>
+        <td style="font-size:0.8rem">${p.payment_terms || '-'}</td>
+        <td>
+            <button class="btn btn-sm btn-edit" onclick="editPartner(${p.id})">編集</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePartner(${p.id})">削除</button>
+        </td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">協力会社が登録されていません</td></tr>';
+
+    document.getElementById('partner-invoices-table').innerHTML = invoices.map(inv => {
+        const sBadge = inv.status === '支払済' ? '<span class="badge badge-green">支払済</span>'
+            : inv.status === '確認済' ? '<span class="badge badge-blue">確認済</span>'
+            : inv.status === '差戻' ? '<span class="badge badge-red">差戻</span>'
+            : '<span class="badge badge-orange">未確認</span>';
+        return `<tr>
+            <td>${inv.invoice_number || '-'}</td>
+            <td><strong>${inv.partner_name}</strong></td>
+            <td>${inv.invoice_date || '-'}</td>
+            <td>${inv.due_date || '-'}</td>
+            <td><strong>¥${(inv.total_amount + inv.tax_amount).toLocaleString()}</strong></td>
+            <td>${sBadge}</td>
+            <td>
+                <select onchange="updatePartnerInvoiceStatus(${inv.id}, this.value)" style="font-size:0.8rem;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px">
+                    <option ${inv.status === '未確認' ? 'selected' : ''}>未確認</option>
+                    <option ${inv.status === '確認済' ? 'selected' : ''}>確認済</option>
+                    <option ${inv.status === '支払済' ? 'selected' : ''}>支払済</option>
+                    <option ${inv.status === '差戻' ? 'selected' : ''}>差戻</option>
+                </select>
+                <button class="btn btn-sm btn-danger" onclick="deletePartnerInvoice(${inv.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">請求書がありません</td></tr>';
+}
+
+function openPartnerModal(partner = null) {
+    const isEdit = !!partner;
+    document.getElementById('modal-title').textContent = isEdit ? '協力会社編集' : '協力会社追加';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group"><label>会社名</label><input type="text" id="f-pt-name" value="${partner?.name || ''}"></div>
+        <div class="form-group"><label>住所</label><input type="text" id="f-pt-address" value="${partner?.address || ''}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>電話番号</label><input type="text" id="f-pt-phone" value="${partner?.phone || ''}"></div>
+            <div class="form-group"><label>FAX</label><input type="text" id="f-pt-fax" value="${partner?.fax || ''}"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>担当者</label><input type="text" id="f-pt-contact" value="${partner?.contact_person || ''}"></div>
+            <div class="form-group"><label>支払条件</label><input type="text" id="f-pt-terms" value="${partner?.payment_terms || '月末締め翌月末払い'}"></div>
+        </div>
+        <div class="form-group"><label>振込先情報</label><textarea id="f-pt-bank">${partner?.bank_info || ''}</textarea></div>
+        <div class="form-group"><label>備考</label><textarea id="f-pt-notes">${partner?.notes || ''}</textarea></div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="savePartner(${partner?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
+        </div>`;
+    showModal();
+}
+
+async function savePartner(id) {
+    const data = {
+        name: document.getElementById('f-pt-name').value,
+        address: document.getElementById('f-pt-address').value,
+        phone: document.getElementById('f-pt-phone').value,
+        fax: document.getElementById('f-pt-fax').value,
+        contact_person: document.getElementById('f-pt-contact').value,
+        payment_terms: document.getElementById('f-pt-terms').value,
+        bank_info: document.getElementById('f-pt-bank').value,
+        notes: document.getElementById('f-pt-notes').value,
+    };
+    if (!data.name) return alert('会社名は必須です');
+    if (id) await apiPut(`/partners/${id}`, data); else await apiPost('/partners', data);
+    closeModal(); loadPartners();
+}
+
+async function editPartner(id) {
+    const partners = await apiGet('/partners');
+    const p = partners.find(x => x.id === id);
+    if (p) openPartnerModal(p);
+}
+
+async function deletePartner(id) {
+    if (!confirm('この協力会社を削除しますか？')) return;
+    await apiDelete(`/partners/${id}`); loadPartners();
+}
+
+async function openPartnerInvoiceModal() {
+    const partners = await apiGet('/partners');
+    const today = fmt(new Date());
+    document.getElementById('modal-title').textContent = '協力会社請求書登録';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group"><label>協力会社</label>
+            <select id="f-pi-partner">${partners.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>請求書番号</label><input type="text" id="f-pi-number" placeholder="INV-001"></div>
+            <div class="form-group"><label>請求日</label><input type="date" id="f-pi-date" value="${today}"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>支払期日</label><input type="date" id="f-pi-due"></div>
+            <div class="form-group"><label>対象期間(開始)</label><input type="date" id="f-pi-start"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>金額(税抜)</label><input type="number" id="f-pi-amount" value="0"></div>
+            <div class="form-group"><label>消費税</label><input type="number" id="f-pi-tax" value="0"></div>
+        </div>
+        <div class="form-group"><label>備考</label><textarea id="f-pi-notes"></textarea></div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="savePartnerInvoice()">登録</button>
+        </div>`;
+    showModal();
+}
+
+async function savePartnerInvoice() {
+    const data = {
+        partner_id: parseInt(document.getElementById('f-pi-partner').value),
+        invoice_number: document.getElementById('f-pi-number').value,
+        invoice_date: document.getElementById('f-pi-date').value || null,
+        due_date: document.getElementById('f-pi-due').value || null,
+        total_amount: parseInt(document.getElementById('f-pi-amount').value) || 0,
+        tax_amount: parseInt(document.getElementById('f-pi-tax').value) || 0,
+        notes: document.getElementById('f-pi-notes').value,
+    };
+    await apiPost('/partner-invoices', data);
+    closeModal(); loadPartners();
+}
+
+async function updatePartnerInvoiceStatus(id, status) {
+    const data = { status };
+    if (status === '支払済') data.payment_date = fmt(new Date());
+    await apiPut(`/partner-invoices/${id}`, data);
+    loadPartners();
+}
+
+async function deletePartnerInvoice(id) {
+    if (!confirm('この請求書を削除しますか？')) return;
+    await apiDelete(`/partner-invoices/${id}`); loadPartners();
+}
+
+// ===== 書類管理 =====
+async function loadDocuments() {
+    const [trs, vns] = await Promise.all([
+        apiGet('/transport-requests'), apiGet('/vehicle-notifications')
+    ]);
+    document.getElementById('transport-requests-table').innerHTML = trs.map(r => {
+        const sBadge = r.status === '完了' ? '<span class="badge badge-green">完了</span>'
+            : r.status === '受諾' ? '<span class="badge badge-blue">受諾</span>'
+            : r.status === '送付済' ? '<span class="badge badge-purple">送付済</span>'
+            : '<span class="badge badge-orange">下書き</span>';
+        return `<tr>
+            <td>${r.request_number || '-'}</td>
+            <td><strong>${r.partner_name}</strong></td>
+            <td>${r.pickup_date || '-'}</td>
+            <td style="font-size:0.8rem">${r.pickup_address} → ${r.delivery_address}</td>
+            <td style="font-size:0.8rem">${r.cargo_description || '-'}</td>
+            <td>¥${(r.freight_amount || 0).toLocaleString()}</td>
+            <td>${sBadge}</td>
+            <td>
+                <button class="btn btn-sm" onclick="printTransportRequest(${r.id})">🖨 PDF</button>
+                <button class="btn btn-sm btn-edit" onclick="editTransportRequest(${r.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteTransportRequest(${r.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">輸送依頼書がありません</td></tr>';
+
+    document.getElementById('vehicle-notifications-table').innerHTML = vns.map(v => {
+        const sBadge = v.status === '送付済' ? '<span class="badge badge-green">送付済</span>' : '<span class="badge badge-orange">未送付</span>';
+        return `<tr>
+            <td>${v.arrival_date || '-'}</td>
+            <td>${v.arrival_time || '-'}</td>
+            <td><strong>${v.vehicle_number || '-'}</strong></td>
+            <td>${v.driver_name || '-'}</td>
+            <td style="font-size:0.8rem">${v.destination_name || '-'}<br>${v.destination_address || ''}</td>
+            <td style="font-size:0.8rem">${v.cargo_description || '-'}</td>
+            <td>${sBadge}</td>
+            <td>
+                <button class="btn btn-sm" onclick="printVehicleNotification(${v.id})">🖨 PDF</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteVehicleNotification(${v.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">車番連絡票がありません</td></tr>';
+}
+
+async function openTransportRequestModal(shipment = null) {
+    const partners = await apiGet('/partners');
+    const today = fmt(new Date());
+    document.getElementById('modal-title').textContent = '輸送依頼書作成';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group"><label>依頼先 協力会社</label>
+            <select id="f-tr-partner">${partners.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>依頼日</label><input type="date" id="f-tr-req-date" value="${today}"></div>
+            <div class="form-group"><label>車種指定</label>
+                <select id="f-tr-vehicle-type"><option value="">指定なし</option>
+                    ${['ウイング車','平ボディ','冷凍車','冷蔵車','バン','トレーラー','大型','4t','2t'].map(t => `<option>${t}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>集荷日</label><input type="date" id="f-tr-pickup-date" value="${shipment?.pickup_date || ''}"></div>
+            <div class="form-group"><label>集荷時間</label><input type="text" id="f-tr-pickup-time" value="${shipment?.pickup_time || ''}" placeholder="08:00 / AM指定"></div>
+        </div>
+        <div class="form-group"><label>積地</label><input type="text" id="f-tr-pickup-addr" value="${shipment?.pickup_address || ''}"></div>
+        <div class="form-group"><label>積地 担当者・連絡先</label><input type="text" id="f-tr-pickup-contact"></div>
+        <div class="form-row">
+            <div class="form-group"><label>配達日</label><input type="date" id="f-tr-delivery-date" value="${shipment?.delivery_date || ''}"></div>
+            <div class="form-group"><label>配達時間</label><input type="text" id="f-tr-delivery-time" value="${shipment?.delivery_time || ''}" placeholder="14:00 / PM必着"></div>
+        </div>
+        <div class="form-group"><label>卸地</label><input type="text" id="f-tr-delivery-addr" value="${shipment?.delivery_address || ''}"></div>
+        <div class="form-group"><label>卸地 担当者・連絡先</label><input type="text" id="f-tr-delivery-contact"></div>
+        <div class="form-row">
+            <div class="form-group"><label>荷物内容</label><input type="text" id="f-tr-cargo" value="${shipment?.cargo_description || ''}"></div>
+            <div class="form-group"><label>数量</label><input type="text" id="f-tr-quantity" placeholder="10パレット"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>重量(kg)</label><input type="number" id="f-tr-weight" value="${shipment?.weight || 0}"></div>
+            <div class="form-group"><label>運賃</label><input type="number" id="f-tr-amount" value="${shipment?.price || 0}"></div>
+        </div>
+        <div class="form-group"><label>特記事項</label><textarea id="f-tr-instructions" placeholder="荷扱注意、温度管理、パレット回収等"></textarea></div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveTransportRequest()">作成</button>
+        </div>`;
+    showModal();
+}
+
+async function saveTransportRequest() {
+    const data = {
+        partner_id: parseInt(document.getElementById('f-tr-partner').value),
+        request_date: document.getElementById('f-tr-req-date').value || null,
+        pickup_date: document.getElementById('f-tr-pickup-date').value || null,
+        pickup_time: document.getElementById('f-tr-pickup-time').value,
+        delivery_date: document.getElementById('f-tr-delivery-date').value || null,
+        delivery_time: document.getElementById('f-tr-delivery-time').value,
+        pickup_address: document.getElementById('f-tr-pickup-addr').value,
+        pickup_contact: document.getElementById('f-tr-pickup-contact').value,
+        delivery_address: document.getElementById('f-tr-delivery-addr').value,
+        delivery_contact: document.getElementById('f-tr-delivery-contact').value,
+        cargo_description: document.getElementById('f-tr-cargo').value,
+        cargo_quantity: document.getElementById('f-tr-quantity').value,
+        cargo_weight: parseFloat(document.getElementById('f-tr-weight').value) || 0,
+        vehicle_type_required: document.getElementById('f-tr-vehicle-type').value,
+        freight_amount: parseInt(document.getElementById('f-tr-amount').value) || 0,
+        special_instructions: document.getElementById('f-tr-instructions').value,
+    };
+    await apiPost('/transport-requests', data);
+    closeModal(); loadDocuments();
+}
+
+async function editTransportRequest(id) {
+    const trs = await apiGet('/transport-requests');
+    const r = trs.find(x => x.id === id);
+    if (!r) return;
+    const partners = await apiGet('/partners');
+    document.getElementById('modal-title').textContent = '輸送依頼書編集';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group"><label>依頼先</label>
+            <select id="f-tre-partner">${partners.map(p => `<option value="${p.id}" ${p.id === r.partner_id ? 'selected' : ''}>${p.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>集荷日</label><input type="date" id="f-tre-pickup-date" value="${r.pickup_date || ''}"></div>
+            <div class="form-group"><label>集荷時間</label><input type="text" id="f-tre-pickup-time" value="${r.pickup_time || ''}"></div>
+        </div>
+        <div class="form-group"><label>積地</label><input type="text" id="f-tre-pickup-addr" value="${r.pickup_address || ''}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>配達日</label><input type="date" id="f-tre-delivery-date" value="${r.delivery_date || ''}"></div>
+            <div class="form-group"><label>配達時間</label><input type="text" id="f-tre-delivery-time" value="${r.delivery_time || ''}"></div>
+        </div>
+        <div class="form-group"><label>卸地</label><input type="text" id="f-tre-delivery-addr" value="${r.delivery_address || ''}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>荷物</label><input type="text" id="f-tre-cargo" value="${r.cargo_description || ''}"></div>
+            <div class="form-group"><label>運賃</label><input type="number" id="f-tre-amount" value="${r.freight_amount || 0}"></div>
+        </div>
+        <div class="form-group"><label>ステータス</label>
+            <select id="f-tre-status">${['下書き','送付済','受諾','完了','キャンセル'].map(s => `<option ${r.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="updateTransportRequest(${r.id})">更新</button>
+        </div>`;
+    showModal();
+}
+
+async function updateTransportRequest(id) {
+    const data = {
+        partner_id: parseInt(document.getElementById('f-tre-partner').value),
+        pickup_date: document.getElementById('f-tre-pickup-date').value || null,
+        pickup_time: document.getElementById('f-tre-pickup-time').value,
+        delivery_date: document.getElementById('f-tre-delivery-date').value || null,
+        delivery_time: document.getElementById('f-tre-delivery-time').value,
+        pickup_address: document.getElementById('f-tre-pickup-addr').value,
+        delivery_address: document.getElementById('f-tre-delivery-addr').value,
+        cargo_description: document.getElementById('f-tre-cargo').value,
+        freight_amount: parseInt(document.getElementById('f-tre-amount').value) || 0,
+        status: document.getElementById('f-tre-status').value,
+    };
+    await apiPut(`/transport-requests/${id}`, data);
+    closeModal(); loadDocuments();
+}
+
+async function deleteTransportRequest(id) {
+    if (!confirm('この輸送依頼書を削除しますか？')) return;
+    await apiDelete(`/transport-requests/${id}`); loadDocuments();
+}
+
+// 輸送依頼書PDF印刷
+async function printTransportRequest(id) {
+    const trs = await apiGet('/transport-requests');
+    const r = trs.find(x => x.id === id);
+    if (!r) return;
+    const settings = await apiGet('/settings');
+    const printWin = window.open('', '_blank', 'width=700,height=900');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>輸送依頼書</title>
+        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333;font-size:14px}
+        h1{font-size:1.5rem;text-align:center;border-bottom:3px double #333;padding-bottom:10px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse;margin:12px 0}
+        th,td{border:1px solid #333;padding:8px 12px;text-align:left}
+        th{background:#f5f5f5;width:130px;font-size:0.9rem}
+        .header-info{display:flex;justify-content:space-between;margin-bottom:16px;font-size:0.85rem}
+        .footer{margin-top:30px;font-size:0.8rem;color:#666;text-align:center}
+        </style></head><body>
+        <h1>輸送依頼書</h1>
+        <div class="header-info">
+            <div><strong>依頼番号:</strong> ${r.request_number}<br><strong>依頼日:</strong> ${r.request_date || '-'}</div>
+            <div style="text-align:right"><strong>${settings.company_name || '自社名未設定'}</strong><br>${settings.address || ''}<br>TEL: ${settings.phone || ''} FAX: ${settings.fax || ''}</div>
+        </div>
+        <p><strong>依頼先: ${r.partner_name}</strong></p>
+        <table>
+            <tr><th>集荷日時</th><td>${r.pickup_date || '-'} ${r.pickup_time || ''}</td></tr>
+            <tr><th>積地</th><td>${r.pickup_address || '-'}</td></tr>
+            <tr><th>積地連絡先</th><td>${r.pickup_contact || '-'}</td></tr>
+            <tr><th>配達日時</th><td>${r.delivery_date || '-'} ${r.delivery_time || ''}</td></tr>
+            <tr><th>卸地</th><td>${r.delivery_address || '-'}</td></tr>
+            <tr><th>卸地連絡先</th><td>${r.delivery_contact || '-'}</td></tr>
+            <tr><th>荷物内容</th><td>${r.cargo_description || '-'}</td></tr>
+            <tr><th>数量</th><td>${r.cargo_quantity || '-'}</td></tr>
+            <tr><th>重量</th><td>${r.cargo_weight ? r.cargo_weight + 'kg' : '-'}</td></tr>
+            <tr><th>車種指定</th><td>${r.vehicle_type_required || '指定なし'}</td></tr>
+            <tr><th>運賃</th><td>¥${(r.freight_amount || 0).toLocaleString()}</td></tr>
+            <tr><th>特記事項</th><td>${r.special_instructions || '-'}</td></tr>
+        </table>
+        <div class="footer">印刷日: ${new Date().toLocaleDateString('ja-JP')}</div>
+        <script>window.print();<\/script></body></html>`);
+}
+
+// 車番連絡票
+async function openVehicleNotificationModal() {
+    const today = fmt(new Date());
+    document.getElementById('modal-title').textContent = '車番連絡票作成';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row">
+            <div class="form-group"><label>到着予定日</label><input type="date" id="f-vn-date" value="${today}"></div>
+            <div class="form-group"><label>到着予定時刻</label><input type="time" id="f-vn-time"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>車番</label><input type="text" id="f-vn-vehicle" placeholder="品川100あ1234"></div>
+            <div class="form-group"><label>車種</label><input type="text" id="f-vn-type" placeholder="4tウイング"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>運転者名</label><input type="text" id="f-vn-driver"></div>
+            <div class="form-group"><label>運転者携帯</label><input type="text" id="f-vn-phone"></div>
+        </div>
+        <div class="form-group"><label>届け先名称</label><input type="text" id="f-vn-dest-name"></div>
+        <div class="form-group"><label>届け先住所</label><input type="text" id="f-vn-dest-addr"></div>
+        <div class="form-group"><label>届け先担当者</label><input type="text" id="f-vn-dest-contact"></div>
+        <div class="form-row">
+            <div class="form-group"><label>荷物内容</label><input type="text" id="f-vn-cargo"></div>
+            <div class="form-group"><label>数量</label><input type="text" id="f-vn-qty"></div>
+        </div>
+        <div class="form-group"><label>出荷元/荷主名</label><input type="text" id="f-vn-sender"></div>
+        <div class="form-group"><label>特記事項</label><textarea id="f-vn-notes" placeholder="パレット回収、リフト要否"></textarea></div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveVehicleNotification()">作成</button>
+        </div>`;
+    showModal();
+}
+
+async function saveVehicleNotification() {
+    const data = {
+        arrival_date: document.getElementById('f-vn-date').value || null,
+        arrival_time: document.getElementById('f-vn-time').value,
+        vehicle_number: document.getElementById('f-vn-vehicle').value,
+        vehicle_type: document.getElementById('f-vn-type').value,
+        driver_name: document.getElementById('f-vn-driver').value,
+        driver_phone: document.getElementById('f-vn-phone').value,
+        destination_name: document.getElementById('f-vn-dest-name').value,
+        destination_address: document.getElementById('f-vn-dest-addr').value,
+        destination_contact: document.getElementById('f-vn-dest-contact').value,
+        cargo_description: document.getElementById('f-vn-cargo').value,
+        quantity: document.getElementById('f-vn-qty').value,
+        sender_name: document.getElementById('f-vn-sender').value,
+        special_notes: document.getElementById('f-vn-notes').value,
+        notification_date: fmt(new Date()),
+    };
+    await apiPost('/vehicle-notifications', data);
+    closeModal(); loadDocuments();
+}
+
+async function createVehicleNotificationFromDispatch(dispatchId) {
+    await apiPost(`/vehicle-notifications/from-dispatch/${dispatchId}`, {});
+    alert('車番連絡票を作成しました');
+    closeModal();
+}
+
+async function deleteVehicleNotification(id) {
+    if (!confirm('この車番連絡票を削除しますか？')) return;
+    await apiDelete(`/vehicle-notifications/${id}`); loadDocuments();
+}
+
+// 車番連絡票PDF印刷
+async function printVehicleNotification(id) {
+    const vns = await apiGet('/vehicle-notifications');
+    const v = vns.find(x => x.id === id);
+    if (!v) return;
+    const settings = await apiGet('/settings');
+    const printWin = window.open('', '_blank', 'width=600,height=700');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>車番連絡票</title>
+        <style>body{font-family:'Hiragino Sans',sans-serif;padding:30px;color:#333}
+        h1{font-size:1.4rem;text-align:center;border-bottom:3px solid #333;padding-bottom:10px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse;margin:12px 0}
+        th,td{border:1px solid #333;padding:8px 12px;text-align:left}
+        th{background:#f5f5f5;width:130px}
+        .from{text-align:right;font-size:0.85rem;margin-bottom:12px}
+        </style></head><body>
+        <h1>車番連絡票</h1>
+        <div class="from"><strong>${settings.company_name || ''}</strong><br>TEL: ${settings.phone || ''} FAX: ${settings.fax || ''}</div>
+        <table>
+            <tr><th>到着予定日</th><td>${v.arrival_date || '-'}</td></tr>
+            <tr><th>到着予定時刻</th><td>${v.arrival_time || '-'}</td></tr>
+            <tr><th>車番</th><td style="font-size:1.2rem;font-weight:700">${v.vehicle_number || '-'}</td></tr>
+            <tr><th>車種</th><td>${v.vehicle_type || '-'}</td></tr>
+            <tr><th>運転者名</th><td>${v.driver_name || '-'}</td></tr>
+            <tr><th>運転者携帯</th><td>${v.driver_phone || '-'}</td></tr>
+            <tr><th>届け先</th><td>${v.destination_name || '-'}<br>${v.destination_address || ''}</td></tr>
+            <tr><th>届け先担当</th><td>${v.destination_contact || '-'}</td></tr>
+            <tr><th>荷物内容</th><td>${v.cargo_description || '-'}</td></tr>
+            <tr><th>数量</th><td>${v.quantity || '-'}</td></tr>
+            <tr><th>出荷元</th><td>${v.sender_name || '-'}</td></tr>
+            <tr><th>特記事項</th><td>${v.special_notes || '-'}</td></tr>
+        </table>
+        <script>window.print();<\/script></body></html>`);
+}
+
+// ===== 勤怠管理 =====
+async function loadAttendance() {
+    const monthEl = document.getElementById('att-month');
+    if (!monthEl.value) {
+        const now = new Date();
+        monthEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    const month = monthEl.value;
+    const [records, drivers] = await Promise.all([
+        apiGet('/attendance'), apiGet('/drivers')
+    ]);
+
+    // ドライバーフィルタ設定
+    const filterEl = document.getElementById('att-driver-filter');
+    if (filterEl.options.length <= 1) {
+        drivers.forEach(d => { const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; filterEl.appendChild(o); });
+    }
+    const filterDriver = parseInt(filterEl.value) || 0;
+
+    const filtered = records.filter(r => {
+        if (!r.date.startsWith(month)) return false;
+        if (filterDriver && r.driver_id !== filterDriver) return false;
+        return true;
+    });
+
+    // サマリー
+    const totalDays = filtered.filter(r => r.work_type === '通常' || r.work_type === '休日出勤').length;
+    const totalOT = filtered.reduce((s, r) => s + (r.overtime_minutes || 0), 0);
+    const totalLN = filtered.reduce((s, r) => s + (r.late_night_minutes || 0), 0);
+    const totalWork = filtered.reduce((s, r) => {
+        if (r.clock_in && r.clock_out) {
+            const [sh, sm] = r.clock_in.split(':').map(Number);
+            const [eh, em] = r.clock_out.split(':').map(Number);
+            return s + (eh * 60 + em) - (sh * 60 + sm) - (r.break_minutes || 0);
+        }
+        return s;
+    }, 0);
+
+    document.getElementById('att-summary').innerHTML = `
+        <div class="stat-card blue"><div class="stat-label">出勤日数</div><div class="stat-value">${totalDays}日</div></div>
+        <div class="stat-card green"><div class="stat-label">総労働時間</div><div class="stat-value">${Math.floor(totalWork/60)}h${totalWork%60}m</div></div>
+        <div class="stat-card orange"><div class="stat-label">残業時間</div><div class="stat-value">${Math.floor(totalOT/60)}h${totalOT%60}m</div></div>
+        <div class="stat-card purple"><div class="stat-label">深夜時間</div><div class="stat-value">${Math.floor(totalLN/60)}h${totalLN%60}m</div></div>`;
+
+    document.getElementById('attendance-table').innerHTML = filtered.map(r => {
+        const typeBadge = r.work_type === '有給' ? '<span class="badge badge-green">有給</span>'
+            : r.work_type === '休日出勤' ? '<span class="badge badge-orange">休日出勤</span>'
+            : r.work_type === '欠勤' ? '<span class="badge badge-red">欠勤</span>'
+            : r.work_type === '公休' ? '<span class="badge badge-gray">公休</span>'
+            : '<span class="badge badge-blue">通常</span>';
+        return `<tr>
+            <td>${r.date}</td>
+            <td><strong>${r.driver_name}</strong></td>
+            <td>${r.clock_in || '-'}</td>
+            <td>${r.clock_out || '-'}</td>
+            <td>${r.break_minutes}</td>
+            <td>${typeBadge}</td>
+            <td>${r.overtime_minutes || 0}</td>
+            <td>${r.late_night_minutes || 0}</td>
+            <td>
+                <button class="btn btn-sm btn-edit" onclick="editAttendance(${r.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteAttendance(${r.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">勤怠データがありません</td></tr>';
+}
+
+function openAttendanceModal(att = null) {
+    const isEdit = !!att;
+    const today = fmt(new Date());
+    document.getElementById('modal-title').textContent = isEdit ? '勤怠編集' : '勤怠登録';
+    const driversPromise = apiGet('/drivers');
+    driversPromise.then(drivers => {
+        document.getElementById('modal-body').innerHTML = `
+            <div class="form-group"><label>ドライバー</label>
+                <select id="f-at-driver">${drivers.map(d => `<option value="${d.id}" ${att?.driver_id === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}</select>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>日付</label><input type="date" id="f-at-date" value="${att?.date || today}"></div>
+                <div class="form-group"><label>勤務種別</label>
+                    <select id="f-at-type">${['通常','休日出勤','有給','欠勤','公休'].map(t => `<option ${att?.work_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>出勤時刻</label><input type="time" id="f-at-in" value="${att?.clock_in || ''}"></div>
+                <div class="form-group"><label>退勤時刻</label><input type="time" id="f-at-out" value="${att?.clock_out || ''}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>休憩(分)</label><input type="number" id="f-at-break" value="${att?.break_minutes ?? 60}"></div>
+                <div class="form-group"><label>手当(円)</label><input type="number" id="f-at-allowance" value="${att?.allowance || 0}"></div>
+            </div>
+            <div class="form-group"><label>備考</label><textarea id="f-at-notes">${att?.notes || ''}</textarea></div>
+            <div class="form-actions">
+                <button class="btn" onclick="closeModal()">キャンセル</button>
+                <button class="btn btn-primary" onclick="saveAttendance(${att?.id || 'null'})">${isEdit ? '更新' : '登録'}</button>
+            </div>`;
+        showModal();
+    });
+}
+
+async function saveAttendance(id) {
+    const data = {
+        driver_id: parseInt(document.getElementById('f-at-driver').value),
+        date: document.getElementById('f-at-date').value,
+        clock_in: document.getElementById('f-at-in').value,
+        clock_out: document.getElementById('f-at-out').value,
+        break_minutes: parseInt(document.getElementById('f-at-break').value) || 60,
+        work_type: document.getElementById('f-at-type').value,
+        allowance: parseInt(document.getElementById('f-at-allowance').value) || 0,
+        notes: document.getElementById('f-at-notes').value,
+    };
+    if (id) await apiPut(`/attendance/${id}`, data); else await apiPost('/attendance', data);
+    closeModal(); loadAttendance();
+}
+
+async function editAttendance(id) {
+    const records = await apiGet('/attendance');
+    const r = records.find(x => x.id === id);
+    if (r) openAttendanceModal(r);
+}
+
+async function deleteAttendance(id) {
+    if (!confirm('この勤怠記録を削除しますか？')) return;
+    await apiDelete(`/attendance/${id}`); loadAttendance();
+}
+
+async function generateAttendanceFromDispatches() {
+    const today = fmt(new Date());
+    const result = await apiPost(`/attendance/from-dispatches?target_date=${today}`, {});
+    alert(`${result.created}件の勤怠を生成しました`);
+    loadAttendance();
+}
+
+// ===== 会計 =====
+async function loadAccounting() {
+    const monthEl = document.getElementById('acc-month');
+    if (!monthEl.value) {
+        const now = new Date();
+        monthEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    const month = monthEl.value;
+    const [entries, summary] = await Promise.all([
+        apiGet('/accounting'), apiGet(`/accounting/summary?month=${month}`)
+    ]);
+
+    const filtered = entries.filter(e => e.date.startsWith(month));
+    const profitRate = summary.income > 0 ? Math.round(summary.profit / summary.income * 100) : 0;
+
+    document.getElementById('acc-summary').innerHTML = `
+        <div class="stat-card green"><div class="stat-label">収入</div><div class="stat-value">¥${summary.income.toLocaleString()}</div></div>
+        <div class="stat-card red"><div class="stat-label">支出</div><div class="stat-value">¥${summary.expense.toLocaleString()}</div></div>
+        <div class="stat-card blue"><div class="stat-label">粗利</div><div class="stat-value">¥${summary.profit.toLocaleString()}</div></div>
+        <div class="stat-card purple"><div class="stat-label">利益率</div><div class="stat-value">${profitRate}%</div></div>`;
+
+    document.getElementById('accounting-table').innerHTML = filtered.map(e => {
+        const typeBadge = e.entry_type === '収入' ? '<span class="badge badge-green">収入</span>' : '<span class="badge badge-red">支出</span>';
+        return `<tr>
+            <td>${e.date}</td>
+            <td>${typeBadge}</td>
+            <td>${e.category || '-'}</td>
+            <td>${e.description || '-'}</td>
+            <td><strong>¥${e.amount.toLocaleString()}</strong></td>
+            <td>
+                <button class="btn btn-sm btn-edit" onclick="editAccountEntry(${e.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteAccountEntry(${e.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">仕訳データがありません</td></tr>';
+}
+
+async function openAccountEntryModal(entry = null) {
+    const isEdit = !!entry;
+    const today = fmt(new Date());
+    const categories = await apiGet('/accounting/categories');
+    document.getElementById('modal-title').textContent = isEdit ? '仕訳編集' : '仕訳登録';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-row">
+            <div class="form-group"><label>日付</label><input type="date" id="f-ac-date" value="${entry?.date || today}"></div>
+            <div class="form-group"><label>種別</label>
+                <select id="f-ac-type" onchange="updateAccCategories()">
+                    <option value="収入" ${entry?.entry_type === '収入' ? 'selected' : ''}>収入</option>
+                    <option value="支出" ${entry?.entry_type === '支出' ? 'selected' : ''}>支出</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>カテゴリ</label>
+            <select id="f-ac-category">
+                ${(entry?.entry_type === '支出' ? categories.expense : categories.income).map(c => `<option ${entry?.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group"><label>摘要</label><input type="text" id="f-ac-desc" value="${entry?.description || ''}"></div>
+        <div class="form-group"><label>金額</label><input type="number" id="f-ac-amount" value="${entry?.amount || 0}"></div>
+        <div class="form-group"><label>備考</label><textarea id="f-ac-notes">${entry?.notes || ''}</textarea></div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveAccountEntry(${entry?.id || 'null'})">${isEdit ? '更新' : '登録'}</button>
+        </div>`;
+    showModal();
+    window._accCategories = categories;
+}
+
+function updateAccCategories() {
+    const type = document.getElementById('f-ac-type').value;
+    const cats = type === '支出' ? window._accCategories.expense : window._accCategories.income;
+    document.getElementById('f-ac-category').innerHTML = cats.map(c => `<option>${c}</option>`).join('');
+}
+
+async function saveAccountEntry(id) {
+    const data = {
+        date: document.getElementById('f-ac-date').value,
+        entry_type: document.getElementById('f-ac-type').value,
+        category: document.getElementById('f-ac-category').value,
+        description: document.getElementById('f-ac-desc').value,
+        amount: parseInt(document.getElementById('f-ac-amount').value) || 0,
+        notes: document.getElementById('f-ac-notes').value,
+    };
+    if (id) await apiPut(`/accounting/${id}`, data); else await apiPost('/accounting', data);
+    closeModal(); loadAccounting();
+}
+
+async function editAccountEntry(id) {
+    const entries = await apiGet('/accounting');
+    const e = entries.find(x => x.id === id);
+    if (e) openAccountEntryModal(e);
+}
+
+async function deleteAccountEntry(id) {
+    if (!confirm('この仕訳を削除しますか？')) return;
+    await apiDelete(`/accounting/${id}`); loadAccounting();
+}
+
+async function importRevenueToAccounting() {
+    const month = document.getElementById('acc-month').value;
+    if (!month) return alert('月を選択してください');
+    const result = await apiPost(`/accounting/import-revenue?month=${month}`, {});
+    alert(`${result.created}件の売上を取り込みました`);
+    loadAccounting();
+}
+
+// ===== 設定 =====
+async function loadCompanySettings() {
+    const s = await apiGet('/settings');
+    document.getElementById('s-company-name').value = s.company_name || '';
+    document.getElementById('s-address').value = s.address || '';
+    document.getElementById('s-phone').value = s.phone || '';
+    document.getElementById('s-fax').value = s.fax || '';
+    document.getElementById('s-representative').value = s.representative || '';
+    document.getElementById('s-reg-number').value = s.registration_number || '';
+    document.getElementById('s-bank-info').value = s.bank_info || '';
+}
+
+async function saveCompanySettings() {
+    const data = {
+        company_name: document.getElementById('s-company-name').value,
+        address: document.getElementById('s-address').value,
+        phone: document.getElementById('s-phone').value,
+        fax: document.getElementById('s-fax').value,
+        representative: document.getElementById('s-representative').value,
+        registration_number: document.getElementById('s-reg-number').value,
+        bank_info: document.getElementById('s-bank-info').value,
+    };
+    await apiPut('/settings', data);
+    alert('保存しました');
+}

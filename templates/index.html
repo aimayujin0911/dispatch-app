@@ -25,11 +25,17 @@
             <li class="nav-item" data-page="clients">
                 <span class="nav-icon">🏢</span> 荷主管理
             </li>
+            <li class="nav-item" data-page="partners">
+                <span class="nav-icon">🤝</span> 協力会社
+            </li>
             <li class="nav-item" data-page="vehicles">
                 <span class="nav-icon">🚚</span> 車両管理
             </li>
             <li class="nav-item" data-page="drivers">
                 <span class="nav-icon">👤</span> ドライバー管理
+            </li>
+            <li class="nav-item" data-page="documents">
+                <span class="nav-icon">📄</span> 書類管理
             </li>
             <li class="nav-item" data-page="map">
                 <span class="nav-icon">🗺️</span> 地図表示
@@ -37,8 +43,17 @@
             <li class="nav-item" data-page="revenue">
                 <span class="nav-icon">💰</span> 売上・請求
             </li>
+            <li class="nav-item" data-page="attendance">
+                <span class="nav-icon">⏰</span> 勤怠管理
+            </li>
+            <li class="nav-item" data-page="accounting">
+                <span class="nav-icon">📒</span> 会計
+            </li>
             <li class="nav-item" data-page="reports">
                 <span class="nav-icon">📝</span> 日報
+            </li>
+            <li class="nav-item" data-page="settings">
+                <span class="nav-icon">⚙️</span> 設定
             </li>
         </ul>
     </nav>
@@ -98,6 +113,7 @@
         <section class="page" id="page-shipments">
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openShipmentModal()">+ 新規案件</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/shipments'" title="CSV出力">📥 CSV</button>
             </div>
             <div class="table-container">
                 <table class="data-table">
@@ -108,6 +124,7 @@
                             <th>荷物</th>
                             <th>積卸地</th>
                             <th>集荷日</th>
+                            <th>時間指定</th>
                             <th>運賃</th>
                             <th>頻度</th>
                             <th>ステータス</th>
@@ -123,6 +140,7 @@
         <section class="page" id="page-clients">
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openClientModal()">+ 荷主追加</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/clients'" title="CSV出力">📥 CSV</button>
             </div>
             <div class="table-container">
                 <table class="data-table">
@@ -141,10 +159,58 @@
             </div>
         </section>
 
+        <!-- 協力会社管理 -->
+        <section class="page" id="page-partners">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openPartnerModal()">+ 協力会社追加</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/partners'" title="CSV出力">📥 CSV</button>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>会社名</th>
+                            <th>住所</th>
+                            <th>電話/FAX</th>
+                            <th>担当者</th>
+                            <th>支払条件</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="partners-table"></tbody>
+                </table>
+            </div>
+            <div class="card" style="margin-top:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                    <h3 style="margin:0">協力会社 請求管理</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-sm btn-primary" onclick="openPartnerInvoiceModal()">+ 請求書登録</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>請求番号</th>
+                                <th>協力会社</th>
+                                <th>請求日</th>
+                                <th>支払期日</th>
+                                <th>金額(税込)</th>
+                                <th>ステータス</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="partner-invoices-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <!-- 車両管理 -->
         <section class="page" id="page-vehicles">
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openVehicleModal()">+ 車両追加</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/vehicles'" title="CSV出力">📥 CSV</button>
             </div>
             <div class="table-container">
                 <table class="data-table">
@@ -168,6 +234,7 @@
         <section class="page" id="page-drivers">
             <div class="page-actions">
                 <button class="btn btn-primary" onclick="openDriverModal()">+ ドライバー追加</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/drivers'" title="CSV出力">📥 CSV</button>
             </div>
             <div id="driver-work-hours"></div>
             <div class="table-container">
@@ -185,6 +252,61 @@
                     </thead>
                     <tbody id="drivers-table"></tbody>
                 </table>
+            </div>
+        </section>
+
+        <!-- 書類管理 -->
+        <section class="page" id="page-documents">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openTransportRequestModal()">+ 輸送依頼書作成</button>
+                <button class="btn btn-sm" onclick="openVehicleNotificationModal()">+ 車番連絡票作成</button>
+            </div>
+            <!-- 輸送依頼書一覧 -->
+            <div class="card" style="margin-bottom:16px">
+                <h3 style="margin-bottom:12px">輸送依頼書</h3>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>依頼番号</th>
+                                <th>協力会社</th>
+                                <th>集荷日</th>
+                                <th>積地→卸地</th>
+                                <th>荷物</th>
+                                <th>運賃</th>
+                                <th>ステータス</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transport-requests-table"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- 車番連絡票一覧 -->
+            <div class="card" style="margin-bottom:16px">
+                <h3 style="margin-bottom:12px">車番連絡票</h3>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>到着日</th>
+                                <th>到着時刻</th>
+                                <th>車番</th>
+                                <th>ドライバー</th>
+                                <th>届け先</th>
+                                <th>荷物</th>
+                                <th>ステータス</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehicle-notifications-table"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- ドライバー指示書は配車詳細から作成 -->
+            <div class="card">
+                <h3 style="margin-bottom:8px">ドライバー指示書</h3>
+                <p style="color:var(--text-light);font-size:0.85rem">配車表の配車詳細画面から「🖨 指示書」ボタンで作成・印刷できます</p>
             </div>
         </section>
 
@@ -274,6 +396,64 @@
             </div>
         </section>
 
+        <!-- 勤怠管理 -->
+        <section class="page" id="page-attendance">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openAttendanceModal()">+ 勤怠登録</button>
+                <button class="btn btn-sm" onclick="generateAttendanceFromDispatches()">⚡ 配車から自動生成</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/attendance'" title="CSV出力">📥 CSV</button>
+                <input type="month" id="att-month" onchange="loadAttendance()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
+                <select id="att-driver-filter" onchange="loadAttendance()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem">
+                    <option value="">全ドライバー</option>
+                </select>
+            </div>
+            <div class="stats-grid" id="att-summary"></div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>ドライバー</th>
+                            <th>出勤</th>
+                            <th>退勤</th>
+                            <th>休憩(分)</th>
+                            <th>勤務種別</th>
+                            <th>残業(分)</th>
+                            <th>深夜(分)</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendance-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 会計 -->
+        <section class="page" id="page-accounting">
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openAccountEntryModal()">+ 仕訳登録</button>
+                <button class="btn btn-sm" onclick="importRevenueToAccounting()">⚡ 売上自動取込</button>
+                <button class="btn btn-sm" onclick="location.href='/api/export/accounting'" title="CSV出力">📥 CSV</button>
+                <input type="month" id="acc-month" onchange="loadAccounting()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem">
+            </div>
+            <div class="stats-grid" id="acc-summary"></div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>種別</th>
+                            <th>カテゴリ</th>
+                            <th>摘要</th>
+                            <th>金額</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accounting-table"></tbody>
+                </table>
+            </div>
+        </section>
+
         <!-- 日報 -->
         <section class="page" id="page-reports">
             <div class="page-actions">
@@ -298,6 +478,49 @@
                 </table>
             </div>
         </section>
+
+        <!-- 設定 -->
+        <section class="page" id="page-settings">
+            <div class="card">
+                <h3 style="margin-bottom:16px">自社情報設定</h3>
+                <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px">輸送依頼書・請求書・車番連絡票に印字される自社情報です</p>
+                <div class="form-group">
+                    <label>会社名</label>
+                    <input type="text" id="s-company-name" placeholder="株式会社○○運輸">
+                </div>
+                <div class="form-group">
+                    <label>住所</label>
+                    <input type="text" id="s-address" placeholder="東京都○○区...">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>電話番号</label>
+                        <input type="text" id="s-phone" placeholder="03-xxxx-xxxx">
+                    </div>
+                    <div class="form-group">
+                        <label>FAX</label>
+                        <input type="text" id="s-fax" placeholder="03-xxxx-xxxx">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>代表者名</label>
+                        <input type="text" id="s-representative">
+                    </div>
+                    <div class="form-group">
+                        <label>適格請求書番号</label>
+                        <input type="text" id="s-reg-number" placeholder="T1234567890123">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>振込先情報</label>
+                    <textarea id="s-bank-info" placeholder="○○銀行 ○○支店 普通 1234567"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="saveCompanySettings()">保存</button>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- モーダル -->
@@ -315,6 +538,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=7"></script>
+    <script src="/static/js/app.js?v=8"></script>
 </body>
 </html>

@@ -7,7 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from database import engine, Base
-from routers import vehicles, drivers, shipments, dispatches, reports, dashboard, clients
+from routers import (vehicles, drivers, shipments, dispatches, reports, dashboard,
+                     clients, partners, partner_invoices, transport_requests,
+                     vehicle_notifications, attendance, accounting, export, company_settings)
 
 Base.metadata.create_all(bind=engine)
 
@@ -36,6 +38,10 @@ def seed_on_startup():
             ("dispatches", "end_date", "DATE"),
             ("shipments", "invoice_status", "VARCHAR(20) DEFAULT '未請求'"),
             ("shipments", "invoice_date", "DATE"),
+            ("shipments", "pickup_time", "VARCHAR(50) DEFAULT ''"),
+            ("shipments", "delivery_time", "VARCHAR(50) DEFAULT ''"),
+            ("shipments", "time_note", "VARCHAR(100) DEFAULT ''"),
+            ("clients", "fax", "VARCHAR(20) DEFAULT ''"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -56,6 +62,14 @@ app.include_router(drivers.router, prefix="/api/drivers", tags=["drivers"])
 app.include_router(shipments.router, prefix="/api/shipments", tags=["shipments"])
 app.include_router(dispatches.router, prefix="/api/dispatches", tags=["dispatches"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(partners.router, prefix="/api/partners", tags=["partners"])
+app.include_router(partner_invoices.router, prefix="/api/partner-invoices", tags=["partner_invoices"])
+app.include_router(transport_requests.router, prefix="/api/transport-requests", tags=["transport_requests"])
+app.include_router(vehicle_notifications.router, prefix="/api/vehicle-notifications", tags=["vehicle_notifications"])
+app.include_router(attendance.router, prefix="/api/attendance", tags=["attendance"])
+app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
+app.include_router(export.router, prefix="/api/export", tags=["export"])
+app.include_router(company_settings.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.get("/", response_class=HTMLResponse)

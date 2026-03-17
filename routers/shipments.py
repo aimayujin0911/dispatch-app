@@ -17,7 +17,10 @@ class ShipmentCreate(BaseModel):
     pickup_address: str
     delivery_address: str
     pickup_date: date
+    pickup_time: str = ""
     delivery_date: date
+    delivery_time: str = ""
+    time_note: str = ""
     price: int = 0
     frequency_type: str = "単発"
     frequency_days: str = ""
@@ -33,7 +36,10 @@ class ShipmentUpdate(BaseModel):
     pickup_address: Optional[str] = None
     delivery_address: Optional[str] = None
     pickup_date: Optional[date] = None
+    pickup_time: Optional[str] = None
     delivery_date: Optional[date] = None
+    delivery_time: Optional[str] = None
+    time_note: Optional[str] = None
     price: Optional[int] = None
     frequency_type: Optional[str] = None
     frequency_days: Optional[str] = None

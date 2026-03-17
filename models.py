@@ -4,6 +4,20 @@ from datetime import datetime
 from database import Base
 
 
+class CompanySettings(Base):
+    __tablename__ = "company_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_name = Column(String(100), default="")
+    address = Column(String(200), default="")
+    phone = Column(String(20), default="")
+    fax = Column(String(20), default="")
+    representative = Column(String(50), default="")
+    registration_number = Column(String(50), default="")
+    bank_info = Column(Text, default="")
+    notes = Column(Text, default="")
+
+
 class Client(Base):
     __tablename__ = "clients"
 
@@ -11,7 +25,143 @@ class Client(Base):
     name = Column(String(100), unique=True, nullable=False)
     address = Column(String(200), default="")
     phone = Column(String(20), default="")
+    fax = Column(String(20), default="")
     contact_person = Column(String(50), default="")
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class PartnerCompany(Base):
+    __tablename__ = "partner_companies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    address = Column(String(200), default="")
+    phone = Column(String(20), default="")
+    fax = Column(String(20), default="")
+    contact_person = Column(String(50), default="")
+    bank_info = Column(Text, default="")
+    payment_terms = Column(String(50), default="月末締め翌月末払い")
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class PartnerInvoice(Base):
+    __tablename__ = "partner_invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    partner_id = Column(Integer, ForeignKey("partner_companies.id"), nullable=False)
+    invoice_number = Column(String(50), default="")
+    invoice_date = Column(Date, nullable=True)
+    due_date = Column(Date, nullable=True)
+    total_amount = Column(Integer, default=0)
+    tax_amount = Column(Integer, default=0)
+    status = Column(String(20), default="未確認")
+    payment_date = Column(Date, nullable=True)
+    period_start = Column(Date, nullable=True)
+    period_end = Column(Date, nullable=True)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    partner = relationship("PartnerCompany")
+
+
+class PartnerInvoiceItem(Base):
+    __tablename__ = "partner_invoice_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    partner_invoice_id = Column(Integer, ForeignKey("partner_invoices.id"), nullable=False)
+    date = Column(Date, nullable=True)
+    description = Column(String(200), default="")
+    amount = Column(Integer, default=0)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=True)
+    notes = Column(String(200), default="")
+
+
+class TransportRequest(Base):
+    __tablename__ = "transport_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_number = Column(String(30), default="")
+    partner_id = Column(Integer, ForeignKey("partner_companies.id"), nullable=False)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=True)
+    request_date = Column(Date, nullable=True)
+    pickup_date = Column(Date, nullable=True)
+    pickup_time = Column(String(50), default="")
+    delivery_date = Column(Date, nullable=True)
+    delivery_time = Column(String(50), default="")
+    pickup_address = Column(String(200), default="")
+    pickup_contact = Column(String(100), default="")
+    delivery_address = Column(String(200), default="")
+    delivery_contact = Column(String(100), default="")
+    cargo_description = Column(String(200), default="")
+    cargo_weight = Column(Float, default=0)
+    cargo_quantity = Column(String(50), default="")
+    vehicle_type_required = Column(String(50), default="")
+    special_instructions = Column(Text, default="")
+    freight_amount = Column(Integer, default=0)
+    status = Column(String(20), default="下書き")
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    partner = relationship("PartnerCompany")
+    shipment = relationship("Shipment", foreign_keys=[shipment_id])
+
+
+class VehicleNotification(Base):
+    __tablename__ = "vehicle_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dispatch_id = Column(Integer, ForeignKey("dispatches.id"), nullable=True)
+    notification_date = Column(Date, nullable=True)
+    arrival_date = Column(Date, nullable=True)
+    arrival_time = Column(String(50), default="")
+    vehicle_number = Column(String(20), default="")
+    vehicle_type = Column(String(50), default="")
+    driver_name = Column(String(50), default="")
+    driver_phone = Column(String(20), default="")
+    cargo_description = Column(String(200), default="")
+    quantity = Column(String(50), default="")
+    destination_name = Column(String(100), default="")
+    destination_address = Column(String(200), default="")
+    destination_contact = Column(String(100), default="")
+    sender_name = Column(String(100), default="")
+    special_notes = Column(Text, default="")
+    status = Column(String(20), default="未送付")
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class Attendance(Base):
+    __tablename__ = "attendance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    clock_in = Column(String(5), default="")
+    clock_out = Column(String(5), default="")
+    break_minutes = Column(Integer, default=60)
+    work_type = Column(String(20), default="通常")
+    overtime_minutes = Column(Integer, default=0)
+    late_night_minutes = Column(Integer, default=0)
+    distance_km = Column(Float, default=0)
+    allowance = Column(Integer, default=0)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    driver = relationship("Driver")
+
+
+class AccountEntry(Base):
+    __tablename__ = "account_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, nullable=False)
+    entry_type = Column(String(20), default="収入")
+    category = Column(String(50), default="")
+    description = Column(String(200), default="")
+    amount = Column(Integer, default=0)
+    related_shipment_id = Column(Integer, nullable=True)
+    related_partner_id = Column(Integer, nullable=True)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
@@ -59,7 +209,10 @@ class Shipment(Base):
     pickup_address = Column(String(200), nullable=False)
     delivery_address = Column(String(200), nullable=False)
     pickup_date = Column(Date, nullable=False)
+    pickup_time = Column(String(50), default="")
     delivery_date = Column(Date, nullable=False)
+    delivery_time = Column(String(50), default="")
+    time_note = Column(String(100), default="")
     price = Column(Integer, default=0)
     frequency_type = Column(String(20), default="単発")
     frequency_days = Column(String(50), default="")
