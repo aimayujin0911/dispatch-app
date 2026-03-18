@@ -459,7 +459,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
 
 // 協力会社行を配車表下部に追加（配車がある場合のみ表示）
 function buildPartnerRows(dayStr, dispatches, partners) {
-    const partnerDispatches = dispatches.filter(d => d.is_partner || d.partner_name);
+    const partnerDispatches = dispatches.filter(d => d.partner_id || d.is_partner);
     if (partnerDispatches.length === 0) return '';
 
     // 配車がある協力会社のみグループ化
@@ -904,7 +904,7 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
     if (!driverId && !partnerId) return alert('ドライバーまたは協力会社を選択してください');
     const startTime = document.getElementById('f-sd-start').value;
     const endTime = document.getElementById('f-sd-end').value;
-    // Requirement 1: ドライバー重複チェック
+    // ドライバー重複チェック
     if (driverId) {
         const conflict = await checkDriverConflict(driverId, dayStr, startTime, endTime, vehicleId);
         if (conflict) {
@@ -912,18 +912,23 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
             return;
         }
     }
-    const result = await apiPost('/dispatches', {
-        vehicle_id: vehicleId,
-        driver_id: driverId || null,
-        partner_id: partnerId || null,
+    const postData = {
         shipment_id: shipmentId,
         date: dayStr,
         start_time: startTime,
         end_time: endTime,
-    });
+    };
+    if (partnerId) {
+        // 協力会社配車: vehicle_id不要
+        postData.partner_id = partnerId;
+    } else {
+        // 自社配車
+        postData.vehicle_id = vehicleId;
+        postData.driver_id = driverId;
+    }
+    await apiPost('/dispatches', postData);
     closeModal();
     loadDispatchCalendar();
-
 }
 
 async function createTransportRequestFromShipmentAndShow(shipmentId, partnerId) {
@@ -1938,11 +1943,11 @@ async function loadShipments() {
         return `<tr>
             <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
             <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
-            <td>${s.cargo_description || '-'}</td>
+            <td>${s.cargo_description || '-'} <span style="font-size:0.7rem;padding:1px 4px;border-radius:3px;background:${s.transport_type === '冷凍' ? '#dbeafe' : s.transport_type === '冷蔵' ? '#e0f2fe' : s.transport_type === 'チルド' ? '#fef3c7' : s.transport_type === '危険物' ? '#fee2e2' : '#f1f5f9'};color:${s.transport_type === '危険物' ? '#dc2626' : '#334155'}">${s.transport_type || 'ドライ'}</span></td>
             <td>${s.pickup_address} → ${s.delivery_address}</td>
             <td>${s.pickup_date}</td>
             <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
-            <td>¥${s.price.toLocaleString()}</td>
+            <td>¥${s.price.toLocaleString()} ${s.unit_price_type && s.unit_price_type !== '個建' ? `<span style="font-size:0.65rem;color:#64748b">(${s.unit_price_type})</span>` : ''}</td>
             <td style="white-space:nowrap">${freqLabel}</td>
             <td style="white-space:nowrap">
                 <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
@@ -2076,7 +2081,29 @@ async function openShipmentModal(shipment = null) {
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>運賃(円)</label>
+                <label>輸送タイプ</label>
+                <select id="f-s-transport-type">
+                    ${['ドライ','冷蔵','冷凍','チルド','危険物'].map(t => `<option ${shipment?.transport_type === t ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>単価種別</label>
+                <select id="f-s-unit-type" onchange="calcShipmentPrice()">
+                    ${['車建','kg単価','ケース単価','個建','才建'].map(t => `<option ${shipment?.unit_price_type === t ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>単価</label>
+                <input type="number" step="0.01" id="f-s-unit-price" value="${shipment?.unit_price || 0}" oninput="calcShipmentPrice()">
+            </div>
+            <div class="form-group">
+                <label>数量</label>
+                <input type="number" step="0.01" id="f-s-unit-qty" value="${shipment?.unit_quantity || 0}" oninput="calcShipmentPrice()">
+            </div>
+            <div class="form-group">
+                <label>運賃(円) <span id="f-s-price-calc" style="font-size:0.7rem;color:#64748b"></span></label>
                 <input type="number" id="f-s-price" value="${shipment?.price || 0}">
             </div>
         </div>
@@ -2090,6 +2117,20 @@ async function openShipmentModal(shipment = null) {
             <button class="btn btn-primary" onclick="saveShipment(${shipment?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
         </div>`;
     showModal();
+}
+
+function calcShipmentPrice() {
+    const unitPrice = parseFloat(document.getElementById('f-s-unit-price').value) || 0;
+    const qty = parseFloat(document.getElementById('f-s-unit-qty').value) || 0;
+    const type = document.getElementById('f-s-unit-type').value;
+    const calc = Math.round(unitPrice * qty);
+    const label = document.getElementById('f-s-price-calc');
+    if (unitPrice > 0 && qty > 0) {
+        label.textContent = `(${unitPrice} × ${qty} = ¥${calc.toLocaleString()})`;
+        document.getElementById('f-s-price').value = calc;
+    } else {
+        label.textContent = '';
+    }
 }
 
 function toggleFreqCategory() {
@@ -2146,6 +2187,10 @@ async function saveShipment(id) {
         delivery_time: deliveryTime,
         time_note: timeNote,
         price: parseInt(document.getElementById('f-s-price').value),
+        transport_type: document.getElementById('f-s-transport-type').value,
+        unit_price_type: document.getElementById('f-s-unit-type').value,
+        unit_price: parseFloat(document.getElementById('f-s-unit-price').value) || 0,
+        unit_quantity: parseFloat(document.getElementById('f-s-unit-qty').value) || 0,
         frequency_type: freqType,
         frequency_days: freqDays,
         waiting_time: parseInt(document.getElementById('f-s-waiting').value) || 0,
@@ -2343,6 +2388,16 @@ const GEOCODE_CACHE = {
     '群馬県高崎市': [36.3219, 139.0032],
 };
 
+function haversineDistance(coord1, coord2) {
+    const R = 6371; // km
+    const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+    const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 1.3; // 1.3x for road distance estimate
+}
+
 function simpleGeocode(address) {
     if (!address) return null;
     let bestMatch = null;
@@ -2470,10 +2525,15 @@ async function loadMapMarkers() {
             bounds.push(deliveryCoords);
         }
         if (pickupCoords && deliveryCoords) {
+            const distKm = haversineDistance(pickupCoords, deliveryCoords);
+            const estMinutes = Math.round(distKm / 40 * 60); // 平均40km/h想定
+            const estHours = Math.floor(estMinutes / 60);
+            const estMins = estMinutes % 60;
+            const timeStr = estHours > 0 ? `約${estHours}時間${estMins > 0 ? estMins + '分' : ''}` : `約${estMins}分`;
             const line = L.polyline([pickupCoords, deliveryCoords], {
                 color: vColor, weight: 4, opacity: 0.8, dashArray: '8, 6'
             }).addTo(map);
-            line.bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong>: ${d.pickup_address} → ${d.delivery_address}`);
+            line.bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong><br>${d.pickup_address} → ${d.delivery_address}<br>📏 直線距離: ${distKm.toFixed(1)}km<br>🕐 推定所要: ${timeStr}（一般道平均40km/h）<br>🛣️ 高速利用時: 約${Math.round(distKm / 70 * 60)}分（平均70km/h）`);
             mapMarkers.push(line);
         }
     });

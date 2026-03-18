@@ -4,15 +4,15 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Dispatch, Shipment, Vehicle, Driver
+from models import Dispatch, Shipment, Vehicle, Driver, PartnerCompany
 
 router = APIRouter()
 
 
 class DispatchCreate(BaseModel):
-    vehicle_id: int
+    vehicle_id: Optional[int] = None
     driver_id: Optional[int] = None
-    partner_id: Optional[int] = None  # 協力会社ID（ドライバーの代わり）
+    partner_id: Optional[int] = None
     shipment_id: Optional[int] = None
     date: date
     end_date: Optional[date] = None
@@ -46,6 +46,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
     query = db.query(Dispatch).options(
         joinedload(Dispatch.vehicle),
         joinedload(Dispatch.driver),
+        joinedload(Dispatch.partner),
         joinedload(Dispatch.shipment),
     )
     if target_date:
@@ -69,14 +70,12 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
     dispatches = query.order_by(Dispatch.date, Dispatch.start_time).all()
     result = []
     for d in dispatches:
-        # 協力会社名取得
-        partner_name = ""
-        if d.notes and d.notes.startswith("partner:"):
-            partner_name = d.notes.split("partner:")[1].split("\n")[0].strip()
+        partner_name = d.partner.name if d.partner else ""
         result.append({
             "id": d.id,
             "vehicle_id": d.vehicle_id,
             "driver_id": d.driver_id,
+            "partner_id": d.partner_id,
             "shipment_id": d.shipment_id,
             "date": str(d.date),
             "end_date": str(d.end_date) if d.end_date else None,
@@ -85,7 +84,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "status": d.status,
             "notes": d.notes,
             "partner_name": partner_name,
-            "is_partner": bool(partner_name),
+            "is_partner": bool(d.partner_id),
             "vehicle_number": d.vehicle.number if d.vehicle else "",
             "vehicle_type": d.vehicle.type if d.vehicle else "",
             "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,
@@ -110,39 +109,33 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
 
 @router.post("")
 def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
-    # driver_idが0またはNullの場合、協力会社配車
-    actual_driver_id = data.driver_id
-    notes = data.notes or ""
-    if data.partner_id and not data.driver_id:
-        # 協力会社の場合、ダミードライバーID=最初のドライバーを使う（or partner情報をnotesに保存）
-        from models import PartnerCompany
-        partner = db.query(PartnerCompany).filter(PartnerCompany.id == data.partner_id).first()
-        if partner:
-            notes = f"partner:{partner.name}\n{notes}"
-        # driver_idは必須なので最初のドライバーを仮設定
-        first_driver = db.query(Driver).first()
-        if first_driver:
-            actual_driver_id = first_driver.id
-        else:
-            raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
-    elif not actual_driver_id:
+    if not data.driver_id and not data.partner_id:
         raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
 
     dispatch_data = {
-        "vehicle_id": data.vehicle_id,
-        "driver_id": actual_driver_id,
         "date": data.date,
         "end_date": data.end_date,
         "start_time": data.start_time,
         "end_time": data.end_time,
         "status": data.status,
-        "notes": notes,
+        "notes": data.notes or "",
     }
+
+    if data.partner_id:
+        # 協力会社配車: vehicle_id/driver_idは不要
+        dispatch_data["partner_id"] = data.partner_id
+        dispatch_data["vehicle_id"] = None
+        dispatch_data["driver_id"] = None
+    else:
+        # 自社配車
+        dispatch_data["vehicle_id"] = data.vehicle_id
+        dispatch_data["driver_id"] = data.driver_id
+
     if data.shipment_id:
         dispatch_data["shipment_id"] = data.shipment_id
         shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id).first()
         if shipment:
-            shipment.status = "配車済"
+            shipment.status = "運行中"
     else:
         if data.pickup_address and data.delivery_address:
             shipment = Shipment(
@@ -151,7 +144,7 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
                 delivery_address=data.delivery_address,
                 pickup_date=data.date,
                 delivery_date=data.date,
-                status="配車済",
+                status="運行中",
             )
             db.add(shipment)
             db.flush()
@@ -172,8 +165,6 @@ def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depend
     update_data = data.model_dump(exclude_unset=True)
     pickup_addr = update_data.pop("pickup_address", None)
     delivery_addr = update_data.pop("delivery_address", None)
-    # partner_idはDispatchモデルにないので除外
-    update_data.pop("partner_id", None)
     for key, value in update_data.items():
         setattr(dispatch, key, value)
     if (pickup_addr is not None or delivery_addr is not None) and dispatch.shipment_id:

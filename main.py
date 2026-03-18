@@ -159,6 +159,11 @@ async def accounting_app(request: Request):
     return templates.TemplateResponse("app_accounting.html", {"request": request})
 
 
+@app.get("/app/analysis", response_class=HTMLResponse)
+async def analysis_app(request: Request):
+    return templates.TemplateResponse("app_analysis.html", {"request": request})
+
+
 @app.get("/app/reports", response_class=HTMLResponse)
 async def reports_app(request: Request):
     return templates.TemplateResponse("app_reports.html", {"request": request})
@@ -167,6 +172,11 @@ async def reports_app(request: Request):
 @app.get("/app/settings", response_class=HTMLResponse)
 async def settings_app(request: Request):
     return templates.TemplateResponse("app_settings.html", {"request": request})
+
+
+@app.get("/app/rollcall", response_class=HTMLResponse)
+async def rollcall_app(request: Request):
+    return templates.TemplateResponse("app_rollcall.html", {"request": request})
 
 
 @app.get("/m/attendance", response_class=HTMLResponse)

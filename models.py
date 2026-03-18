@@ -314,6 +314,11 @@ class Shipment(Base):
     delivery_time = Column(String(50), default="")
     time_note = Column(String(100), default="")
     price = Column(Integer, default=0)
+    # 輸送タイプ・請求単価
+    transport_type = Column(String(20), default="ドライ")  # ドライ/冷蔵/冷凍/チルド/危険物
+    unit_price_type = Column(String(20), default="個建")  # 個建/kg単価/ケース単価/車建/才建
+    unit_price = Column(Float, default=0)  # 単価
+    unit_quantity = Column(Float, default=0)  # 数量
     frequency_type = Column(String(20), default="単発")
     frequency_days = Column(String(50), default="")
     status = Column(String(20), default="未配車")
@@ -333,8 +338,9 @@ class Dispatch(Base):
     __tablename__ = "dispatches"
 
     id = Column(Integer, primary_key=True, index=True)
-    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
-    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    partner_id = Column(Integer, ForeignKey("partner_companies.id"), nullable=True)
     shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=True)
     date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)
@@ -346,6 +352,7 @@ class Dispatch(Base):
 
     vehicle = relationship("Vehicle", back_populates="dispatches")
     driver = relationship("Driver", back_populates="dispatches")
+    partner = relationship("PartnerCompany")
     shipment = relationship("Shipment", back_populates="dispatches")
 
 

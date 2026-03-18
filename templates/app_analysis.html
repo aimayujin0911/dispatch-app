@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会計KPI分析 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #3b82f6; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.1); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        h2 { font-size: 1.15rem; margin-bottom: .75rem; }
+        .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .month-sel { display: flex; align-items: center; gap: .5rem; }
+        .month-sel button { background: #3b82f6; color: #fff; border: none; border-radius: 6px; padding: .4rem .8rem; cursor: pointer; }
+        .month-sel button:hover { background: #2563eb; }
+        .month-sel span { font-weight: 600; min-width: 120px; text-align: center; }
+        select, input { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
+        .stat-card .value { font-size: 1.6rem; font-weight: 700; color: #1e293b; }
+        .stat-card .sub { font-size: .8rem; color: #94a3b8; margin-top: .2rem; }
+        .stat-card .change-pos { color: #16a34a; font-weight: 600; }
+        .stat-card .change-neg { color: #ef4444; font-weight: 600; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th, td { padding: .5rem .7rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 600; }
+        tr:hover { background: #f8fafc; }
+        .text-right { text-align: right; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn:hover { opacity: .85; }
+        .bar-row { display: flex; align-items: center; gap: .75rem; margin-bottom: .6rem; font-size: .88rem; }
+        .bar-label { min-width: 80px; text-align: right; color: #475569; font-weight: 500; }
+        .bar-track { flex: 1; background: #e2e8f0; border-radius: 6px; height: 22px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; font-size: .75rem; color: #fff; font-weight: 600; min-width: 2px; transition: width .4s ease; }
+        .bar-value { min-width: 100px; text-align: right; font-weight: 600; color: #1e293b; }
+        .legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: .75rem; font-size: .82rem; }
+        .legend-item { display: flex; align-items: center; gap: .3rem; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+        canvas { display: block; max-width: 100%; }
+
+        /* Print meeting summary */
+        .print-section { page-break-before: always; }
+        .meeting-summary { border: 2px solid #3b82f6; border-radius: 12px; padding: 2rem; }
+        .meeting-summary h2 { color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: .5rem; margin-bottom: 1rem; }
+        .meeting-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .meeting-kpi { background: #eff6ff; border-radius: 8px; padding: 1rem; text-align: center; }
+        .meeting-kpi .mk-label { font-size: .85rem; color: #1e40af; }
+        .meeting-kpi .mk-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+        .meeting-item { padding: .5rem 0; border-bottom: 1px solid #e2e8f0; font-size: .9rem; display: flex; justify-content: space-between; }
+        .meeting-item:last-child { border-bottom: none; }
+
+        @media print {
+            .topnav, .toolbar, .btn, .no-print { display: none !important; }
+            body { background: #fff; }
+            .card, .stat-card { box-shadow: none; border: 1px solid #e2e8f0; }
+            .container { max-width: 100%; padding: 1rem; }
+        }
+        @media (max-width: 900px) {
+            .topnav { overflow-x: auto; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .meeting-kpi-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px) {
+            .stats { grid-template-columns: 1fr; }
+            .meeting-kpi-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing">💰 請求</a>
+    <a href="/app/attendance">⏰ 勤怠</a>
+    <a href="/app/accounting">📒 会計</a>
+    <a href="/app/analysis" class="active">📊 分析</a>
+    <a href="/app/reports">📝 日報</a>
+</nav>
+<div class="container">
+    <h1>📊 売上KPI分析</h1>
+    <div class="toolbar">
+        <div class="month-sel">
+            <button onclick="changeMonth(-1)">◀</button>
+            <span id="monthLabel"></span>
+            <button onclick="changeMonth(1)">▶</button>
+        </div>
+        <button class="btn btn-outline" onclick="window.print()">🖨️ 印刷</button>
+        <button class="btn btn-outline" onclick="scrollToMeeting()">📋 会議資料へ</button>
+    </div>
+
+    <!-- KPI Stats -->
+    <div class="stats">
+        <div class="stat-card">
+            <div class="label">月間売上</div>
+            <div class="value" id="statRevenue">-</div>
+            <div class="sub" id="statRevenueTarget"></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">完了件数</div>
+            <div class="value" id="statCount">-</div>
+            <div class="sub" id="statCountSub"></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">平均単価</div>
+            <div class="value" id="statAvg">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">前月比</div>
+            <div class="value" id="statMoM">-</div>
+            <div class="sub" id="statMoMSub"></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">1日あたり平均売上</div>
+            <div class="value" id="statDailyAvg">-</div>
+            <div class="sub" id="statDailyAvgSub"></div>
+        </div>
+    </div>
+
+    <!-- Transport Type Breakdown -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header"><h2>輸送タイプ別売上</h2></div>
+            <div id="transportBars"></div>
+            <div class="legend" id="transportLegend"></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>輸送タイプ別構成比</h2></div>
+            <canvas id="pieTransport" width="320" height="280"></canvas>
+        </div>
+    </div>
+
+    <!-- Client Ranking -->
+    <div class="card">
+        <div class="card-header"><h2>荷主別売上ランキング（TOP10）</h2></div>
+        <div class="grid-2">
+            <div id="clientBars"></div>
+            <canvas id="barClients" width="500" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Unit Price Type -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header"><h2>単価タイプ別売上</h2></div>
+            <div id="unitPriceBars"></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>単価タイプ別構成比</h2></div>
+            <canvas id="pieUnitPrice" width="320" height="280"></canvas>
+        </div>
+    </div>
+
+    <!-- Daily Revenue Chart -->
+    <div class="card">
+        <div class="card-header"><h2>日別売上推移</h2></div>
+        <canvas id="chartDaily" width="1200" height="320"></canvas>
+    </div>
+
+    <!-- Printable Meeting Summary -->
+    <div class="card print-section" id="meetingSummary">
+        <div class="meeting-summary">
+            <h2>📋 月次会議資料 - <span id="meetingMonth"></span></h2>
+            <div class="meeting-kpi-grid">
+                <div class="meeting-kpi"><div class="mk-label">月間売上</div><div class="mk-value" id="mkRevenue">-</div></div>
+                <div class="meeting-kpi"><div class="mk-label">完了件数</div><div class="mk-value" id="mkCount">-</div></div>
+                <div class="meeting-kpi"><div class="mk-label">平均単価</div><div class="mk-value" id="mkAvg">-</div></div>
+                <div class="meeting-kpi"><div class="mk-label">前月比</div><div class="mk-value" id="mkMoM">-</div></div>
+                <div class="meeting-kpi"><div class="mk-label">1日あたり売上</div><div class="mk-value" id="mkDaily">-</div></div>
+                <div class="meeting-kpi"><div class="mk-label">稼働日数</div><div class="mk-value" id="mkDays">-</div></div>
+            </div>
+            <h3 style="font-size:1rem;margin-bottom:.5rem;">輸送タイプ別内訳</h3>
+            <div id="meetingTransport" style="margin-bottom:1rem;"></div>
+            <h3 style="font-size:1rem;margin-bottom:.5rem;">荷主別 TOP5</h3>
+            <div id="meetingClients" style="margin-bottom:1rem;"></div>
+            <h3 style="font-size:1rem;margin-bottom:.5rem;">単価タイプ別内訳</h3>
+            <div id="meetingUnitPrice"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---- Helpers ----
+const apiBase = '';
+async function apiGet(url) { const r = await fetch(apiBase + url); if (!r.ok) throw new Error(r.statusText); return r.json(); }
+function yen(n) { return '\u00a5' + Math.round(n || 0).toLocaleString(); }
+function pct(n, total) { return total ? (n / total * 100).toFixed(1) + '%' : '0%'; }
+
+// ---- Month selector ----
+let currentYear, currentMonth;
+function initMonth() {
+    const d = new Date(); currentYear = d.getFullYear(); currentMonth = d.getMonth() + 1;
+    updateMonthLabel();
+}
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    updateMonthLabel(); loadData();
+}
+function updateMonthLabel() {
+    document.getElementById('monthLabel').textContent = currentYear + '\u5E74' + currentMonth + '\u6708';
+}
+function scrollToMeeting() {
+    document.getElementById('meetingSummary').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---- Colors ----
+const TRANSPORT_COLORS = {
+    '\u30C9\u30E9\u30A4': '#3b82f6',
+    '\u51B7\u8535': '#06b6d4',
+    '\u51B7\u51CD': '#6366f1',
+    '\u30C1\u30EB\u30C9': '#f59e0b'
+};
+const UNIT_PRICE_COLORS = {
+    '\u8ECA\u5EFA': '#3b82f6',
+    'kg\u5358\u4FA1': '#22c55e',
+    '\u30B1\u30FC\u30B9\u5358\u4FA1': '#f59e0b',
+    '\u500B\u5EFA': '#ef4444'
+};
+const CLIENT_COLORS = ['#3b82f6','#06b6d4','#8b5cf6','#f59e0b','#22c55e','#ef4444','#ec4899','#14b8a6','#f97316','#6366f1'];
+
+// ---- Data ----
+let shipments = [];
+let prevShipments = [];
+
+async function loadData() {
+    try {
+        const [cur, prev] = await Promise.all([
+            apiGet('/api/shipments?year=' + currentYear + '&month=' + currentMonth),
+            apiGet('/api/shipments?year=' + prevMonthYear() + '&month=' + prevMonthNum())
+        ]);
+        shipments = (Array.isArray(cur) ? cur : (cur.shipments || [])).filter(s => s.status === '\u5B8C\u4E86' || s.status === 'completed');
+        prevShipments = (Array.isArray(prev) ? prev : (prev.shipments || [])).filter(s => s.status === '\u5B8C\u4E86' || s.status === 'completed');
+        renderAll();
+    } catch (e) { console.error('Data load error:', e); }
+}
+
+function prevMonthYear() { return currentMonth === 1 ? currentYear - 1 : currentYear; }
+function prevMonthNum() { return currentMonth === 1 ? 12 : currentMonth - 1; }
+
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+
+// ---- Render all ----
+function renderAll() {
+    renderStats();
+    renderTransportBreakdown();
+    renderClientRanking();
+    renderUnitPriceBreakdown();
+    renderDailyChart();
+    renderMeetingSummary();
+}
+
+// ---- KPI Stats ----
+function renderStats() {
+    const revenue = shipments.reduce((s, r) => s + (r.price || 0), 0);
+    const count = shipments.length;
+    const avg = count ? revenue / count : 0;
+    const prevRevenue = prevShipments.reduce((s, r) => s + (r.price || 0), 0);
+    const mom = prevRevenue ? ((revenue - prevRevenue) / prevRevenue * 100) : 0;
+    const days = daysInMonth(currentYear, currentMonth);
+    // Count active days (days with at least one delivery)
+    const activeDays = new Set(shipments.map(s => s.delivery_date ? new Date(s.delivery_date).getDate() : null).filter(Boolean)).size;
+    const dailyAvg = activeDays ? revenue / activeDays : 0;
+
+    document.getElementById('statRevenue').textContent = yen(revenue);
+    document.getElementById('statRevenueTarget').textContent = '\u524D\u6708: ' + yen(prevRevenue);
+    document.getElementById('statCount').textContent = count + '\u4EF6';
+    document.getElementById('statCountSub').textContent = '\u524D\u6708: ' + prevShipments.length + '\u4EF6';
+    document.getElementById('statAvg').textContent = yen(avg);
+
+    const momEl = document.getElementById('statMoM');
+    const momSign = mom >= 0 ? '+' : '';
+    momEl.textContent = momSign + mom.toFixed(1) + '%';
+    momEl.className = 'value ' + (mom >= 0 ? 'change-pos' : 'change-neg');
+    document.getElementById('statMoMSub').textContent = yen(revenue - prevRevenue) + ' ' + (mom >= 0 ? '\u2191' : '\u2193');
+
+    document.getElementById('statDailyAvg').textContent = yen(dailyAvg);
+    document.getElementById('statDailyAvgSub').textContent = '\u7A3C\u50CD\u65E5\u6570: ' + activeDays + '\u65E5 / ' + days + '\u65E5';
+}
+
+// ---- Transport Type Breakdown ----
+function groupBy(arr, key) {
+    const m = {};
+    arr.forEach(s => {
+        const k = s[key] || '\u305D\u306E\u4ED6';
+        if (!m[k]) m[k] = { label: k, revenue: 0, count: 0 };
+        m[k].revenue += (s.price || 0);
+        m[k].count++;
+    });
+    return Object.values(m).sort((a, b) => b.revenue - a.revenue);
+}
+
+function renderTransportBreakdown() {
+    const groups = groupBy(shipments, 'transport_type');
+    const total = groups.reduce((s, g) => s + g.revenue, 0);
+    const maxRev = groups.length ? groups[0].revenue : 1;
+
+    // Bars
+    let html = '';
+    groups.forEach(g => {
+        const color = TRANSPORT_COLORS[g.label] || '#94a3b8';
+        const w = (g.revenue / maxRev * 100).toFixed(1);
+        html += '<div class="bar-row">'
+            + '<span class="bar-label">' + g.label + '</span>'
+            + '<div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + color + '">' + g.count + '\u4EF6</div></div>'
+            + '<span class="bar-value">' + yen(g.revenue) + ' (' + pct(g.revenue, total) + ')</span>'
+            + '</div>';
+    });
+    document.getElementById('transportBars').innerHTML = html;
+
+    // Legend
+    let legendHtml = '';
+    groups.forEach(g => {
+        const color = TRANSPORT_COLORS[g.label] || '#94a3b8';
+        legendHtml += '<span class="legend-item"><span class="legend-dot" style="background:' + color + '"></span>' + g.label + '</span>';
+    });
+    document.getElementById('transportLegend').innerHTML = legendHtml;
+
+    // Pie chart
+    drawPieChart('pieTransport', groups, TRANSPORT_COLORS, total);
+}
+
+// ---- Client Ranking ----
+function renderClientRanking() {
+    const groups = groupBy(shipments, 'client_name').slice(0, 10);
+    const total = shipments.reduce((s, r) => s + (r.price || 0), 0);
+    const maxRev = groups.length ? groups[0].revenue : 1;
+
+    let html = '';
+    groups.forEach((g, i) => {
+        const color = CLIENT_COLORS[i % CLIENT_COLORS.length];
+        const w = (g.revenue / maxRev * 100).toFixed(1);
+        const rank = i + 1;
+        html += '<div class="bar-row">'
+            + '<span class="bar-label">' + rank + '. ' + g.label + '</span>'
+            + '<div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + color + '">' + g.count + '\u4EF6</div></div>'
+            + '<span class="bar-value">' + yen(g.revenue) + '</span>'
+            + '</div>';
+    });
+    document.getElementById('clientBars').innerHTML = html;
+
+    // Bar chart
+    drawBarChart('barClients', groups, CLIENT_COLORS);
+}
+
+// ---- Unit Price Type Breakdown ----
+function renderUnitPriceBreakdown() {
+    const groups = groupBy(shipments, 'unit_price_type');
+    const total = groups.reduce((s, g) => s + g.revenue, 0);
+    const maxRev = groups.length ? groups[0].revenue : 1;
+
+    let html = '';
+    groups.forEach(g => {
+        const color = UNIT_PRICE_COLORS[g.label] || '#94a3b8';
+        const w = (g.revenue / maxRev * 100).toFixed(1);
+        html += '<div class="bar-row">'
+            + '<span class="bar-label">' + g.label + '</span>'
+            + '<div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + color + '">' + g.count + '\u4EF6</div></div>'
+            + '<span class="bar-value">' + yen(g.revenue) + ' (' + pct(g.revenue, total) + ')</span>'
+            + '</div>';
+    });
+    document.getElementById('unitPriceBars').innerHTML = html;
+
+    // Pie chart
+    drawPieChart('pieUnitPrice', groups, UNIT_PRICE_COLORS, total);
+}
+
+// ---- Daily Revenue Chart ----
+function renderDailyChart() {
+    const days = daysInMonth(currentYear, currentMonth);
+    const dailyData = new Array(days).fill(0);
+    shipments.forEach(s => {
+        if (s.delivery_date) {
+            const d = new Date(s.delivery_date).getDate();
+            if (d >= 1 && d <= days) dailyData[d - 1] += (s.price || 0);
+        }
+    });
+    drawDailyBarChart('chartDaily', dailyData, days);
+}
+
+// ==== Canvas Drawing ====
+
+function drawPieChart(canvasId, groups, colorMap, total) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    if (!groups.length || !total) {
+        ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('\u30C7\u30FC\u30BF\u306A\u3057', W / 2, H / 2);
+        return;
+    }
+
+    const cx = 130, cy = 130, r = 100;
+    let startAngle = -Math.PI / 2;
+
+    groups.forEach(g => {
+        const slice = (g.revenue / total) * Math.PI * 2;
+        const color = colorMap[g.label] || '#94a3b8';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Label
+        if (slice > 0.15) {
+            const mid = startAngle + slice / 2;
+            const lx = cx + Math.cos(mid) * (r * 0.65);
+            const ly = cy + Math.sin(mid) * (r * 0.65);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(pct(g.revenue, total), lx, ly);
+        }
+        startAngle += slice;
+    });
+
+    // Legend on the right
+    let ly = 30;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    groups.forEach(g => {
+        const color = colorMap[g.label] || '#94a3b8';
+        ctx.fillStyle = color;
+        ctx.fillRect(245, ly - 6, 12, 12);
+        ctx.fillStyle = '#334155'; ctx.font = '12px sans-serif';
+        ctx.fillText(g.label, 262, ly);
+        ly += 22;
+    });
+}
+
+function drawBarChart(canvasId, groups, colors) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    if (!groups.length) {
+        ctx.fillStyle = '#94a3b8'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('\u30C7\u30FC\u30BF\u306A\u3057', W / 2, H / 2);
+        return;
+    }
+
+    const padL = 20, padR = 20, padT = 20, padB = 60;
+    const maxVal = Math.max(...groups.map(g => g.revenue), 1);
+    const barW = Math.min(40, (W - padL - padR) / groups.length * 0.7);
+    const gap = (W - padL - padR) / groups.length;
+
+    // Grid lines
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padT + (H - padT - padB) * (1 - i / 4);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(yen(maxVal * i / 4), padL - 4, y + 3);
+    }
+
+    // Bars
+    groups.forEach((g, i) => {
+        const x = padL + gap * i + (gap - barW) / 2;
+        const barH = (g.revenue / maxVal) * (H - padT - padB);
+        const y = H - padB - barH;
+        const color = colors[i % colors.length];
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const rr = 3;
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + barW - rr, y);
+        ctx.quadraticCurveTo(x + barW, y, x + barW, y + rr);
+        ctx.lineTo(x + barW, H - padB);
+        ctx.lineTo(x, H - padB);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = '#475569'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+        const label = g.label.length > 6 ? g.label.substring(0, 6) + '..' : g.label;
+        ctx.save();
+        ctx.translate(x + barW / 2, H - padB + 10);
+        ctx.rotate(Math.PI / 6);
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+    });
+}
+
+function drawDailyBarChart(canvasId, data, numDays) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 70, padR = 20, padT = 20, padB = 40;
+    const maxVal = Math.max(...data, 1);
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const barW = Math.max(4, (chartW / numDays) * 0.7);
+    const gap = chartW / numDays;
+
+    // Y axis grid
+    const steps = 5;
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    for (let i = 0; i <= steps; i++) {
+        const y = padT + chartH * (1 - i / steps);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(yen(maxVal * i / steps), padL - 6, y + 3);
+    }
+
+    // Average line
+    const avg = data.reduce((a, b) => a + b, 0) / numDays;
+    if (avg > 0) {
+        const avgY = padT + chartH * (1 - avg / maxVal);
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(padL, avgY); ctx.lineTo(W - padR, avgY); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ef4444'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('\u5E73\u5747 ' + yen(avg), W - padR + 2, avgY - 4);
+    }
+
+    // Bars
+    data.forEach((v, i) => {
+        const x = padL + gap * i + (gap - barW) / 2;
+        const barH = (v / maxVal) * chartH;
+        const y = padT + chartH - barH;
+
+        // Weekend coloring
+        const date = new Date(currentYear, currentMonth - 1, i + 1);
+        const dow = date.getDay();
+        const isWeekend = dow === 0 || dow === 6;
+
+        ctx.fillStyle = v === 0 ? '#e2e8f0' : (isWeekend ? '#93c5fd' : '#3b82f6');
+        ctx.beginPath();
+        const rr = 2;
+        if (barH > rr) {
+            ctx.moveTo(x + rr, y);
+            ctx.lineTo(x + barW - rr, y);
+            ctx.quadraticCurveTo(x + barW, y, x + barW, y + rr);
+            ctx.lineTo(x + barW, padT + chartH);
+            ctx.lineTo(x, padT + chartH);
+            ctx.lineTo(x, y + rr);
+            ctx.quadraticCurveTo(x, y, x + rr, y);
+        } else {
+            ctx.rect(x, y, barW, barH || 1);
+        }
+        ctx.fill();
+
+        // Day label
+        if (numDays <= 31) {
+            ctx.fillStyle = isWeekend ? '#3b82f6' : '#64748b';
+            ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText((i + 1) + '', x + barW / 2, padT + chartH + 14);
+        }
+    });
+
+    // X axis label
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('\u65E5\u4ED8', W / 2, H - 4);
+}
+
+// ---- Meeting Summary ----
+function renderMeetingSummary() {
+    document.getElementById('meetingMonth').textContent = currentYear + '\u5E74' + currentMonth + '\u6708';
+
+    const revenue = shipments.reduce((s, r) => s + (r.price || 0), 0);
+    const count = shipments.length;
+    const avg = count ? revenue / count : 0;
+    const prevRevenue = prevShipments.reduce((s, r) => s + (r.price || 0), 0);
+    const mom = prevRevenue ? ((revenue - prevRevenue) / prevRevenue * 100) : 0;
+    const days = daysInMonth(currentYear, currentMonth);
+    const activeDays = new Set(shipments.map(s => s.delivery_date ? new Date(s.delivery_date).getDate() : null).filter(Boolean)).size;
+    const dailyAvg = activeDays ? revenue / activeDays : 0;
+
+    document.getElementById('mkRevenue').textContent = yen(revenue);
+    document.getElementById('mkCount').textContent = count + '\u4EF6';
+    document.getElementById('mkAvg').textContent = yen(avg);
+    document.getElementById('mkMoM').textContent = (mom >= 0 ? '+' : '') + mom.toFixed(1) + '%';
+    document.getElementById('mkMoM').style.color = mom >= 0 ? '#16a34a' : '#ef4444';
+    document.getElementById('mkDaily').textContent = yen(dailyAvg);
+    document.getElementById('mkDays').textContent = activeDays + ' / ' + days + '\u65E5';
+
+    // Transport breakdown
+    const tGroups = groupBy(shipments, 'transport_type');
+    const tTotal = tGroups.reduce((s, g) => s + g.revenue, 0);
+    document.getElementById('meetingTransport').innerHTML = tGroups.map(g =>
+        '<div class="meeting-item"><span>' + g.label + ' (' + g.count + '\u4EF6)</span><span>' + yen(g.revenue) + ' (' + pct(g.revenue, tTotal) + ')</span></div>'
+    ).join('');
+
+    // Client top 5
+    const cGroups = groupBy(shipments, 'client_name').slice(0, 5);
+    document.getElementById('meetingClients').innerHTML = cGroups.map((g, i) =>
+        '<div class="meeting-item"><span>' + (i + 1) + '. ' + g.label + ' (' + g.count + '\u4EF6)</span><span>' + yen(g.revenue) + '</span></div>'
+    ).join('');
+
+    // Unit price type
+    const uGroups = groupBy(shipments, 'unit_price_type');
+    const uTotal = uGroups.reduce((s, g) => s + g.revenue, 0);
+    document.getElementById('meetingUnitPrice').innerHTML = uGroups.map(g =>
+        '<div class="meeting-item"><span>' + g.label + ' (' + g.count + '\u4EF6)</span><span>' + yen(g.revenue) + ' (' + pct(g.revenue, uTotal) + ')</span></div>'
+    ).join('');
+}
+
+// ---- Init ----
+initMonth();
+loadData();
+</script>
+</body>
+</html>

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点呼管理 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #3b82f6; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.1); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        h2 { font-size: 1.15rem; margin-bottom: .75rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .stat-card .label { font-size: .85rem; color: #64748b; margin-bottom: .25rem; }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: .5rem; border-bottom: 1px solid #e2e8f0; }
+        select, input, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th, td { padding: .6rem .75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        tr:hover { background: #f8fafc; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-success { background: #22c55e; color: #fff; }
+        .btn-warning { background: #f59e0b; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+        .btn:hover { opacity: .85; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .badge { padding: .2rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
+        .badge-gray { background: #f1f5f9; color: #64748b; }
+        .badge-blue { background: #dbeafe; color: #2563eb; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-yellow { background: #fef9c3; color: #a16207; }
+        .badge-red { background: #fee2e2; color: #dc2626; }
+
+        /* Form layout */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-group-full { grid-column: 1 / -1; }
+
+        /* Radio / checkbox groups */
+        .radio-group { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; padding-top: .3rem; }
+        .radio-group label { font-weight: 400; font-size: .9rem; display: flex; align-items: center; gap: .3rem; cursor: pointer; }
+        .radio-group input[type="radio"],
+        .radio-group input[type="checkbox"] { margin: 0; cursor: pointer; }
+
+        /* Fatigue scale */
+        .fatigue-scale { display: flex; gap: .5rem; align-items: center; padding-top: .3rem; }
+        .fatigue-scale label { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-size: .78rem; font-weight: 400; cursor: pointer; padding: .3rem .5rem; border-radius: 6px; border: 1px solid #e2e8f0; transition: all .15s; }
+        .fatigue-scale label:hover { border-color: #3b82f6; }
+        .fatigue-scale input[type="radio"]:checked + span { color: #3b82f6; font-weight: 600; }
+        .fatigue-scale label:has(input:checked) { border-color: #3b82f6; background: #eff6ff; }
+
+        /* Alcohol result indicator */
+        .alcohol-result { display: inline-flex; align-items: center; gap: .5rem; margin-top: .3rem; font-size: .85rem; font-weight: 600; }
+        .alcohol-pass { color: #16a34a; }
+        .alcohol-fail { color: #dc2626; background: #fee2e2; padding: .3rem .6rem; border-radius: 6px; animation: pulse-red .8s ease-in-out infinite alternate; }
+        @keyframes pulse-red { from { opacity: .8; } to { opacity: 1; } }
+
+        /* Driver list */
+        .driver-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+        .driver-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: .75rem; display: flex; align-items: center; gap: .75rem; cursor: pointer; transition: all .15s; }
+        .driver-card:hover { border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
+        .driver-card.selected { border-color: #3b82f6; background: #eff6ff; }
+        .driver-avatar { width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+        .driver-info { flex: 1; min-width: 0; }
+        .driver-info .name { font-weight: 600; font-size: .9rem; }
+        .driver-info .meta { font-size: .78rem; color: #64748b; }
+        .driver-rollcall-status { display: flex; gap: .2rem; }
+        .rc-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; }
+        .rc-dot.done { background: #22c55e; }
+
+        /* Device integration */
+        .device-section { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .device-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 1rem; text-align: center; color: #94a3b8; }
+        .device-box .icon { font-size: 2rem; margin-bottom: .5rem; }
+        .device-box .status { font-size: .8rem; margin-top: .5rem; }
+        .device-box .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: .3rem; }
+        .device-box .status-dot.connected { background: #22c55e; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; }
+
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .mt-1 { margin-top: 1rem; }
+        @media (max-width: 768px) {
+            .topnav { overflow-x: auto; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            .device-section { grid-template-columns: 1fr; }
+            .driver-list { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing">💰 請求</a>
+    <a href="/app/attendance">⏰ 勤怠</a>
+    <a href="/app/accounting">📒 会計</a>
+    <a href="/app/reports">📝 日報</a>
+    <a href="/app/rollcall" class="active">🔍 点呼</a>
+</nav>
+<div class="container">
+    <h1>点呼管理</h1>
+
+    <!-- Summary Dashboard -->
+    <div class="stats">
+        <div class="stat-card"><div class="label">本日の乗務員数</div><div class="value" id="statDrivers">-</div></div>
+        <div class="stat-card"><div class="label">乗務前点呼 完了</div><div class="value" id="statBefore">-</div></div>
+        <div class="stat-card"><div class="label">乗務後点呼 完了</div><div class="value" id="statAfter">-</div></div>
+        <div class="stat-card"><div class="label">未実施</div><div class="value" id="statPending">-</div></div>
+    </div>
+
+    <!-- Today's Drivers -->
+    <div class="card">
+        <div class="card-title">本日の乗務員一覧</div>
+        <div class="driver-list" id="driverList">
+            <div style="color:#94a3b8">読み込み中...</div>
+        </div>
+    </div>
+
+    <!-- Roll Call Form -->
+    <div class="card" id="rollcallFormCard">
+        <div class="card-title">点呼記録入力</div>
+        <form id="rollcallForm" onsubmit="return saveRollcall(event)">
+            <div class="form-grid">
+                <!-- 点呼種別 -->
+                <div class="form-group">
+                    <label>点呼種別 <span style="color:#ef4444">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="rcType" value="乗務前" checked> 乗務前</label>
+                        <label><input type="radio" name="rcType" value="中間"> 中間</label>
+                        <label><input type="radio" name="rcType" value="乗務後"> 乗務後</label>
+                    </div>
+                </div>
+
+                <!-- 日時 -->
+                <div class="form-group">
+                    <label>日時</label>
+                    <input type="datetime-local" id="rcDatetime" required>
+                </div>
+
+                <!-- ドライバー選択 -->
+                <div class="form-group">
+                    <label>ドライバー <span style="color:#ef4444">*</span></label>
+                    <select id="rcDriver" required>
+                        <option value="">選択してください</option>
+                    </select>
+                </div>
+
+                <!-- アルコール検知結果 -->
+                <div class="form-group">
+                    <label>アルコール検知結果 (mg/L)</label>
+                    <input type="number" id="rcAlcohol" step="0.01" min="0" max="1.00" value="0.00" oninput="updateAlcoholIndicator()">
+                    <div class="alcohol-result" id="alcoholIndicator">
+                        <span class="alcohol-pass">✅ 適正（0.00mg/L）</span>
+                    </div>
+                </div>
+
+                <!-- 免許証確認 -->
+                <div class="form-group">
+                    <label>免許証確認</label>
+                    <div class="radio-group">
+                        <label><input type="checkbox" id="rcLicense"> 確認済み</label>
+                    </div>
+                </div>
+
+                <!-- 健康状態 -->
+                <div class="form-group">
+                    <label>健康状態</label>
+                    <select id="rcHealth">
+                        <option value="良好">良好</option>
+                        <option value="体調不良">体調不良</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+
+                <!-- 疲労度 -->
+                <div class="form-group">
+                    <label>疲労度</label>
+                    <div class="fatigue-scale">
+                        <label><input type="radio" name="rcFatigue" value="1" checked><span>1</span><span style="font-size:.7rem">軽い</span></label>
+                        <label><input type="radio" name="rcFatigue" value="2"><span>2</span><span style="font-size:.7rem"></span></label>
+                        <label><input type="radio" name="rcFatigue" value="3"><span>3</span><span style="font-size:.7rem">普通</span></label>
+                        <label><input type="radio" name="rcFatigue" value="4"><span>4</span><span style="font-size:.7rem"></span></label>
+                        <label><input type="radio" name="rcFatigue" value="5"><span>5</span><span style="font-size:.7rem">強い</span></label>
+                    </div>
+                </div>
+
+                <!-- 体温 -->
+                <div class="form-group">
+                    <label>体温 (℃)</label>
+                    <input type="number" id="rcTemp" step="0.1" min="34.0" max="42.0" value="36.5">
+                </div>
+
+                <!-- 運行前の注意事項 -->
+                <div class="form-group form-group-full">
+                    <label>運行前の注意事項・指示事項</label>
+                    <textarea id="rcNotes" placeholder="天候・道路状況・注意すべき事項などを記入"></textarea>
+                </div>
+
+                <!-- 点呼者名 -->
+                <div class="form-group">
+                    <label>点呼実施者名</label>
+                    <input type="text" id="rcInspector" placeholder="点呼者名">
+                </div>
+            </div>
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.5rem;">
+                <button type="button" class="btn btn-outline" onclick="resetForm()">クリア</button>
+                <button type="submit" class="btn btn-primary">💾 点呼記録を保存</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Device Integration (UI placeholder) -->
+    <div class="card">
+        <div class="card-title">デバイス連携</div>
+        <div class="device-section">
+            <div class="device-box">
+                <div class="icon">🍺</div>
+                <div><strong>アルコールチェッカー</strong></div>
+                <div style="font-size:.82rem;margin-top:.3rem;">USB接続で自動取得</div>
+                <div class="status"><span class="status-dot"></span>未接続</div>
+                <button class="btn btn-outline mt-1" onclick="alert('この機能は今後のアップデートで対応予定です。')">接続検索</button>
+            </div>
+            <div class="device-box">
+                <div class="icon">💳</div>
+                <div><strong>免許証カードリーダー</strong></div>
+                <div style="font-size:.82rem;margin-top:.3rem;">ICカードリーダーで免許証情報を読取</div>
+                <div class="status"><span class="status-dot"></span>未接続</div>
+                <button class="btn btn-outline mt-1" onclick="alert('この機能は今後のアップデートで対応予定です。')">接続検索</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Roll Call History -->
+    <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>点呼履歴</span>
+            <div style="display:flex;gap:.5rem;align-items:center;">
+                <input type="date" id="historyDate" onchange="renderHistory()">
+                <button class="btn btn-outline" onclick="exportHistory()">📥 CSV出力</button>
+                <button class="btn btn-danger" onclick="clearHistory()" style="font-size:.78rem;padding:.3rem .6rem;">全履歴削除</button>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th>種別</th>
+                        <th>日時</th>
+                        <th>ドライバー</th>
+                        <th>アルコール</th>
+                        <th>免許証</th>
+                        <th>健康</th>
+                        <th>疲労度</th>
+                        <th>体温</th>
+                        <th>点呼者</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="10" class="text-center" style="color:#94a3b8">データがありません</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <h2>点呼記録詳細</h2>
+        <div id="detailContent"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('detailModal')">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- API & Helpers ---
+const apiBase = '';
+async function apiGet(url) {
+    const r = await fetch(apiBase + url);
+    if (!r.ok) throw new Error(r.statusText);
+    return r.json();
+}
+
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function nowDatetimeLocal() {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+}
+
+// --- localStorage for roll call records ---
+const STORAGE_KEY = 'rollcall_records';
+
+function getRecords() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch { return []; }
+}
+
+function saveRecords(records) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+// --- State ---
+let drivers = [];
+let settings = {};
+
+// --- Init ---
+async function init() {
+    document.getElementById('rcDatetime').value = nowDatetimeLocal();
+    document.getElementById('historyDate').value = todayStr();
+
+    try {
+        const data = await apiGet('/api/drivers');
+        drivers = Array.isArray(data) ? data : (data.drivers || []);
+    } catch (e) {
+        console.warn('ドライバーAPI取得失敗、デモデータを使用:', e);
+        drivers = [
+            { id: 1, name: '田中 太郎', phone: '090-1234-5678', license_type: '大型', status: '稼働中' },
+            { id: 2, name: '佐藤 花子', phone: '090-2345-6789', license_type: '中型', status: '稼働中' },
+            { id: 3, name: '鈴木 一郎', phone: '090-3456-7890', license_type: '大型', status: '休憩中' },
+            { id: 4, name: '高橋 次郎', phone: '090-4567-8901', license_type: '大型', status: '稼働中' },
+            { id: 5, name: '渡辺 美咲', phone: '090-5678-9012', license_type: '中型', status: '待機中' },
+        ];
+    }
+
+    try {
+        settings = await apiGet('/api/settings');
+    } catch (e) {
+        console.warn('設定API取得失敗:', e);
+        settings = {};
+    }
+
+    if (settings.inspector_name || settings.representative) {
+        document.getElementById('rcInspector').value = settings.inspector_name || settings.representative || '';
+    }
+
+    populateDriverSelect();
+    renderDriverList();
+    renderHistory();
+    updateDashboard();
+}
+
+function populateDriverSelect() {
+    const sel = document.getElementById('rcDriver');
+    sel.innerHTML = '<option value="">選択してください</option>';
+    drivers.forEach(d => {
+        sel.innerHTML += `<option value="${d.id}">${d.name}（${d.license_type || '-'}）</option>`;
+    });
+}
+
+// --- Driver List ---
+function renderDriverList() {
+    const container = document.getElementById('driverList');
+    if (!drivers.length) {
+        container.innerHTML = '<div style="color:#94a3b8">ドライバーが登録されていません</div>';
+        return;
+    }
+
+    const todayRecords = getRecords().filter(r => r.date === todayStr());
+
+    container.innerHTML = drivers.map(d => {
+        const driverRecords = todayRecords.filter(r => r.driver_id === d.id);
+        const hasBefore = driverRecords.some(r => r.type === '乗務前');
+        const hasMiddle = driverRecords.some(r => r.type === '中間');
+        const hasAfter = driverRecords.some(r => r.type === '乗務後');
+
+        const statusBadge = d.status === '稼働中' ? 'badge-green'
+            : d.status === '休憩中' ? 'badge-yellow'
+            : 'badge-gray';
+
+        return `<div class="driver-card" onclick="selectDriver(${d.id})">
+            <div class="driver-avatar">🧑‍✈️</div>
+            <div class="driver-info">
+                <div class="name">${d.name}</div>
+                <div class="meta"><span class="badge ${statusBadge}" style="font-size:.7rem">${d.status || '-'}</span></div>
+                <div class="driver-rollcall-status" title="乗務前 / 中間 / 乗務後">
+                    <div class="rc-dot ${hasBefore ? 'done' : ''}" title="乗務前"></div>
+                    <div class="rc-dot ${hasMiddle ? 'done' : ''}" title="中間"></div>
+                    <div class="rc-dot ${hasAfter ? 'done' : ''}" title="乗務後"></div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function selectDriver(id) {
+    document.getElementById('rcDriver').value = id;
+    document.querySelectorAll('.driver-card').forEach(c => c.classList.remove('selected'));
+    const idx = drivers.findIndex(d => d.id === id);
+    if (idx >= 0) {
+        document.querySelectorAll('.driver-card')[idx]?.classList.add('selected');
+    }
+    document.getElementById('rollcallFormCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// --- Alcohol Indicator ---
+function updateAlcoholIndicator() {
+    const val = parseFloat(document.getElementById('rcAlcohol').value) || 0;
+    const el = document.getElementById('alcoholIndicator');
+    if (val <= 0) {
+        el.innerHTML = '<span class="alcohol-pass">✅ 適正（0.00mg/L）</span>';
+    } else {
+        el.innerHTML = `<span class="alcohol-fail">🚨 検知あり（${val.toFixed(2)}mg/L） - 乗務不可</span>`;
+    }
+}
+
+// --- Save Roll Call ---
+function saveRollcall(e) {
+    e.preventDefault();
+
+    const driverId = parseInt(document.getElementById('rcDriver').value);
+    if (!driverId) { alert('ドライバーを選択してください'); return false; }
+
+    const driver = drivers.find(d => d.id === driverId);
+    const rcType = document.querySelector('input[name="rcType"]:checked').value;
+    const datetime = document.getElementById('rcDatetime').value;
+    const alcohol = parseFloat(document.getElementById('rcAlcohol').value) || 0;
+    const license = document.getElementById('rcLicense').checked;
+    const health = document.getElementById('rcHealth').value;
+    const fatigue = parseInt(document.querySelector('input[name="rcFatigue"]:checked').value);
+    const temp = parseFloat(document.getElementById('rcTemp').value) || 36.5;
+    const notes = document.getElementById('rcNotes').value.trim();
+    const inspector = document.getElementById('rcInspector').value.trim();
+
+    if (alcohol > 0) {
+        if (!confirm('⚠️ アルコールが検知されています。このまま記録しますか？\n※ 乗務は許可されません。')) {
+            return false;
+        }
+    }
+
+    const record = {
+        id: Date.now(),
+        date: datetime.slice(0, 10),
+        datetime: datetime,
+        type: rcType,
+        driver_id: driverId,
+        driver_name: driver ? driver.name : '不明',
+        alcohol: alcohol,
+        alcohol_pass: alcohol <= 0,
+        license_confirmed: license,
+        health: health,
+        fatigue: fatigue,
+        temperature: temp,
+        notes: notes,
+        inspector: inspector,
+        created_at: new Date().toISOString()
+    };
+
+    const records = getRecords();
+    records.unshift(record);
+    saveRecords(records);
+
+    alert('点呼記録を保存しました。');
+    resetForm();
+    renderDriverList();
+    renderHistory();
+    updateDashboard();
+    return false;
+}
+
+function resetForm() {
+    document.getElementById('rollcallForm').reset();
+    document.getElementById('rcDatetime').value = nowDatetimeLocal();
+    document.getElementById('rcAlcohol').value = '0.00';
+    document.getElementById('rcTemp').value = '36.5';
+    document.querySelector('input[name="rcType"][value="乗務前"]').checked = true;
+    document.querySelector('input[name="rcFatigue"][value="1"]').checked = true;
+    if (settings.inspector_name || settings.representative) {
+        document.getElementById('rcInspector').value = settings.inspector_name || settings.representative || '';
+    }
+    updateAlcoholIndicator();
+    document.querySelectorAll('.driver-card').forEach(c => c.classList.remove('selected'));
+}
+
+// --- Dashboard ---
+function updateDashboard() {
+    const todayRecords = getRecords().filter(r => r.date === todayStr());
+    const totalDrivers = drivers.length;
+    const beforeDone = new Set(todayRecords.filter(r => r.type === '乗務前').map(r => r.driver_id)).size;
+    const afterDone = new Set(todayRecords.filter(r => r.type === '乗務後').map(r => r.driver_id)).size;
+    const pending = totalDrivers - beforeDone;
+
+    document.getElementById('statDrivers').textContent = totalDrivers;
+    document.getElementById('statBefore').textContent = `${beforeDone} / ${totalDrivers}`;
+    document.getElementById('statAfter').textContent = `${afterDone} / ${totalDrivers}`;
+    document.getElementById('statPending').textContent = pending > 0 ? pending : '0';
+    document.getElementById('statPending').style.color = pending > 0 ? '#dc2626' : '#16a34a';
+}
+
+// --- History ---
+function renderHistory() {
+    const filterDate = document.getElementById('historyDate').value;
+    let records = getRecords();
+    if (filterDate) {
+        records = records.filter(r => r.date === filterDate);
+    }
+
+    const tbody = document.getElementById('historyBody');
+    if (!records.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="color:#94a3b8">データがありません</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = records.map(r => {
+        const typeBadge = r.type === '乗務前' ? 'badge-blue'
+            : r.type === '乗務後' ? 'badge-green'
+            : 'badge-yellow';
+
+        const alcoholClass = r.alcohol_pass ? 'alcohol-pass' : 'alcohol-fail';
+        const alcoholText = r.alcohol_pass ? `${r.alcohol.toFixed(2)} ✅` : `${r.alcohol.toFixed(2)} 🚨`;
+
+        const fatigueBar = '●'.repeat(r.fatigue) + '○'.repeat(5 - r.fatigue);
+
+        const tempWarning = r.temperature >= 37.5 ? ' ⚠️' : '';
+
+        return `<tr>
+            <td><span class="badge ${typeBadge}">${r.type}</span></td>
+            <td>${r.datetime ? r.datetime.replace('T', ' ') : '-'}</td>
+            <td>${r.driver_name}</td>
+            <td><span class="${alcoholClass}">${alcoholText}</span></td>
+            <td>${r.license_confirmed ? '✅ 確認済' : '❌ 未確認'}</td>
+            <td>${r.health}</td>
+            <td title="疲労度 ${r.fatigue}/5">${fatigueBar}</td>
+            <td>${r.temperature}℃${tempWarning}</td>
+            <td>${r.inspector || '-'}</td>
+            <td>
+                <button class="btn btn-outline" style="padding:.2rem .5rem;font-size:.78rem" onclick="showDetail(${r.id})">詳細</button>
+                <button class="btn btn-danger" style="padding:.2rem .5rem;font-size:.78rem" onclick="deleteRecord(${r.id})">削除</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function showDetail(id) {
+    const records = getRecords();
+    const r = records.find(rec => rec.id === id);
+    if (!r) return;
+
+    const content = document.getElementById('detailContent');
+    content.innerHTML = `
+        <table style="font-size:.9rem;">
+            <tr><th style="width:140px">点呼種別</th><td>${r.type}</td></tr>
+            <tr><th>日時</th><td>${r.datetime ? r.datetime.replace('T', ' ') : '-'}</td></tr>
+            <tr><th>ドライバー</th><td>${r.driver_name}</td></tr>
+            <tr><th>アルコール</th><td class="${r.alcohol_pass ? 'alcohol-pass' : 'alcohol-fail'}">${r.alcohol.toFixed(2)} mg/L ${r.alcohol_pass ? '（適正）' : '（検知あり）'}</td></tr>
+            <tr><th>免許証確認</th><td>${r.license_confirmed ? '確認済み' : '未確認'}</td></tr>
+            <tr><th>健康状態</th><td>${r.health}</td></tr>
+            <tr><th>疲労度</th><td>${r.fatigue} / 5</td></tr>
+            <tr><th>体温</th><td>${r.temperature}℃ ${r.temperature >= 37.5 ? '⚠️ 高温' : ''}</td></tr>
+            <tr><th>注意事項</th><td>${r.notes || 'なし'}</td></tr>
+            <tr><th>点呼実施者</th><td>${r.inspector || '-'}</td></tr>
+            <tr><th>記録日時</th><td>${r.created_at ? new Date(r.created_at).toLocaleString('ja-JP') : '-'}</td></tr>
+        </table>
+    `;
+    openModal('detailModal');
+}
+
+function deleteRecord(id) {
+    if (!confirm('この点呼記録を削除しますか？')) return;
+    let records = getRecords();
+    records = records.filter(r => r.id !== id);
+    saveRecords(records);
+    renderHistory();
+    renderDriverList();
+    updateDashboard();
+}
+
+function clearHistory() {
+    if (!confirm('全ての点呼履歴を削除しますか？\nこの操作は取り消せません。')) return;
+    if (!confirm('本当に全て削除してよろしいですか？')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderHistory();
+    renderDriverList();
+    updateDashboard();
+}
+
+// --- CSV Export ---
+function exportHistory() {
+    const filterDate = document.getElementById('historyDate').value;
+    let records = getRecords();
+    if (filterDate) {
+        records = records.filter(r => r.date === filterDate);
+    }
+    if (!records.length) { alert('エクスポートするデータがありません'); return; }
+
+    const headers = ['種別','日時','ドライバー','アルコール(mg/L)','アルコール判定','免許証確認','健康状態','疲労度','体温(℃)','注意事項','点呼者'];
+    const rows = records.map(r => [
+        r.type,
+        r.datetime ? r.datetime.replace('T', ' ') : '',
+        r.driver_name,
+        r.alcohol.toFixed(2),
+        r.alcohol_pass ? '適正' : '検知あり',
+        r.license_confirmed ? '確認済' : '未確認',
+        r.health,
+        r.fatigue,
+        r.temperature,
+        (r.notes || '').replace(/\n/g, ' '),
+        r.inspector || ''
+    ]);
+
+    const bom = '\uFEFF';
+    const csv = bom + [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `点呼記録_${filterDate || todayStr()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// --- Start ---
+init();
+</script>
+</body>
+</html>
