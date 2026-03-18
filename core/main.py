@@ -211,6 +211,11 @@ async def rollcall_app(request: Request):
     return templates.TemplateResponse("app_rollcall.html", {"request": request})
 
 
+@app.get("/app/users", response_class=HTMLResponse)
+async def users_app(request: Request):
+    return templates.TemplateResponse("app_users.html", {"request": request})
+
+
 @app.get("/m/attendance", response_class=HTMLResponse)
 async def mobile_attendance(request: Request):
     return templates.TemplateResponse("mobile_attendance.html", {"request": request})

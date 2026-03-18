@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ユーザー管理 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; }
+        .topnav { background: #3b82f6; color: #fff; padding: 10px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .topnav a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; padding: 4px 10px; border-radius: 6px; }
+        .topnav a:hover, .topnav a.active { background: rgba(255,255,255,0.2); color: #fff; }
+        .container { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.9rem; }
+        th { background: #f8fafc; font-weight: 600; color: #64748b; font-size: 0.8rem; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+        .btn-edit { background: #f59e0b; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+        .badge-blue { background: #dbeafe; color: #1d4ed8; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-gray { background: #f1f5f9; color: #475569; }
+        .page-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+        /* モーダル */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #fff; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+        .modal-header h3 { font-size: 1.1rem; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #374151; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; }
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; }
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <nav class="topnav">
+        <a href="/">🚛 配車管理</a>
+        <a href="/app/billing">💰 請求</a>
+        <a href="/app/attendance">⏰ 勤怠</a>
+        <a href="/app/accounting">📒 会計</a>
+        <a href="/app/reports">📝 日報</a>
+        <a href="/app/analysis">📊 分析</a>
+        <a href="/app/rollcall">🔍 点呼</a>
+        <a href="/app/settings">⚙️ 設定</a>
+        <a href="/app/users" class="active">👥 ユーザー</a>
+        <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:auto">📬 開発への依頼</button>
+    </nav>
+
+    <div class="container">
+        <h1>ユーザー管理</h1>
+        <div class="page-actions">
+            <button class="btn btn-primary" onclick="openUserModal()">+ ユーザー追加</button>
+        </div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr><th>名前</th><th>メール</th><th>権限</th><th>拠点</th><th>状態</th><th>操作</th></tr>
+                </thead>
+                <tbody id="users-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- モーダル -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">ユーザー追加</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+    // 認証
+    const token = localStorage.getItem('access_token');
+    if (!token) location.href = '/login';
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.role !== 'admin') { alert('管理者のみアクセスできます'); location.href = '/'; }
+
+    function _authH() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
+    async function apiGet(url) { return (await fetch('/api' + url, { headers: _authH() })).json(); }
+    async function apiPost(url, data) { return (await fetch('/api' + url, { method: 'POST', headers: _authH(), body: JSON.stringify(data) })).json(); }
+    async function apiPut(url, data) { return (await fetch('/api' + url, { method: 'PUT', headers: _authH(), body: JSON.stringify(data) })).json(); }
+    async function apiDelete(url) { return (await fetch('/api' + url, { method: 'DELETE', headers: _authH() })).json(); }
+
+    const roleLabels = { admin: '管理者', manager: '拠点管理者', dispatcher: '配車担当' };
+
+    async function loadUsers() {
+        const users = await apiGet('/auth/users');
+        if (!Array.isArray(users)) return;
+        document.getElementById('users-table').innerHTML = users.map(u => `<tr>
+            <td><strong>${u.name}</strong></td>
+            <td>${u.email}</td>
+            <td><span class="badge badge-${u.role === 'admin' ? 'blue' : u.role === 'manager' ? 'green' : 'gray'}">${roleLabels[u.role] || u.role}</span></td>
+            <td>${u.branch_name || '-'}</td>
+            <td>${u.is_active ? '✅ 有効' : '❌ 無効'}</td>
+            <td>
+                <button class="btn btn-sm btn-edit" onclick="editUser(${u.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id},'${u.name}')">削除</button>
+            </td>
+        </tr>`).join('');
+    }
+
+    function showModal() { document.getElementById('modal-overlay').classList.add('active'); }
+    function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+
+    async function openUserModal(user = null) {
+        const isEdit = !!user;
+        const branches = await apiGet('/auth/branches');
+        document.getElementById('modal-title').textContent = isEdit ? 'ユーザー編集' : 'ユーザー追加';
+        document.getElementById('modal-body').innerHTML = `
+            <div class="form-group"><label>名前</label><input type="text" id="f-u-name" value="${user?.name || ''}"></div>
+            <div class="form-group"><label>メールアドレス</label><input type="email" id="f-u-email" value="${user?.email || ''}"></div>
+            <div class="form-group"><label>パスワード${isEdit ? '（変更する場合のみ）' : ''}</label><input type="password" id="f-u-password" placeholder="${isEdit ? '空欄なら変更なし' : ''}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>権限</label>
+                    <select id="f-u-role">
+                        <option value="admin" ${user?.role === 'admin' ? 'selected' : ''}>管理者</option>
+                        <option value="manager" ${user?.role === 'manager' ? 'selected' : ''}>拠点管理者</option>
+                        <option value="dispatcher" ${!user || user?.role === 'dispatcher' ? 'selected' : ''}>配車担当</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>所属拠点</label>
+                    <select id="f-u-branch">
+                        <option value="">-- 未設定 --</option>
+                        ${branches.map(b => `<option value="${b.id}" ${user?.branch_id === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            ${isEdit ? `<div class="form-group"><label>状態</label><select id="f-u-active"><option value="true" ${user?.is_active !== false ? 'selected' : ''}>有効</option><option value="false" ${user?.is_active === false ? 'selected' : ''}>無効</option></select></div>` : ''}
+            <div class="form-actions">
+                <button class="btn" onclick="closeModal()">キャンセル</button>
+                <button class="btn btn-primary" onclick="saveUser(${user?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
+            </div>`;
+        showModal();
+    }
+
+    async function saveUser(id) {
+        const data = {
+            name: document.getElementById('f-u-name').value,
+            email: document.getElementById('f-u-email').value,
+            role: document.getElementById('f-u-role').value,
+            branch_id: parseInt(document.getElementById('f-u-branch').value) || null,
+        };
+        const pw = document.getElementById('f-u-password').value;
+        if (pw) data.password = pw;
+        else if (!id) return alert('パスワードを入力してください');
+        const activeEl = document.getElementById('f-u-active');
+        if (activeEl) data.is_active = activeEl.value === 'true';
+        if (!data.name || !data.email) return alert('名前とメールは必須です');
+        if (id) {
+            await apiPut(`/auth/users/${id}`, data);
+        } else {
+            const resp = await apiPost('/auth/users', data);
+            if (resp.detail) return alert(resp.detail);
+        }
+        closeModal();
+        loadUsers();
+    }
+
+    async function editUser(id) {
+        const users = await apiGet('/auth/users');
+        const u = users.find(x => x.id === id);
+        if (u) openUserModal(u);
+    }
+
+    async function deleteUser(id, name) {
+        if (!confirm(`${name}さんを削除しますか？`)) return;
+        await apiDelete(`/auth/users/${id}`);
+        loadUsers();
+    }
+
+    loadUsers();
+    </script>
+
+<!-- フィードバックモーダル -->
+<div id="feedbackOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;font-size:1.1rem">📬 開発への依頼</h3>
+            <button onclick="closeFeedbackModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <form id="feedbackForm" onsubmit="submitFeedback(event)">
+            <div style="margin-bottom:12px">
+                <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">カテゴリ</label>
+                <select id="fb-category" required style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+                    <option value="機能追加">機能追加</option><option value="不具合報告">不具合報告</option><option value="改善要望">改善要望</option><option value="UI変更">UI変更</option><option value="その他">その他</option>
+                </select>
+            </div>
+            <div style="margin-bottom:12px">
+                <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">タイトル</label>
+                <input id="fb-title" type="text" required placeholder="依頼の概要を一言で" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:12px">
+                <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">詳細</label>
+                <textarea id="fb-desc" required rows="4" placeholder="具体的な内容を記載してください" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box;resize:vertical"></textarea>
+            </div>
+            <div style="display:flex;gap:12px;margin-bottom:12px">
+                <div style="flex:1">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">優先度</label>
+                    <select id="fb-priority" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px"><option>低</option><option selected>普通</option><option>高</option><option>緊急</option></select>
+                </div>
+                <div style="flex:1">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">対象ページ</label>
+                    <input id="fb-page" type="text" readonly style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;background:#f1f5f9;box-sizing:border-box">
+                </div>
+            </div>
+            <div style="margin-bottom:16px">
+                <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">スクリーンショット</label>
+                <div id="fb-drop-zone" style="border:2px dashed #d1d5db;border-radius:8px;padding:20px;text-align:center;cursor:pointer" onclick="document.getElementById('fb-screenshot').click()" ondragover="event.preventDefault();this.style.borderColor='#3b82f6'" ondragleave="this.style.borderColor='#d1d5db'" ondrop="handleScreenshotDrop(event)">
+                    <input type="file" id="fb-screenshot" accept="image/*" style="display:none" onchange="previewScreenshot(this)">
+                    <div id="fb-drop-text" style="color:#94a3b8;font-size:0.85rem">📎 クリックまたはドラッグ&ドロップで画像を添付</div>
+                    <img id="fb-preview" style="display:none;max-width:100%;max-height:150px;border-radius:6px;margin-top:8px">
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" onclick="closeFeedbackModal()" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer">キャンセル</button>
+                <button type="submit" id="fb-submit-btn" style="padding:8px 20px;border:none;border-radius:6px;background:#f59e0b;color:#fff;font-weight:600;cursor:pointer">送信</button>
+            </div>
+        </form>
+        <div id="fb-success" style="display:none;text-align:center;padding:30px 0">
+            <div style="font-size:2rem;margin-bottom:8px">✅</div>
+            <div style="font-weight:600;font-size:1.1rem">依頼を送信しました！</div>
+            <div style="color:#64748b;font-size:0.85rem;margin-top:4px">開発チームが確認します</div>
+        </div>
+    </div>
+</div>
+<script>
+function openFeedbackModal(){const o=document.getElementById('feedbackOverlay');o.style.display='flex';document.getElementById('feedbackForm').style.display='block';document.getElementById('fb-success').style.display='none';document.getElementById('fb-page').value=document.title||location.pathname;document.getElementById('fb-title').value='';document.getElementById('fb-desc').value='';document.getElementById('fb-preview').style.display='none';document.getElementById('fb-drop-text').style.display='block';document.getElementById('fb-screenshot').value='';}
+function closeFeedbackModal(){document.getElementById('feedbackOverlay').style.display='none';}
+function previewScreenshot(i){if(i.files&&i.files[0]){const r=new FileReader();r.onload=e=>{document.getElementById('fb-preview').src=e.target.result;document.getElementById('fb-preview').style.display='block';document.getElementById('fb-drop-text').style.display='none';};r.readAsDataURL(i.files[0]);}}
+function handleScreenshotDrop(e){e.preventDefault();e.currentTarget.style.borderColor='#d1d5db';const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/')){const i=document.getElementById('fb-screenshot');const d=new DataTransfer();d.items.add(f);i.files=d.files;previewScreenshot(i);}}
+async function submitFeedback(e){e.preventDefault();const b=document.getElementById('fb-submit-btn');b.disabled=true;b.textContent='送信中...';const f=new FormData();f.append('category',document.getElementById('fb-category').value);f.append('title',document.getElementById('fb-title').value);f.append('description',document.getElementById('fb-desc').value);f.append('priority',document.getElementById('fb-priority').value);f.append('page',document.getElementById('fb-page').value);const u=JSON.parse(localStorage.getItem('user')||'{}');f.append('user_name',u.name||'');f.append('user_email',u.email||'');const s=document.getElementById('fb-screenshot').files[0];if(s)f.append('screenshot',s);try{const t=localStorage.getItem('access_token');const h=t?{'Authorization':'Bearer '+t}:{};const r=await fetch('/api/feedback',{method:'POST',headers:h,body:f});if(r.ok){document.getElementById('feedbackForm').style.display='none';document.getElementById('fb-success').style.display='block';setTimeout(closeFeedbackModal,2000);}else{alert('送信に失敗しました');}}catch(x){alert('送信エラー: '+x.message);}b.disabled=false;b.textContent='送信';}
+document.getElementById('feedbackOverlay').addEventListener('click',function(e){if(e.target===this)closeFeedbackModal();});
+</script>
+</body>
+</html>
