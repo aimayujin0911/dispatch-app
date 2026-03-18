@@ -27,14 +27,21 @@ app = FastAPI(title="配車管理システム")
 @app.on_event("startup")
 def seed_on_startup():
     """DBが空の場合テストデータ投入、既存DBにはカラム追加"""
-    from database import SessionLocal
+    import logging
+    logger = logging.getLogger("startup")
+    from database import SessionLocal, DB_PATH
     from models import Vehicle
     from sqlalchemy import text
+    logger.info(f"DB path: {DB_PATH}")
     db = SessionLocal()
     try:
-        if db.query(Vehicle).count() == 0:
+        count = db.query(Vehicle).count()
+        logger.info(f"Vehicle count: {count}")
+        if count == 0:
+            logger.info("No vehicles found, running seed...")
             from seed_data import seed
             seed()
+            logger.info("Seed completed")
         # 既存DBにカラム追加（なければ追加）
         migrate_cols = [
             ("shipments", "name", "VARCHAR(100) DEFAULT ''"),
