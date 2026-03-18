@@ -52,6 +52,7 @@
             <button class="menu-toggle" id="menuToggle">☰</button>
             <h1 id="pageTitle">ダッシュボード</h1>
             <div class="topbar-right" style="display:flex;align-items:center;gap:12px">
+                <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">📬 開発への依頼</button>
                 <span id="currentUser" style="font-size:0.85rem"></span>
                 <span id="currentDate"></span>
             </div>
@@ -379,7 +380,150 @@
     <!-- 印刷用オーバーレイ -->
     <div id="print-overlay" class="print-only"></div>
 
+    <!-- フィードバックモーダル -->
+    <div id="feedbackOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h3 style="margin:0;font-size:1.1rem">📬 開発への依頼</h3>
+                <button onclick="closeFeedbackModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b">&times;</button>
+            </div>
+            <form id="feedbackForm" onsubmit="submitFeedback(event)">
+                <div style="margin-bottom:12px">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">カテゴリ</label>
+                    <select id="fb-category" required style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+                        <option value="機能追加">機能追加</option>
+                        <option value="不具合報告">不具合報告</option>
+                        <option value="改善要望">改善要望</option>
+                        <option value="UI変更">UI変更</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">タイトル</label>
+                    <input id="fb-title" type="text" required placeholder="依頼の概要を一言で" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box">
+                </div>
+                <div style="margin-bottom:12px">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">詳細</label>
+                    <textarea id="fb-desc" required rows="4" placeholder="具体的な内容を記載してください" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box;resize:vertical"></textarea>
+                </div>
+                <div style="display:flex;gap:12px;margin-bottom:12px">
+                    <div style="flex:1">
+                        <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">優先度</label>
+                        <select id="fb-priority" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px">
+                            <option>低</option>
+                            <option selected>普通</option>
+                            <option>高</option>
+                            <option>緊急</option>
+                        </select>
+                    </div>
+                    <div style="flex:1">
+                        <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">対象ページ</label>
+                        <input id="fb-page" type="text" readonly style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;background:#f1f5f9;box-sizing:border-box">
+                    </div>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px">スクリーンショット</label>
+                    <div id="fb-drop-zone" style="border:2px dashed #d1d5db;border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color 0.2s"
+                         onclick="document.getElementById('fb-screenshot').click()"
+                         ondragover="event.preventDefault();this.style.borderColor='#3b82f6'"
+                         ondragleave="this.style.borderColor='#d1d5db'"
+                         ondrop="handleScreenshotDrop(event)">
+                        <input type="file" id="fb-screenshot" accept="image/*" style="display:none" onchange="previewScreenshot(this)">
+                        <div id="fb-drop-text" style="color:#94a3b8;font-size:0.85rem">📎 クリックまたはドラッグ&ドロップで画像を添付</div>
+                        <img id="fb-preview" style="display:none;max-width:100%;max-height:150px;border-radius:6px;margin-top:8px">
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" onclick="closeFeedbackModal()" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer">キャンセル</button>
+                    <button type="submit" id="fb-submit-btn" style="padding:8px 20px;border:none;border-radius:6px;background:#f59e0b;color:#fff;font-weight:600;cursor:pointer">送信</button>
+                </div>
+            </form>
+            <div id="fb-success" style="display:none;text-align:center;padding:30px 0">
+                <div style="font-size:2rem;margin-bottom:8px">✅</div>
+                <div style="font-weight:600;font-size:1.1rem">依頼を送信しました！</div>
+                <div style="color:#64748b;font-size:0.85rem;margin-top:4px">開発チームが確認します</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function openFeedbackModal() {
+        const overlay = document.getElementById('feedbackOverlay');
+        overlay.style.display = 'flex';
+        document.getElementById('feedbackForm').style.display = 'block';
+        document.getElementById('fb-success').style.display = 'none';
+        document.getElementById('fb-page').value = document.getElementById('pageTitle')?.textContent || '';
+        document.getElementById('fb-title').value = '';
+        document.getElementById('fb-desc').value = '';
+        document.getElementById('fb-preview').style.display = 'none';
+        document.getElementById('fb-drop-text').style.display = 'block';
+        document.getElementById('fb-screenshot').value = '';
+    }
+    function closeFeedbackModal() {
+        document.getElementById('feedbackOverlay').style.display = 'none';
+    }
+    function previewScreenshot(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById('fb-preview').src = e.target.result;
+                document.getElementById('fb-preview').style.display = 'block';
+                document.getElementById('fb-drop-text').style.display = 'none';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    function handleScreenshotDrop(e) {
+        e.preventDefault();
+        e.currentTarget.style.borderColor = '#d1d5db';
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const input = document.getElementById('fb-screenshot');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            previewScreenshot(input);
+        }
+    }
+    async function submitFeedback(e) {
+        e.preventDefault();
+        const btn = document.getElementById('fb-submit-btn');
+        btn.disabled = true;
+        btn.textContent = '送信中...';
+        const form = new FormData();
+        form.append('category', document.getElementById('fb-category').value);
+        form.append('title', document.getElementById('fb-title').value);
+        form.append('description', document.getElementById('fb-desc').value);
+        form.append('priority', document.getElementById('fb-priority').value);
+        form.append('page', document.getElementById('fb-page').value);
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        form.append('user_name', user.name || '');
+        form.append('user_email', user.email || '');
+        const ss = document.getElementById('fb-screenshot').files[0];
+        if (ss) form.append('screenshot', ss);
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            const resp = await fetch('/api/feedback', { method: 'POST', headers, body: form });
+            if (resp.ok) {
+                document.getElementById('feedbackForm').style.display = 'none';
+                document.getElementById('fb-success').style.display = 'block';
+                setTimeout(closeFeedbackModal, 2000);
+            } else {
+                alert('送信に失敗しました');
+            }
+        } catch(e) {
+            alert('送信エラー: ' + e.message);
+        }
+        btn.disabled = false;
+        btn.textContent = '送信';
+    }
+    document.getElementById('feedbackOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeFeedbackModal();
+    });
+    </script>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=36"></script>
+    <script src="/static/js/app.js?v=37"></script>
 </body>
 </html>
