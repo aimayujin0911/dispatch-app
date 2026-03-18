@@ -380,6 +380,14 @@
 </div>
 
 <script>
+// --- 認証チェック ---
+(function(){
+    const token = localStorage.getItem('access_token');
+    if (!token) { location.href = '/login'; return; }
+})();
+
+function _authH() { const h = {'Content-Type':'application/json'}; const t = localStorage.getItem('access_token'); if(t) h['Authorization']='Bearer '+t; return h; }
+
 // ===== State =====
 let currentYear, currentMonth;
 let drivers = [];
@@ -412,7 +420,7 @@ function changeMonth(delta) {
 // ===== Drivers =====
 async function loadDrivers() {
     try {
-        const res = await fetch('/api/drivers');
+        const res = await fetch('/api/drivers', { headers: _authH() });
         drivers = await res.json();
         const filter = document.getElementById('driverFilter');
         const fDriver = document.getElementById('fDriver');
@@ -432,7 +440,7 @@ async function loadDrivers() {
 // ===== Vehicles =====
 async function loadVehicles() {
     try {
-        const res = await fetch('/api/vehicles');
+        const res = await fetch('/api/vehicles', { headers: _authH() });
         vehicles = await res.json();
         const fVehicle = document.getElementById('fVehicle');
         fVehicle.innerHTML = '<option value="">-- 選択 --</option>';
@@ -455,7 +463,7 @@ async function loadRecords() {
     try {
         let url = `/api/attendance?year=${currentYear}&month=${currentMonth}`;
         if (selectedDriverId) url += `&driver_id=${selectedDriverId}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { headers: _authH() });
         records = await res.json();
     } catch (e) {
         console.error('勤怠読込失敗:', e);
@@ -957,13 +965,13 @@ async function saveRecord() {
             delete updatePayload.driver_id;
             res = await fetch(`/api/attendance/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _authH(),
                 body: JSON.stringify(updatePayload)
             });
         } else {
             res = await fetch('/api/attendance', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _authH(),
                 body: JSON.stringify(allFields)
             });
         }
@@ -982,7 +990,7 @@ async function saveRecord() {
 async function deleteRecord(id) {
     if (!confirm('この勤怠記録を削除しますか？')) return;
     try {
-        const res = await fetch(`/api/attendance/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/attendance/${id}`, { method: 'DELETE', headers: _authH() });
         if (!res.ok) throw new Error('削除に失敗しました');
         loadRecords();
     } catch (e) {
@@ -995,7 +1003,8 @@ async function generateFromDispatches() {
     if (!confirm(`${currentYear}年${currentMonth}月の配車データから勤怠を自動生成しますか？`)) return;
     try {
         const res = await fetch(`/api/attendance/from-dispatches?year=${currentYear}&month=${currentMonth}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: _authH()
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));

@@ -27,7 +27,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(200), nullable=False)
     name = Column(String(50), nullable=False)
-    role = Column(String(20), default="viewer")  # admin/manager/driver/viewer
+    role = Column(String(20), default="dispatcher")  # admin(管理者)/manager(拠点管理者)/dispatcher(拠点配車担当)
     tenant_id = Column(String(50), default="")
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)

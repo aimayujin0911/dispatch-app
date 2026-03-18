@@ -39,7 +39,14 @@ def seed():
         role="manager",
         branch_id=branch_yokohama.id,
     )
-    db.add_all([admin_user, manager_user])
+    dispatcher_user = User(
+        email="dispatcher@example.com",
+        password_hash=hash_password("dispatcher1234"),
+        name="本社配車担当",
+        role="dispatcher",
+        branch_id=branch_honsha.id,
+    )
+    db.add_all([admin_user, manager_user, dispatcher_user])
     db.flush()
 
     # 自社情報

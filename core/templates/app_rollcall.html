@@ -296,10 +296,19 @@
 </div>
 
 <script>
+// --- 認証チェック ---
+(function(){
+    const token = localStorage.getItem('access_token');
+    if (!token) { location.href = '/login'; return; }
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (user.role === 'dispatcher') { alert('このページにはアクセス権限がありません'); location.href = '/'; return; }
+})();
+
 // --- API & Helpers ---
 const apiBase = '';
+function _authH() { const h = {'Content-Type':'application/json'}; const t = localStorage.getItem('access_token'); if(t) h['Authorization']='Bearer '+t; return h; }
 async function apiGet(url) {
-    const r = await fetch(apiBase + url);
+    const r = await fetch(apiBase + url, { headers: _authH() });
     if (!r.ok) throw new Error(r.statusText);
     return r.json();
 }

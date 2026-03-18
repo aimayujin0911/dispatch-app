@@ -98,9 +98,53 @@ async function loadUserInfo() {
         localStorage.setItem('user_info', JSON.stringify(user));
         // ヘッダーにユーザー情報表示
         const userEl = document.getElementById('currentUser');
-        if (userEl) userEl.innerHTML = `${user.branch_name ? '<span style="font-size:0.75rem;opacity:0.8">📍'+user.branch_name+'</span> ' : ''}${user.name} <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-left:6px">ログアウト</button>`;
+        if (userEl) {
+            let html = '';
+            // 管理者: 拠点切替ドロップダウン
+            if (user.can_switch_branch && user.branches && user.branches.length > 1) {
+                html += `<select onchange="switchBranch(this.value)" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer">`;
+                user.branches.forEach(b => {
+                    html += `<option value="${b.id}" ${b.id === user.branch_id ? 'selected' : ''} style="color:#000">${b.name}</option>`;
+                });
+                html += `</select> `;
+            } else if (user.branch_name) {
+                html += `<span style="font-size:0.75rem;opacity:0.8">📍${user.branch_name}</span> `;
+            }
+            // ロールバッジ
+            const roleLabels = {admin:'管理者',manager:'拠点管理者',dispatcher:'配車担当'};
+            html += `<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85)">${roleLabels[user.role]||user.role}</span> `;
+            html += `${user.name} `;
+            html += `<button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer">ログアウト</button>`;
+            userEl.innerHTML = html;
+        }
+        // ロールに基づいてサイドバーのサブアプリリンクを制御
+        applyRoleAccess(user);
         return user;
     } catch(e) { return null; }
+}
+
+async function switchBranch(branchId) {
+    try {
+        const resp = await fetch(API + '/auth/switch-branch', {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify({ branch_id: parseInt(branchId) })
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            localStorage.setItem('access_token', data.access_token);
+            location.reload();
+        }
+    } catch(e) { console.error(e); }
+}
+
+function applyRoleAccess(user) {
+    // dispatcher(配車担当)はサブアプリ(管理・会計)にアクセス不可
+    if (user.role === 'dispatcher') {
+        // サブアプリリンクを非表示
+        document.querySelectorAll('.nav-item[onclick*="app/top"]').forEach(el => el.style.display = 'none');
+        const subHeader = document.querySelector('.sub-app-header');
+        if (subHeader) subHeader.style.display = 'none';
+    }
 }
 
 // ===== API ヘルパー =====

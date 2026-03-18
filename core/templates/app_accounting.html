@@ -364,29 +364,38 @@
 </div>
 
 <script>
+// --- 認証チェック ---
+(function(){
+    const token = localStorage.getItem('access_token');
+    if (!token) { location.href = '/login'; return; }
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (user.role === 'dispatcher') { alert('このページにはアクセス権限がありません'); location.href = '/'; return; }
+})();
+
 /* ── Category definitions ── */
 const INCOME_CATEGORIES = ['運賃収入', '付帯作業収入', 'その他収入'];
 const EXPENSE_CATEGORIES = ['燃料費', '高速代(ETC)', '修理・整備費', '保険料', '車検費用', 'リース料', '協力会社支払', '給与・手当', '事務所経費', 'タイヤ代', '駐車場代', 'その他支出'];
 const ALL_CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES];
 
 /* ── API helpers ── */
+function _authH() { const h = {'Content-Type':'application/json'}; const t = localStorage.getItem('access_token'); if(t) h['Authorization']='Bearer '+t; return h; }
 async function apiGet(u) {
-    const r = await fetch(u);
+    const r = await fetch(u, { headers: _authH() });
     if (!r.ok) throw new Error(r.statusText);
     return r.json();
 }
 async function apiPost(u, d) {
-    const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    const r = await fetch(u, { method: 'POST', headers: _authH(), body: JSON.stringify(d) });
     if (!r.ok) throw new Error(r.statusText);
     return r.json();
 }
 async function apiPut(u, d) {
-    const r = await fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    const r = await fetch(u, { method: 'PUT', headers: _authH(), body: JSON.stringify(d) });
     if (!r.ok) throw new Error(r.statusText);
     return r.json();
 }
 async function apiDelete(u) {
-    const r = await fetch(u, { method: 'DELETE' });
+    const r = await fetch(u, { method: 'DELETE', headers: _authH() });
     if (!r.ok) throw new Error(r.statusText);
     return r.json();
 }

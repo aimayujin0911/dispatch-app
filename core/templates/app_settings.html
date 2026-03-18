@@ -154,8 +154,17 @@
 </div>
 
 <script>
-async function apiGet(url) { const r = await fetch(url); return r.json(); }
-async function apiPut(url, data) { const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); return r.json(); }
+// --- 認証チェック ---
+(function(){
+    const token = localStorage.getItem('access_token');
+    if (!token) { location.href = '/login'; return; }
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (user.role === 'dispatcher') { alert('このページにはアクセス権限がありません'); location.href = '/'; return; }
+})();
+
+function _authH() { const h = {'Content-Type':'application/json'}; const t = localStorage.getItem('access_token'); if(t) h['Authorization']='Bearer '+t; return h; }
+async function apiGet(url) { const r = await fetch(url, { headers: _authH() }); return r.json(); }
+async function apiPut(url, data) { const r = await fetch(url, { method: 'PUT', headers: _authH(), body: JSON.stringify(data) }); return r.json(); }
 
 async function loadSettings() {
     const s = await apiGet('/api/settings');

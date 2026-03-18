@@ -52,6 +52,8 @@ class UserOut(BaseModel):
 
 class MeResponse(UserOut):
     branches: List[BranchOut] = []
+    can_switch_branch: bool = False    # admin のみ拠点切替可能
+    can_access_admin: bool = False     # admin/manager のみ管理・会計アクセス可能
 
 
 class TokenResponse(BaseModel):
@@ -113,9 +115,9 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
             detail="このメールアドレスは既に登録されています",
         )
 
-    # 最初のユーザーは admin、それ以降は viewer
+    # 最初のユーザーは admin、それ以降は dispatcher
     user_count = db.query(User).count()
-    role = "admin" if user_count == 0 else "viewer"
+    role = "admin" if user_count == 0 else "dispatcher"
 
     user = User(
         name=req.name,
@@ -135,10 +137,12 @@ def get_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """ログイン中のユーザー情報 + 営業所一覧"""
+    """ログイン中のユーザー情報 + 営業所一覧 + 権限"""
     branches = db.query(Branch).filter(Branch.is_active == True).order_by(Branch.id).all()
     user_dict = _build_user_out(current_user)
     user_dict["branches"] = [{"id": b.id, "name": b.name} for b in branches]
+    user_dict["can_switch_branch"] = current_user.role == "admin"
+    user_dict["can_access_admin"] = current_user.role in ("admin", "manager")
     return user_dict
 
 
@@ -148,7 +152,9 @@ def switch_branch(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """営業所を切り替え、新しいトークンを返す"""
+    """営業所を切り替え、新しいトークンを返す（管理者のみ）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="拠点切替は管理者のみ可能です")
     branch = db.query(Branch).filter(Branch.id == req.branch_id, Branch.is_active == True).first()
     if not branch:
         raise HTTPException(
