@@ -39,23 +39,72 @@ body {
     top: 0;
     left: 0;
     height: 100vh;
-    z-index: 100;
-    transition: transform 0.3s ease;
+    z-index: 1000;
+    transition: width 0.3s ease;
     overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar::-webkit-scrollbar {
+    display: none;
 }
 
 @media (min-width: 769px) {
     .sidebar.collapsed {
-        transform: translateX(-240px);
+        width: 56px;
+    }
+    .sidebar.collapsed:hover {
+        width: 240px;
+        box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+    }
+    .sidebar.collapsed .nav-item {
+        padding: 12px 16px;
+        justify-content: center;
+    }
+    .sidebar.collapsed:hover .nav-item {
+        padding: 12px 20px;
+        justify-content: flex-start;
+    }
+    .sidebar.collapsed .nav-item .nav-label {
+        opacity: 0;
+        width: 0;
+        overflow: hidden;
+        display: inline-block;
+    }
+    .sidebar.collapsed:hover .nav-item .nav-label {
+        opacity: 1;
+        width: auto;
+        display: inline;
+    }
+    .sidebar.collapsed .nav-item .nav-icon {
+        margin: 0;
+    }
+    .sidebar.collapsed .sub-app-header {
+        font-size: 0;
+        color: transparent;
+        overflow: hidden;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding: 4px 0 !important;
+        margin-top: 4px !important;
+    }
+    .sidebar.collapsed:hover .sub-app-header {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        border-top: none;
+        padding: 8px 20px !important;
+        margin-top: 8px !important;
     }
     .content.sidebar-collapsed {
-        margin-left: 0 !important;
+        margin-left: 56px !important;
     }
 }
 
 .sidebar-header {
     padding: 20px;
     border-bottom: 1px solid rgba(255,255,255,0.1);
+    white-space: nowrap;
 }
 
 .sidebar-header h2 {
@@ -65,9 +114,15 @@ body {
 
 .nav-menu {
     list-style: none;
-    padding: 10px 0;
+    padding: 10px 0 20px 0;
     overflow-y: auto;
-    max-height: calc(100vh - 70px);
+    max-height: 100vh;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.nav-menu::-webkit-scrollbar {
+    display: none;
 }
 
 .nav-item {
@@ -78,6 +133,7 @@ body {
     align-items: center;
     gap: 10px;
     font-size: 0.95rem;
+    white-space: nowrap;
 }
 
 .nav-item:hover {
@@ -91,6 +147,7 @@ body {
 
 .nav-icon {
     font-size: 1.1rem;
+    flex-shrink: 0;
 }
 
 /* メインコンテンツ */
@@ -539,6 +596,9 @@ body {
     font-size: 0.8rem;
     font-weight: 600;
     border-right: 1px solid rgba(255,255,255,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 6;
 }
 
 .cal-header.cal-today {
@@ -617,6 +677,10 @@ body {
 /* ガントチャート */
 .gantt-wrapper {
     overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 420px);
+    min-height: 200px;
+    border-bottom: 2px solid #e2e8f0;
 }
 
 .gantt-grid {
@@ -746,6 +810,12 @@ body {
     background: #e5e7eb !important;
 }
 
+#unassigned-panel {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+}
+
 #unassigned-panel.drag-over {
     background: #fef3c7 !important;
     border: 2px dashed #d97706;
@@ -789,23 +859,24 @@ body {
 
 /* 未配車案件パネル */
 .unassigned-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
 }
 
 .unassigned-item {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px 8px;
     background: #fffbeb;
     border: 1px solid #fbbf24;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: grab;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     transition: background 0.15s;
     user-select: none;
+    min-width: 0;
 }
 
 .unassigned-item:hover {
@@ -934,7 +1005,17 @@ body {
     text-decoration: underline;
 }
 
-/* 地図アイコン */
+/* 地図 */
+#page-map {
+    position: relative;
+    z-index: 0;
+}
+
+#map {
+    position: relative;
+    z-index: 0;
+}
+
 .map-icon {
     font-size: 22px;
     text-align: center;

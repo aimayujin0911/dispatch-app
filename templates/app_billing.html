@@ -299,56 +299,108 @@ async function bulkMarkBilled() {
     loadShipments();
 }
 
-function printSingleInvoice(id) {
+async function printSingleInvoice(id) {
     const s = shipments.find(sh => sh.id === id) || allShipments.find(sh => sh.id === id);
     if (!s) return alert('案件が見つかりません');
-    const win = window.open('', '_blank');
+    const settings = await apiGet('/api/settings');
+    const clients = await getClients();
+    const client = clients.find(c => c.name === s.client_name);
+
+    const subtotal = s.price || 0;
+    const taxRate = settings.tax_rate || 10;
+    const tax = Math.floor(subtotal * taxRate / 100);
+    const total = subtotal + tax;
     const today = new Date();
     const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
-    win.document.write(`<html><head><meta charset="UTF-8"><title>請求書</title><style>
-        body { font-family: 'Yu Gothic', 'Hiragino Sans', sans-serif; padding: 2rem 3rem; color: #222; }
-        .header { text-align: center; margin-bottom: 2rem; }
-        .header h1 { font-size: 1.8rem; letter-spacing: .3rem; border-bottom: 3px double #333; display: inline-block; padding-bottom: .3rem; }
-        .meta { display: flex; justify-content: space-between; margin-bottom: 1.5rem; }
-        .meta-left { font-size: 1rem; }
-        .meta-right { text-align: right; font-size: .85rem; }
-        .client-name { font-size: 1.2rem; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: .2rem; margin-bottom: .5rem; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-        th, td { border: 1px solid #999; padding: .6rem .75rem; text-align: left; }
-        th { background: #f5f5f5; font-size: .85rem; }
-        .total-row { font-weight: bold; font-size: 1.1rem; background: #fafafa; }
-        .amount-box { margin-top: 1.5rem; text-align: center; font-size: 1.4rem; font-weight: bold; border: 2px solid #333; padding: .75rem; }
-        .footer { margin-top: 2rem; font-size: .8rem; color: #666; }
-        @media print { button { display: none; } }
+    const invoiceNo = `INV-${currentYear}${String(currentMonth).padStart(2,'0')}-${String(s.id).padStart(4,'0')}`;
+    const dueDate = settings.payment_terms?.includes('翌月末') ? '翌月末日' : (settings.payment_terms || '別途ご案内');
+
+    const pw = window.open('', '_blank', 'width=800,height=1100');
+    pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>請求書 ${s.client_name}</title>
+    <style>
+    @page{size:A4;margin:15mm}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Hiragino Sans','Yu Gothic','Meiryo',sans-serif;padding:20mm 15mm;color:#000;font-size:10pt;line-height:1.5}
+    h1{font-size:22pt;text-align:center;letter-spacing:12pt;margin-bottom:4px;font-weight:700;border-bottom:3px double #000;padding-bottom:8px}
+    .inv-header{display:flex;justify-content:space-between;margin:16px 0}
+    .inv-header .left{flex:1}
+    .inv-header .right{text-align:right;font-size:9pt;line-height:1.8}
+    .client-name{font-size:16pt;font-weight:700;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:8px}
+    .total-box{background:#f0f0f0;border:2px solid #000;padding:12px 20px;text-align:center;margin:16px 0;font-size:14pt;font-weight:700}
+    table{width:100%;border-collapse:collapse;margin:12px 0}
+    th,td{border:1px solid #000;padding:5px 8px;font-size:9.5pt}
+    th{background:#f0f0f0;font-weight:600;text-align:center;white-space:nowrap}
+    .summary-table{width:50%;margin-left:auto}
+    .summary-table td{text-align:right}
+    .summary-table th{text-align:left;width:40%}
+    .bank-box{border:1px solid #000;padding:10px;margin:12px 0;font-size:9pt;line-height:1.8}
+    .bank-box .bank-title{font-weight:700;margin-bottom:4px}
+    .seal{display:inline-block;width:60px;height:60px;border:2px solid #c00;border-radius:50%;text-align:center;line-height:60px;font-size:7pt;color:#c00;font-weight:700;margin-left:8px;vertical-align:middle}
+    .footer{margin-top:16px;font-size:8pt;color:#666;text-align:center}
+    .company-block{font-size:9pt;line-height:1.8}
+    @media print{button{display:none!important}}
     </style></head><body>
-        <div class="header"><h1>請 求 書</h1></div>
-        <div class="meta">
-            <div class="meta-left">
-                <div class="client-name">${s.client_name || '-'} 御中</div>
-                <p>下記の通りご請求申し上げます。</p>
+    <h1>請 求 書</h1>
+    <div class="inv-header">
+        <div class="left">
+            <div class="client-name">${s.client_name || '-'} 御中</div>
+            ${client?.address ? `<div style="font-size:9pt">${client.address}</div>` : ''}
+            <div style="margin-top:12px;font-size:10pt">下記の通りご請求申し上げます。</div>
+            <div class="total-box">ご請求金額: ¥${total.toLocaleString()}-（税込）</div>
+        </div>
+        <div class="right">
+            <div style="margin-bottom:8px">
+                <strong>請求書番号:</strong> ${invoiceNo}<br>
+                <strong>発行日:</strong> ${dateStr}<br>
+                <strong>お支払期限:</strong> ${dueDate}<br>
+                <strong>お支払条件:</strong> ${settings.payment_terms || '-'}
             </div>
-            <div class="meta-right">
-                <p>発行日: ${dateStr}</p>
-                <p>請求番号: INV-${s.id}</p>
+            <div class="company-block" style="border:1px solid #ccc;padding:8px;border-radius:4px">
+                <strong>${settings.company_name || ''}</strong>
+                ${settings.seal_text ? `<span class="seal">${(settings.seal_text||'').substring(0, 6)}</span>` : ''}
+                <br>
+                〒${settings.postal_code || ''} ${settings.address || ''}<br>
+                TEL: ${settings.phone || ''} / FAX: ${settings.fax || ''}<br>
+                ${settings.email ? 'E-mail: ' + settings.email + '<br>' : ''}
+                ${settings.representative || ''}<br>
+                <strong>登録番号: ${settings.registration_number || ''}</strong>
             </div>
         </div>
-        <div class="amount-box">ご請求金額: ¥${(s.price||0).toLocaleString()}</div>
-        <table>
-            <thead><tr><th>項目</th><th>内容</th></tr></thead>
-            <tbody>
-                <tr><td>案件名</td><td>${s.name || s.cargo_name || '-'}</td></tr>
-                <tr><td>積地</td><td>${s.pickup_address || '-'}</td></tr>
-                <tr><td>卸地</td><td>${s.delivery_address || '-'}</td></tr>
-                <tr><td>配達日</td><td>${s.delivery_date || '-'}</td></tr>
-                <tr><td>運賃</td><td style="text-align:right;font-weight:bold">¥${(s.price||0).toLocaleString()}</td></tr>
-            </tbody>
-        </table>
-        <div class="footer">
-            <p>お支払期限: 翌月末日</p>
-            <p>※ ご不明な点がございましたらお問い合わせください。</p>
-        </div>
-        <br><button onclick="window.print()" style="padding:.5rem 1.5rem;font-size:1rem;cursor:pointer">🖨️ 印刷</button>
+    </div>
+
+    <table>
+        <thead><tr><th style="width:30px">No</th><th style="width:80px">日付</th><th>案件名</th><th>区間</th><th style="width:90px">金額(税抜)</th></tr></thead>
+        <tbody>
+            <tr>
+                <td style="text-align:center">1</td>
+                <td>${s.delivery_date || '-'}</td>
+                <td>${s.name || '-'}</td>
+                <td style="font-size:9pt">${s.pickup_address || ''} → ${s.delivery_address || ''}</td>
+                <td style="text-align:right">¥${subtotal.toLocaleString()}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <table class="summary-table">
+        <tr><th>小計</th><td>¥${subtotal.toLocaleString()}</td></tr>
+        <tr><th>消費税(${taxRate}%)</th><td>¥${tax.toLocaleString()}</td></tr>
+        <tr style="font-weight:700;font-size:11pt"><th>合計（税込）</th><td>¥${total.toLocaleString()}</td></tr>
+    </table>
+
+    <div class="bank-box">
+        <div class="bank-title">■ お振込先</div>
+        ${(settings.bank_info || '').replace(/\\n/g, '<br>').replace(/\n/g, '<br>')}
+    </div>
+
+    ${settings.invoice_note ? `<p style="font-size:8.5pt;color:#333;margin-top:8px">※ ${settings.invoice_note}</p>` : ''}
+
+    <div class="footer">
+        本請求書は適格請求書（インボイス）として発行しています。<br>
+        ${settings.company_name || ''} / 登録番号: ${settings.registration_number || ''} / TEL: ${settings.phone || ''}
+    </div>
+    <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:.5rem 1.5rem;font-size:1rem;cursor:pointer;border:1px solid #ccc;border-radius:6px;background:#fff">🖨️ 印刷</button></div>
     </body></html>`);
+    pw.document.close();
 }
 
 // --- Email modal: group by client, look up billing_email ---

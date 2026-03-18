@@ -24,6 +24,8 @@ class DriverCreate(BaseModel):
     status: str = "待機中"
     hire_date: Optional[date] = None
     paid_leave_balance: float = 10.0
+    work_start: str = "08:00"
+    work_end: str = "17:00"
     notes: str = ""
 
 
@@ -37,6 +39,8 @@ class DriverUpdate(BaseModel):
     status: Optional[str] = None
     hire_date: Optional[date] = None
     paid_leave_balance: Optional[float] = None
+    work_start: Optional[str] = None
+    work_end: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -58,6 +62,8 @@ def list_drivers(db: Session = Depends(get_db)):
             "status": d.status,
             "hire_date": str(d.hire_date) if d.hire_date else "",
             "paid_leave_balance": getattr(d, 'paid_leave_balance', 10.0) or 10.0,
+            "work_start": getattr(d, 'work_start', '08:00') or '08:00',
+            "work_end": getattr(d, 'work_end', '17:00') or '17:00',
             "has_login": bool(d.email and d.password_hash),
             "notes": d.notes,
         })
@@ -77,6 +83,8 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
         "status": d.status,
         "hire_date": str(d.hire_date) if d.hire_date else "",
         "paid_leave_balance": getattr(d, 'paid_leave_balance', 10.0) or 10.0,
+        "work_start": getattr(d, 'work_start', '08:00') or '08:00',
+        "work_end": getattr(d, 'work_end', '17:00') or '17:00',
         "has_login": bool(d.email and d.password_hash),
         "notes": d.notes,
     }

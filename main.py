@@ -64,6 +64,12 @@ def seed_on_startup():
             ("daily_reports", "client_names", "VARCHAR(200) DEFAULT ''"),
             ("account_entries", "vehicle_id", "INTEGER"),
             ("partner_invoices", "pdf_filename", "VARCHAR(200) DEFAULT ''"),
+            ("company_settings", "postal_code", "VARCHAR(10) DEFAULT ''"),
+            ("company_settings", "email", "VARCHAR(100) DEFAULT ''"),
+            ("company_settings", "payment_terms", "VARCHAR(100) DEFAULT '月末締め翌月末払い'"),
+            ("company_settings", "tax_rate", "INTEGER DEFAULT 10"),
+            ("company_settings", "seal_text", "VARCHAR(50) DEFAULT ''"),
+            ("company_settings", "invoice_note", "VARCHAR(200) DEFAULT ''"),
             ("company_settings", "smtp_host", "VARCHAR(100) DEFAULT ''"),
             ("company_settings", "smtp_port", "INTEGER DEFAULT 587"),
             ("company_settings", "smtp_user", "VARCHAR(100) DEFAULT ''"),
@@ -75,6 +81,8 @@ def seed_on_startup():
             ("drivers", "license_expiry", "VARCHAR(10) DEFAULT ''"),
             ("drivers", "hire_date", "DATE"),
             ("drivers", "paid_leave_balance", "REAL DEFAULT 10.0"),
+            ("drivers", "work_start", "VARCHAR(5) DEFAULT '08:00'"),
+            ("drivers", "work_end", "VARCHAR(5) DEFAULT '17:00'"),
             # Phase4: 勤怠拡張（運送業日報項目）
             ("attendance", "vehicle_id", "INTEGER"),
             ("attendance", "departure_time", "VARCHAR(5) DEFAULT ''"),
@@ -131,6 +139,11 @@ async def index(request: Request):
 
 
 # サブアプリ（別ページ）
+@app.get("/app/top", response_class=HTMLResponse)
+async def app_top(request: Request):
+    return templates.TemplateResponse("app_top.html", {"request": request})
+
+
 @app.get("/app/billing", response_class=HTMLResponse)
 async def billing_app(request: Request):
     return templates.TemplateResponse("app_billing.html", {"request": request})
@@ -149,6 +162,11 @@ async def accounting_app(request: Request):
 @app.get("/app/reports", response_class=HTMLResponse)
 async def reports_app(request: Request):
     return templates.TemplateResponse("app_reports.html", {"request": request})
+
+
+@app.get("/app/settings", response_class=HTMLResponse)
+async def settings_app(request: Request):
+    return templates.TemplateResponse("app_settings.html", {"request": request})
 
 
 @app.get("/m/attendance", response_class=HTMLResponse)

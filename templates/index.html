@@ -4,63 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>配車管理システム</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=19">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
-            <h2>🚛 配車管理</h2>
-            <button onclick="toggleSidebar()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.2rem;cursor:pointer;padding:4px 8px" title="サイドバーを閉じる">✕</button>
-        </div>
+    <nav class="sidebar collapsed" id="sidebar">
         <ul class="nav-menu">
             <li class="nav-item active" data-page="dashboard">
-                <span class="nav-icon">📊</span> ダッシュボード
+                <span class="nav-icon">📊</span> <span class="nav-label">ダッシュボード</span>
             </li>
             <li class="nav-item" data-page="dispatches">
-                <span class="nav-icon">📋</span> 配車表
+                <span class="nav-icon">📋</span> <span class="nav-label">配車表</span>
             </li>
             <li class="nav-item" data-page="shipments">
-                <span class="nav-icon">📦</span> 案件管理
+                <span class="nav-icon">📦</span> <span class="nav-label">案件管理</span>
             </li>
             <li class="nav-item" data-page="clients">
-                <span class="nav-icon">🏢</span> 荷主管理
+                <span class="nav-icon">🏢</span> <span class="nav-label">荷主管理</span>
             </li>
             <li class="nav-item" data-page="partners">
-                <span class="nav-icon">🤝</span> 協力会社
+                <span class="nav-icon">🤝</span> <span class="nav-label">協力会社</span>
             </li>
             <li class="nav-item" data-page="vehicles">
-                <span class="nav-icon">🚚</span> 車両管理
+                <span class="nav-icon">🚚</span> <span class="nav-label">車両管理</span>
             </li>
             <li class="nav-item" data-page="drivers">
-                <span class="nav-icon">👤</span> ドライバー管理
+                <span class="nav-icon">👤</span> <span class="nav-label">ドライバー管理</span>
             </li>
             <li class="nav-item" data-page="documents">
-                <span class="nav-icon">📄</span> 書類管理
+                <span class="nav-icon">📄</span> <span class="nav-label">書類管理</span>
             </li>
             <li class="nav-item" data-page="map">
-                <span class="nav-icon">🗺️</span> 地図表示
+                <span class="nav-icon">🗺️</span> <span class="nav-label">地図表示</span>
             </li>
-            <li style="padding:8px 20px;font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-top:8px">サブアプリ</li>
-            <li class="nav-item" onclick="window.open('/app/billing','_blank')">
-                <span class="nav-icon">💰</span> 請求管理 ↗
-            </li>
-            <li class="nav-item" onclick="window.open('/app/attendance','_blank')">
-                <span class="nav-icon">⏰</span> 勤怠管理 ↗
-            </li>
-            <li class="nav-item" onclick="window.open('/app/accounting','_blank')">
-                <span class="nav-icon">📒</span> 会計管理 ↗
-            </li>
-            <li class="nav-item" onclick="window.open('/app/reports','_blank')">
-                <span class="nav-icon">📝</span> 日報管理 ↗
-            </li>
-            <li class="nav-item" data-page="settings">
-                <span class="nav-icon">⚙️</span> 設定
+            <li class="nav-item" onclick="window.open('/app/top','_blank')">
+                <span class="nav-icon">💼</span> <span class="nav-label">管理・会計 ↗</span>
             </li>
         </ul>
     </nav>
 
-    <main class="content">
+    <main class="content sidebar-collapsed">
         <header class="topbar">
             <button class="menu-toggle" id="menuToggle">☰</button>
             <h1 id="pageTitle">ダッシュボード</h1>
@@ -129,7 +112,6 @@
                             <th>時間指定</th>
                             <th>運賃</th>
                             <th>頻度</th>
-                            <th>ステータス</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -343,85 +325,7 @@
         <!-- 売上・請求・勤怠・会計・日報は別アプリへ移行 -->
         <!-- /app/billing, /app/attendance, /app/accounting, /app/reports -->
 
-        <!-- 設定 -->
-        <section class="page" id="page-settings">
-            <div class="card">
-                <h3 style="margin-bottom:16px">自社情報設定</h3>
-                <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px">輸送依頼書・請求書・車番連絡票に印字される自社情報です</p>
-                <div class="form-group">
-                    <label>会社名</label>
-                    <input type="text" id="s-company-name" placeholder="株式会社○○運輸">
-                </div>
-                <div class="form-group">
-                    <label>住所</label>
-                    <input type="text" id="s-address" placeholder="東京都○○区...">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>電話番号</label>
-                        <input type="text" id="s-phone" placeholder="03-xxxx-xxxx">
-                    </div>
-                    <div class="form-group">
-                        <label>FAX</label>
-                        <input type="text" id="s-fax" placeholder="03-xxxx-xxxx">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>代表者名</label>
-                        <input type="text" id="s-representative">
-                    </div>
-                    <div class="form-group">
-                        <label>適格請求書番号</label>
-                        <input type="text" id="s-reg-number" placeholder="T1234567890123">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>振込先情報</label>
-                    <textarea id="s-bank-info" placeholder="○○銀行 ○○支店 普通 1234567"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>備考</label>
-                    <textarea id="s-notes" placeholder="その他備考"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button class="btn btn-primary" onclick="saveCompanySettings()">保存</button>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top:20px">
-                <h3 style="margin-bottom:16px">メール送信設定（SMTP）</h3>
-                <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px">請求書メール送付に使用するSMTP設定です</p>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>SMTPホスト</label>
-                        <input type="text" id="s-smtp-host" placeholder="smtp.gmail.com">
-                    </div>
-                    <div class="form-group">
-                        <label>ポート</label>
-                        <input type="number" id="s-smtp-port" placeholder="587">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>SMTPユーザー</label>
-                        <input type="text" id="s-smtp-user" placeholder="user@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label>SMTPパスワード</label>
-                        <input type="password" id="s-smtp-password" placeholder="アプリパスワード">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>送信元メールアドレス</label>
-                    <input type="text" id="s-sender-email" placeholder="billing@example.com（空欄の場合SMTPユーザーを使用）">
-                </div>
-                <div class="form-actions">
-                    <button class="btn btn-primary" onclick="saveCompanySettings()">保存</button>
-                    <button class="btn" onclick="testSmtp()" style="margin-left:8px">テスト送信</button>
-                </div>
-            </div>
-        </section>
+        <!-- 売上・請求・勤怠・会計・日報・設定は管理画面（サブアプリ）へ移行済み -->
     </main>
 
     <!-- モーダル -->
@@ -435,10 +339,27 @@
         </div>
     </div>
 
+    <!-- 確認ダイアログモーダル -->
+    <div class="modal-overlay" id="confirm-overlay" style="z-index:1100" onclick="confirmCancel()">
+        <div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
+            <div class="modal-header">
+                <h3>確認</h3>
+                <button class="modal-close" onclick="confirmCancel()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px">
+                <p id="confirm-message" style="font-size:0.95rem;line-height:1.6;margin-bottom:20px"></p>
+                <div class="form-actions" style="justify-content:flex-end">
+                    <button class="btn" onclick="confirmCancel()">キャンセル</button>
+                    <button class="btn btn-primary" onclick="confirmOk()">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 印刷用オーバーレイ -->
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=13"></script>
+    <script src="/static/js/app.js?v=28"></script>
 </body>
 </html>

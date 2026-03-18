@@ -84,6 +84,8 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "end_time": d.end_time or "17:00",
             "status": d.status,
             "notes": d.notes,
+            "partner_name": partner_name,
+            "is_partner": bool(partner_name),
             "vehicle_number": d.vehicle.number if d.vehicle else "",
             "vehicle_type": d.vehicle.type if d.vehicle else "",
             "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,

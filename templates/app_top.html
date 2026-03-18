@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理・会計 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            color: #fff;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { font-size: 1.2rem; }
+        .header a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; }
+        .header a:hover { color: #fff; }
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        .container h2 { font-size: 1.3rem; margin-bottom: 24px; color: #334155; }
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .app-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 28px 20px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: #1e293b;
+            display: block;
+        }
+        .app-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        }
+        .app-card .icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .app-card .label { font-size: 1rem; font-weight: 600; }
+        .app-card .desc { font-size: 0.8rem; color: #64748b; margin-top: 6px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>💼 管理・会計</h1>
+        <a href="/">← 配車管理に戻る</a>
+    </div>
+    <div class="container">
+        <h2>管理メニュー</h2>
+        <div class="app-grid">
+            <a class="app-card" href="/app/billing">
+                <div class="icon">💰</div>
+                <div class="label">請求管理</div>
+                <div class="desc">売上・請求書の管理</div>
+            </a>
+            <a class="app-card" href="/app/attendance">
+                <div class="icon">⏰</div>
+                <div class="label">勤怠管理</div>
+                <div class="desc">ドライバーの出退勤管理</div>
+            </a>
+            <a class="app-card" href="/app/accounting">
+                <div class="icon">📒</div>
+                <div class="label">会計管理</div>
+                <div class="desc">仕訳・経費の記録</div>
+            </a>
+            <a class="app-card" href="/app/reports">
+                <div class="icon">📝</div>
+                <div class="label">日報管理</div>
+                <div class="desc">運行日報の作成・管理</div>
+            </a>
+            <a class="app-card" href="/app/settings">
+                <div class="icon">⚙️</div>
+                <div class="label">会社情報・設定</div>
+                <div class="desc">自社情報・請求書・メール設定</div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

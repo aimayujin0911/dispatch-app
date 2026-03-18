@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会社情報・設定 - 配車管理システム</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif; background: #f1f5f9; color: #334155; }
+        .topnav { background: #1e293b; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
+        .topnav a:hover { color: #fff; background: rgba(255,255,255,.1); }
+        .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
+        .container { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+        .card h3 { margin-bottom: 12px; font-size: 1.1rem; }
+        .section-label { font-size: .82rem; font-weight: 700; color: #475569; margin: 16px 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; color: #475569; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: .5rem .75rem; font-size: .9rem; }
+        .form-group textarea { resize: vertical; }
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; }
+        .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .5rem 1.2rem; border: none; border-radius: 6px; font-size: .9rem; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn:hover { opacity: .85; }
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .success-msg { background: #dcfce7; color: #166534; padding: 10px 16px; border-radius: 8px; font-size: .9rem; display: none; margin-bottom: 12px; }
+        @media (max-width: 768px) { .form-row { flex-direction: column; gap: 0; } .topnav { overflow-x: auto; } }
+    </style>
+</head>
+<body>
+<nav class="topnav">
+    <a href="/">🚛 配車管理</a>
+    <a href="/app/billing">💰 請求</a>
+    <a href="/app/attendance">⏰ 勤怠</a>
+    <a href="/app/accounting">📒 会計</a>
+    <a href="/app/reports">📝 日報</a>
+    <a href="/app/settings" class="active">⚙️ 設定</a>
+</nav>
+<div class="container">
+    <h1>⚙️ 会社情報・設定</h1>
+    <div id="successMsg" class="success-msg">✅ 保存しました</div>
+
+    <div class="card">
+        <h3>🏢 自社情報</h3>
+        <p style="color:#64748b;font-size:.85rem;margin-bottom:12px">運行指示書・請求書・輸送依頼書・車番連絡票に印字されます</p>
+
+        <div class="form-group">
+            <label>会社名</label>
+            <input type="text" id="s-company-name" placeholder="株式会社○○運輸">
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:0 0 120px">
+                <label>郵便番号</label>
+                <input type="text" id="s-postal-code" placeholder="144-0035">
+            </div>
+            <div class="form-group">
+                <label>住所</label>
+                <input type="text" id="s-address" placeholder="東京都○○区...">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>電話番号</label>
+                <input type="text" id="s-phone" placeholder="03-xxxx-xxxx">
+            </div>
+            <div class="form-group">
+                <label>FAX</label>
+                <input type="text" id="s-fax" placeholder="03-xxxx-xxxx">
+            </div>
+            <div class="form-group">
+                <label>メールアドレス</label>
+                <input type="email" id="s-email" placeholder="info@example.co.jp">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>代表者名</label>
+                <input type="text" id="s-representative" placeholder="代表取締役 ○○ ○○">
+            </div>
+            <div class="form-group">
+                <label>適格請求書発行事業者登録番号</label>
+                <input type="text" id="s-reg-number" placeholder="T1234567890123">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>事業許可・備考</label>
+            <textarea id="s-notes" rows="2" placeholder="一般貨物自動車運送事業 関自貨第○○号"></textarea>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📄 請求書設定</h3>
+        <div class="form-group">
+            <label>振込先情報</label>
+            <textarea id="s-bank-info" rows="2" placeholder="○○銀行 ○○支店 普通 1234567&#10;口座名義: カ）○○ウンユ"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>支払条件</label>
+                <input type="text" id="s-payment-terms" placeholder="月末締め翌月末払い">
+            </div>
+            <div class="form-group" style="flex:0 0 120px">
+                <label>消費税率(%)</label>
+                <input type="number" id="s-tax-rate" value="10" min="0" max="100">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>社印テキスト（印影代替）</label>
+                <input type="text" id="s-seal-text" placeholder="株式会社○○運輸">
+            </div>
+            <div class="form-group">
+                <label>請求書備考</label>
+                <input type="text" id="s-invoice-note" placeholder="お振込手数料はお客様にてご負担願います。">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📧 メール送信設定（SMTP）</h3>
+        <p style="color:#64748b;font-size:.85rem;margin-bottom:12px">請求書メール送付に使用するSMTP設定</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>SMTPホスト</label>
+                <input type="text" id="s-smtp-host" placeholder="smtp.gmail.com">
+            </div>
+            <div class="form-group" style="flex:0 0 100px">
+                <label>ポート</label>
+                <input type="number" id="s-smtp-port" placeholder="587">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>ユーザー名</label>
+                <input type="text" id="s-smtp-user" placeholder="user@gmail.com">
+            </div>
+            <div class="form-group">
+                <label>パスワード</label>
+                <input type="password" id="s-smtp-password">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>送信元メールアドレス</label>
+            <input type="email" id="s-sender-email" placeholder="billing@example.co.jp">
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">💾 保存</button>
+    </div>
+</div>
+
+<script>
+async function apiGet(url) { const r = await fetch(url); return r.json(); }
+async function apiPut(url, data) { const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); return r.json(); }
+
+async function loadSettings() {
+    const s = await apiGet('/api/settings');
+    document.getElementById('s-company-name').value = s.company_name || '';
+    document.getElementById('s-postal-code').value = s.postal_code || '';
+    document.getElementById('s-address').value = s.address || '';
+    document.getElementById('s-phone').value = s.phone || '';
+    document.getElementById('s-fax').value = s.fax || '';
+    document.getElementById('s-email').value = s.email || '';
+    document.getElementById('s-representative').value = s.representative || '';
+    document.getElementById('s-reg-number').value = s.registration_number || '';
+    document.getElementById('s-notes').value = s.notes || '';
+    document.getElementById('s-bank-info').value = s.bank_info || '';
+    document.getElementById('s-payment-terms').value = s.payment_terms || '';
+    document.getElementById('s-tax-rate').value = s.tax_rate ?? 10;
+    document.getElementById('s-seal-text').value = s.seal_text || '';
+    document.getElementById('s-invoice-note').value = s.invoice_note || '';
+    document.getElementById('s-smtp-host').value = s.smtp_host || '';
+    document.getElementById('s-smtp-port').value = s.smtp_port || '';
+    document.getElementById('s-smtp-user').value = s.smtp_user || '';
+    document.getElementById('s-smtp-password').value = s.smtp_password || '';
+    document.getElementById('s-sender-email').value = s.sender_email || '';
+}
+
+async function saveSettings() {
+    const data = {
+        company_name: document.getElementById('s-company-name').value,
+        postal_code: document.getElementById('s-postal-code').value,
+        address: document.getElementById('s-address').value,
+        phone: document.getElementById('s-phone').value,
+        fax: document.getElementById('s-fax').value,
+        email: document.getElementById('s-email').value,
+        representative: document.getElementById('s-representative').value,
+        registration_number: document.getElementById('s-reg-number').value,
+        notes: document.getElementById('s-notes').value,
+        bank_info: document.getElementById('s-bank-info').value,
+        payment_terms: document.getElementById('s-payment-terms').value,
+        tax_rate: parseInt(document.getElementById('s-tax-rate').value) || 10,
+        seal_text: document.getElementById('s-seal-text').value,
+        invoice_note: document.getElementById('s-invoice-note').value,
+        smtp_host: document.getElementById('s-smtp-host').value,
+        smtp_port: parseInt(document.getElementById('s-smtp-port').value) || null,
+        smtp_user: document.getElementById('s-smtp-user').value,
+        smtp_password: document.getElementById('s-smtp-password').value,
+        sender_email: document.getElementById('s-sender-email').value,
+    };
+    await apiPut('/api/settings', data);
+    const msg = document.getElementById('successMsg');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 3000);
+}
+
+loadSettings();
+</script>
+</body>
+</html>

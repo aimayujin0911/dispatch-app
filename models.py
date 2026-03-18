@@ -13,9 +13,16 @@ class CompanySettings(Base):
     phone = Column(String(20), default="")
     fax = Column(String(20), default="")
     representative = Column(String(50), default="")
-    registration_number = Column(String(50), default="")
+    registration_number = Column(String(50), default="")  # 適格請求書発行事業者登録番号
     bank_info = Column(Text, default="")
     notes = Column(Text, default="")
+    # 請求書追加情報
+    postal_code = Column(String(10), default="")
+    email = Column(String(100), default="")
+    payment_terms = Column(String(100), default="月末締め翌月末払い")
+    tax_rate = Column(Integer, default=10)  # 消費税率(%)
+    seal_text = Column(String(50), default="")  # 社印テキスト
+    invoice_note = Column(String(200), default="")  # 請求書備考
     # SMTP設定（請求書メール送付用）
     smtp_host = Column(String(100), default="")
     smtp_port = Column(Integer, default=587)
@@ -282,6 +289,8 @@ class Driver(Base):
     status = Column(String(20), default="待機中")
     hire_date = Column(Date, nullable=True)
     paid_leave_balance = Column(Float, default=10.0)
+    work_start = Column(String(5), default="08:00")
+    work_end = Column(String(5), default="17:00")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 

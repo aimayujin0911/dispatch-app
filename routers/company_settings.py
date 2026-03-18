@@ -20,6 +20,12 @@ class SettingsUpdate(BaseModel):
     registration_number: Optional[str] = None
     bank_info: Optional[str] = None
     notes: Optional[str] = None
+    postal_code: Optional[str] = None
+    email: Optional[str] = None
+    payment_terms: Optional[str] = None
+    tax_rate: Optional[int] = None
+    seal_text: Optional[str] = None
+    invoice_note: Optional[str] = None
     smtp_host: Optional[str] = None
     smtp_port: Optional[int] = None
     smtp_user: Optional[str] = None
