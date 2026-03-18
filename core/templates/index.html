@@ -47,7 +47,8 @@
         <header class="topbar">
             <button class="menu-toggle" id="menuToggle">☰</button>
             <h1 id="pageTitle">ダッシュボード</h1>
-            <div class="topbar-right">
+            <div class="topbar-right" style="display:flex;align-items:center;gap:12px">
+                <span id="currentUser" style="font-size:0.85rem"></span>
                 <span id="currentDate"></span>
             </div>
         </header>
@@ -360,6 +361,6 @@
     <div id="print-overlay" class="print-only"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=30"></script>
+    <script src="/static/js/app.js?v=31"></script>
 </body>
 </html>

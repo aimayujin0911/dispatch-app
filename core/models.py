@@ -1,7 +1,40 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+
+
+class Branch(Base):
+    """営業所"""
+    __tablename__ = "branches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="")
+    name = Column(String(100), nullable=False)
+    address = Column(String(200), default="")
+    phone = Column(String(20), default="")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    users = relationship("User", back_populates="branch")
+
+
+class User(Base):
+    """ログインユーザー"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(200), nullable=False)
+    name = Column(String(50), nullable=False)
+    role = Column(String(20), default="viewer")  # admin/manager/driver/viewer
+    tenant_id = Column(String(50), default="")
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    branch = relationship("Branch", back_populates="users")
 
 
 class CompanySettings(Base):
@@ -263,6 +296,7 @@ class Vehicle(Base):
     __tablename__ = "vehicles"
 
     id = Column(Integer, primary_key=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     number = Column(String(20), unique=True, nullable=False)
     chassis_number = Column(String(30), default="")
     type = Column(String(50), nullable=False)
@@ -280,6 +314,7 @@ class Driver(Base):
     __tablename__ = "drivers"
 
     id = Column(Integer, primary_key=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     name = Column(String(50), nullable=False)
     phone = Column(String(20), default="")
     email = Column(String(100), default="")
@@ -302,6 +337,7 @@ class Shipment(Base):
     __tablename__ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     name = Column(String(100), default="")
     client_name = Column(String(100), nullable=False)
     cargo_description = Column(String(200), default="")

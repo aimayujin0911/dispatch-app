@@ -10,7 +10,10 @@ let justDragged = false;
 let shipmentDragState = null;
 
 // ===== 初期化 =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // 認証チェック
+    if (!checkAuth()) return;
+
     const today = new Date();
     document.getElementById('currentDate').textContent =
         today.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
@@ -22,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('menuToggle').addEventListener('click', () => {
         toggleSidebar();
     });
+
+    // ユーザー情報読み込み
+    await loadUserInfo();
 
     loadDashboard();
 });
@@ -67,15 +73,57 @@ function toggleSidebar() {
     }
 }
 
+// ===== 認証 =====
+function getToken() { return localStorage.getItem('access_token'); }
+function authHeaders() {
+    const token = getToken();
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+}
+function checkAuth() {
+    if (!getToken()) { location.href = '/login'; return false; }
+    return true;
+}
+function logout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_info');
+    location.href = '/login';
+}
+async function loadUserInfo() {
+    try {
+        const resp = await fetch(API + '/auth/me', { headers: authHeaders() });
+        if (!resp.ok) { logout(); return null; }
+        const user = await resp.json();
+        localStorage.setItem('user_info', JSON.stringify(user));
+        // ヘッダーにユーザー情報表示
+        const userEl = document.getElementById('currentUser');
+        if (userEl) userEl.innerHTML = `${user.branch_name ? '<span style="font-size:0.75rem;opacity:0.8">📍'+user.branch_name+'</span> ' : ''}${user.name} <button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-left:6px">ログアウト</button>`;
+        return user;
+    } catch(e) { return null; }
+}
+
 // ===== API ヘルパー =====
-async function apiGet(url) { return (await fetch(API + url)).json(); }
+async function apiGet(url) {
+    const resp = await fetch(API + url, { headers: authHeaders() });
+    if (resp.status === 401) { logout(); return []; }
+    return resp.json();
+}
 async function apiPost(url, data) {
-    return (await fetch(API + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json();
+    const resp = await fetch(API + url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
+    if (resp.status === 401) { logout(); return {}; }
+    return resp.json();
 }
 async function apiPut(url, data) {
-    return (await fetch(API + url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })).json();
+    const resp = await fetch(API + url, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) });
+    if (resp.status === 401) { logout(); return {}; }
+    return resp.json();
 }
-async function apiDelete(url) { return (await fetch(API + url, { method: 'DELETE' })).json(); }
+async function apiDelete(url) {
+    const resp = await fetch(API + url, { method: 'DELETE', headers: authHeaders() });
+    if (resp.status === 401) { logout(); return {}; }
+    return resp.json();
+}
 
 // ===== ダッシュボード =====
 async function loadDashboard() {

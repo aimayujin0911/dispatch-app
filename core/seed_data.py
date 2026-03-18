@@ -7,7 +7,8 @@ from database import engine, SessionLocal, Base
 from models import (Vehicle, Driver, Shipment, Dispatch, DailyReport, Client,
                     PartnerCompany, PartnerInvoice, PartnerInvoiceItem,
                     TransportRequest, VehicleNotification, Attendance,
-                    AccountEntry, CompanySettings, ClientNote, VehicleCost, Vendor)
+                    AccountEntry, CompanySettings, ClientNote, VehicleCost, Vendor,
+                    Branch, User)
 
 
 def seed():
@@ -15,6 +16,31 @@ def seed():
     db = SessionLocal()
 
     today = date.today()
+
+    # 営業所
+    branch_honsha = Branch(name="本社", address="東京都大田区南蒲田1-10-5", phone="03-5555-1234")
+    branch_yokohama = Branch(name="横浜営業所", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-555-6789")
+    db.add_all([branch_honsha, branch_yokohama])
+    db.flush()
+
+    # 管理者ユーザー
+    from auth import hash_password
+    admin_user = User(
+        email="admin@example.com",
+        password_hash=hash_password("admin1234"),
+        name="管理者",
+        role="admin",
+        branch_id=branch_honsha.id,
+    )
+    manager_user = User(
+        email="manager@example.com",
+        password_hash=hash_password("manager1234"),
+        name="横浜所長",
+        role="manager",
+        branch_id=branch_yokohama.id,
+    )
+    db.add_all([admin_user, manager_user])
+    db.flush()
 
     # 自社情報
     settings = CompanySettings(

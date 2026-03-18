@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン - 配車管理システム</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+            background: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            padding: 40px 32px 32px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .login-header .icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .login-header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 0;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #fff;
+            color: #3b82f6;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Forms */
+        .form-panel {
+            display: none;
+        }
+
+        .form-panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            color: #1e293b;
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        .form-group input::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-group input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+
+        .submit-btn:hover {
+            background: #2563eb;
+        }
+
+        .submit-btn:active {
+            background: #1d4ed8;
+        }
+
+        .submit-btn:disabled {
+            background: #93c5fd;
+            cursor: not-allowed;
+        }
+
+        /* Error message */
+        .error-msg {
+            display: none;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        /* Branch selection modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+            animation: modalIn 0.25s ease-out;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(16px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .modal-card h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .modal-card p {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+
+        .branch-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .branch-item {
+            padding: 14px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #334155;
+            transition: all 0.15s;
+        }
+
+        .branch-item:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        /* Footer */
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 32px 20px 24px;
+            }
+
+            .login-header .icon {
+                font-size: 40px;
+            }
+
+            .login-header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="icon">🚛</span>
+                <h1>配車管理システム</h1>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="login">ログイン</button>
+                <button class="tab-btn" data-tab="register">新規登録</button>
+            </div>
+
+            <!-- Login Form -->
+            <div class="form-panel active" id="panel-login">
+                <form id="form-login" novalidate>
+                    <div class="form-group">
+                        <label for="login-email">メールアドレス</label>
+                        <input type="email" id="login-email" placeholder="example@mail.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">パスワード</label>
+                        <input type="password" id="login-password" placeholder="パスワードを入力" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="login-submit">ログイン</button>
+                    <div class="error-msg" id="login-error"></div>
+                </form>
+            </div>
+
+            <!-- Register Form -->
+            <div class="form-panel" id="panel-register">
+                <form id="form-register" novalidate>
+                    <div class="form-group">
+                        <label for="reg-name">氏名</label>
+                        <input type="text" id="reg-name" placeholder="山田 太郎" required autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">メールアドレス</label>
+                        <input type="email" id="reg-email" placeholder="example@mail.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">パスワード</label>
+                        <input type="password" id="reg-password" placeholder="8文字以上" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password-confirm">パスワード（確認）</label>
+                        <input type="password" id="reg-password-confirm" placeholder="もう一度入力" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="register-submit">登録する</button>
+                    <div class="error-msg" id="register-error"></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="login-footer">&copy; 配車管理システム</div>
+    </div>
+
+    <!-- Branch Selection Modal -->
+    <div class="modal-overlay" id="branch-modal">
+        <div class="modal-card">
+            <h2>営業所を選択</h2>
+            <p>ログインする営業所を選択してください。</p>
+            <ul class="branch-list" id="branch-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // ---- Tab switching ----
+            var tabBtns = document.querySelectorAll('.tab-btn');
+            tabBtns.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    tabBtns.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    document.querySelectorAll('.form-panel').forEach(function (p) { p.classList.remove('active'); });
+                    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+                    hideErrors();
+                });
+            });
+
+            function hideErrors() {
+                document.querySelectorAll('.error-msg').forEach(function (el) {
+                    el.classList.remove('visible');
+                    el.textContent = '';
+                });
+            }
+
+            function showError(id, msg) {
+                var el = document.getElementById(id);
+                el.textContent = msg;
+                el.classList.add('visible');
+            }
+
+            function setLoading(btnId, loading) {
+                var btn = document.getElementById(btnId);
+                btn.disabled = loading;
+                btn.textContent = loading ? '処理中...' : btn.dataset.label;
+            }
+
+            // Store default labels
+            document.getElementById('login-submit').dataset.label = 'ログイン';
+            document.getElementById('register-submit').dataset.label = '登録する';
+
+            // ---- Helpers ----
+            function postJSON(url, body) {
+                return fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).then(function (res) {
+                    return res.json().then(function (data) {
+                        return { ok: res.ok, status: res.status, data: data };
+                    });
+                });
+            }
+
+            function handleAuthSuccess(data) {
+                if (data.access_token) {
+                    localStorage.setItem('access_token', data.access_token);
+                }
+
+                // If multiple branches are available, show selection modal
+                if (data.branches && data.branches.length > 1) {
+                    showBranchModal(data.branches);
+                } else {
+                    // Single branch or no branch selection needed
+                    if (data.branches && data.branches.length === 1) {
+                        localStorage.setItem('branch_id', data.branches[0].id);
+                        localStorage.setItem('branch_name', data.branches[0].name);
+                    }
+                    window.location.href = '/';
+                }
+            }
+
+            // ---- Branch modal ----
+            function showBranchModal(branches) {
+                var list = document.getElementById('branch-list');
+                list.innerHTML = '';
+                branches.forEach(function (branch) {
+                    var li = document.createElement('li');
+                    li.className = 'branch-item';
+                    li.textContent = branch.name;
+                    li.addEventListener('click', function () {
+                        localStorage.setItem('branch_id', branch.id);
+                        localStorage.setItem('branch_name', branch.name);
+                        window.location.href = '/';
+                    });
+                    list.appendChild(li);
+                });
+                document.getElementById('branch-modal').classList.add('visible');
+            }
+
+            // ---- Login ----
+            document.getElementById('form-login').addEventListener('submit', function (e) {
+                e.preventDefault();
+                hideErrors();
+
+                var email = document.getElementById('login-email').value.trim();
+                var password = document.getElementById('login-password').value;
+
+                if (!email || !password) {
+                    showError('login-error', 'メールアドレスとパスワードを入力してください。');
+                    return;
+                }
+
+                setLoading('login-submit', true);
+                postJSON('/api/auth/login', { email: email, password: password })
+                    .then(function (res) {
+                        setLoading('login-submit', false);
+                        if (res.ok) {
+                            handleAuthSuccess(res.data);
+                        } else {
+                            showError('login-error', res.data.detail || res.data.message || 'ログインに失敗しました。');
+                        }
+                    })
+                    .catch(function () {
+                        setLoading('login-submit', false);
+                        showError('login-error', 'サーバーに接続できません。');
+                    });
+            });
+
+            // ---- Register ----
+            document.getElementById('form-register').addEventListener('submit', function (e) {
+                e.preventDefault();
+                hideErrors();
+
+                var name = document.getElementById('reg-name').value.trim();
+                var email = document.getElementById('reg-email').value.trim();
+                var password = document.getElementById('reg-password').value;
+                var passwordConfirm = document.getElementById('reg-password-confirm').value;
+
+                if (!name || !email || !password || !passwordConfirm) {
+                    showError('register-error', 'すべての項目を入力してください。');
+                    return;
+                }
+
+                if (password.length < 8) {
+                    showError('register-error', 'パスワードは8文字以上で入力してください。');
+                    return;
+                }
+
+                if (password !== passwordConfirm) {
+                    showError('register-error', 'パスワードが一致しません。');
+                    return;
+                }
+
+                setLoading('register-submit', true);
+                postJSON('/api/auth/register', { name: name, email: email, password: password })
+                    .then(function (res) {
+                        setLoading('register-submit', false);
+                        if (res.ok) {
+                            handleAuthSuccess(res.data);
+                        } else {
+                            showError('register-error', res.data.detail || res.data.message || '登録に失敗しました。');
+                        }
+                    })
+                    .catch(function () {
+                        setLoading('register-submit', false);
+                        showError('register-error', 'サーバーに接続できません。');
+                    });
+            });
+
+            // ---- Redirect if already logged in ----
+            if (localStorage.getItem('access_token')) {
+                window.location.href = '/';
+            }
+        })();
+    </script>
+</body>
+</html>

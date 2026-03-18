@@ -12,9 +12,9 @@ if PROJECT_ROOT not in sys.path:
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from database import engine, Base
-from routers import (vehicles, drivers, shipments, dispatches, reports, dashboard,
+from routers import (auth as auth_router, vehicles, drivers, shipments, dispatches, reports, dashboard,
                      clients, partners, partner_invoices, transport_requests,
                      vehicle_notifications, attendance, accounting, export, company_settings,
                      vendors)
@@ -105,6 +105,17 @@ def seed_on_startup():
             ("attendance", "break_location", "VARCHAR(100) DEFAULT ''"),
             ("attendance", "weather", "VARCHAR(20) DEFAULT ''"),
             ("attendance", "incidents", "TEXT DEFAULT ''"),
+            # 営業所対応
+            ("vehicles", "branch_id", "INTEGER"),
+            ("drivers", "branch_id", "INTEGER"),
+            ("shipments", "branch_id", "INTEGER"),
+            # 請求単価対応
+            ("shipments", "transport_type", "VARCHAR(20) DEFAULT 'ドライ'"),
+            ("shipments", "unit_price_type", "VARCHAR(20) DEFAULT '個建'"),
+            ("shipments", "unit_price", "REAL DEFAULT 0"),
+            ("shipments", "unit_quantity", "REAL DEFAULT 0"),
+            # 配車の協力会社対応
+            ("dispatches", "partner_id", "INTEGER"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -122,6 +133,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__
 app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
+app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(clients.router, prefix="/api/clients", tags=["clients"])
 app.include_router(vehicles.router, prefix="/api/vehicles", tags=["vehicles"])
@@ -138,6 +150,11 @@ app.include_router(accounting.router, prefix="/api/accounting", tags=["accountin
 app.include_router(export.router, prefix="/api/export", tags=["export"])
 app.include_router(company_settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(vendors.router, prefix="/api/vendors", tags=["vendors"])
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
 
 @app.get("/", response_class=HTMLResponse)
