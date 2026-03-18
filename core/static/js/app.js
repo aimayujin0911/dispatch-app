@@ -390,7 +390,7 @@ async function loadDispatchCalendar() {
                 </select>
             </div>
         </div>
-        <div class="cal-legend" style="display:flex;gap:14px;padding:6px 12px;font-size:0.75rem;color:#64748b;align-items:center;flex-wrap:wrap">
+        <div class="cal-legend" style="display:flex;gap:10px;padding:2px 8px;font-size:0.7rem;color:#64748b;align-items:center;flex-wrap:wrap">
             <span style="font-weight:600;color:#475569">積載重量:</span>
             <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#eff6ff;border-left:3px solid #93c5fd;border-radius:2px;display:inline-block"></span>~3t</span>
             <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#dbeafe;border-left:3px solid #60a5fa;border-radius:2px;display:inline-block"></span>~6t</span>
