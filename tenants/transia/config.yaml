@@ -1,0 +1,44 @@
+# トランシア（幸手）テナント設定
+tenant:
+  name: "株式会社トランシア"
+  id: "transia"
+  location: "埼玉県幸手市"
+
+# 機能ON/OFF
+features:
+  dispatch: true
+  shipments: true
+  clients: true
+  partners: true
+  vehicles: true
+  drivers: true
+  documents: true
+  map: true
+  billing: true
+  attendance: true
+  accounting: true
+  analysis: true
+  reports: true
+  rollcall: true
+  settings: true
+
+# 輸送タイプ選択肢
+transport_types:
+  - ドライ
+  - 冷蔵
+  - 冷凍
+  - チルド
+  - 危険物
+
+# 単価種別選択肢
+unit_price_types:
+  - 車建
+  - kg単価
+  - ケース単価
+  - 個建
+  - 才建
+
+# UI カスタマイズ
+ui:
+  primary_color: "#3b82f6"
+  company_logo: ""
