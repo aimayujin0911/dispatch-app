@@ -678,8 +678,8 @@ body {
 .gantt-wrapper {
     overflow-x: auto;
     overflow-y: auto;
-    max-height: calc(100vh - 260px);
-    min-height: 250px;
+    max-height: calc(50vh - 60px);
+    min-height: 180px;
     border-bottom: 2px solid #e2e8f0;
 }
 
@@ -859,20 +859,20 @@ body {
 /* 未配車案件パネル */
 .unassigned-list {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
 }
 
 .unassigned-item {
     display: flex;
     align-items: stretch;
-    gap: 6px;
-    padding: 6px 8px;
+    gap: 4px;
+    padding: 4px 6px;
     background: #fffbeb;
     border: 1px solid #fbbf24;
-    border-radius: 6px;
+    border-radius: 5px;
     cursor: grab;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     transition: background 0.15s;
     user-select: none;
     min-width: 0;
