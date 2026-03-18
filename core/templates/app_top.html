@@ -27,13 +27,14 @@
         .container h2 { font-size: 1.3rem; margin-bottom: 24px; color: #334155; }
         .app-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
         }
+        @media (max-width: 768px) { .app-grid { grid-template-columns: repeat(3, 1fr); } }
         .app-card {
             background: #fff;
-            border-radius: 12px;
-            padding: 28px 20px;
+            border-radius: 10px;
+            padding: 16px 8px;
             text-align: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             cursor: pointer;
@@ -46,9 +47,9 @@
             transform: translateY(-4px);
             box-shadow: 0 6px 20px rgba(0,0,0,0.12);
         }
-        .app-card .icon { font-size: 2.5rem; margin-bottom: 12px; }
-        .app-card .label { font-size: 1rem; font-weight: 600; }
-        .app-card .desc { font-size: 0.8rem; color: #64748b; margin-top: 6px; }
+        .app-card .icon { font-size: 1.8rem; margin-bottom: 6px; }
+        .app-card .label { font-size: 0.85rem; font-weight: 600; }
+        .app-card .desc { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
     </style>
 </head>
 <body>
