@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!checkAuth()) return;
 
     const today = new Date();
-    document.getElementById('currentDate').textContent =
+    const dateEl = document.getElementById('currentDate');
+    if (dateEl) dateEl.textContent =
         today.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
 
     document.querySelectorAll('.nav-item').forEach(item => {
