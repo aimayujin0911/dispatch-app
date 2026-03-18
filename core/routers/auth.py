@@ -17,10 +17,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class RegisterRequest(BaseModel):
+class CreateUserRequest(BaseModel):
     name: str
     email: str
     password: str
+    role: str = "dispatcher"  # admin/manager/dispatcher
+    branch_id: Optional[int] = None
 
 
 class SwitchBranchRequest(BaseModel):
@@ -105,31 +107,106 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     return _login_response(user)
 
 
-@router.post("/register", response_model=TokenResponse)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    """新規ユーザー登録"""
+@router.get("/users")
+def list_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """ユーザー一覧（管理者のみ）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="管理者権限が必要です")
+    users = db.query(User).order_by(User.id).all()
+    result = []
+    for u in users:
+        result.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+            "branch_id": u.branch_id,
+            "branch_name": u.branch.name if u.branch else None,
+            "is_active": u.is_active,
+            "created_at": str(u.created_at) if u.created_at else None,
+        })
+    return result
+
+
+@router.post("/users")
+def create_user(
+    req: CreateUserRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """ユーザー追加（管理者のみ）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="管理者権限が必要です")
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="このメールアドレスは既に登録されています",
-        )
-
-    # 最初のユーザーは admin、それ以降は dispatcher
-    user_count = db.query(User).count()
-    role = "admin" if user_count == 0 else "dispatcher"
-
+        raise HTTPException(status_code=400, detail="このメールアドレスは既に登録されています")
+    if req.role not in ("admin", "manager", "dispatcher"):
+        raise HTTPException(status_code=400, detail="権限はadmin/manager/dispatcherのいずれかです")
     user = User(
         name=req.name,
         email=req.email,
         password_hash=hash_password(req.password),
-        role=role,
+        role=req.role,
+        branch_id=req.branch_id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role, "branch_name": user.branch.name if user.branch else None}
 
-    return _login_response(user)
+
+class UpdateUserRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    branch_id: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+@router.put("/users/{user_id}")
+def update_user(
+    user_id: int,
+    req: UpdateUserRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """ユーザー編集（管理者のみ）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="管理者権限が必要です")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+    if req.name is not None: user.name = req.name
+    if req.email is not None: user.email = req.email
+    if req.password: user.password_hash = hash_password(req.password)
+    if req.role is not None: user.role = req.role
+    if req.branch_id is not None: user.branch_id = req.branch_id
+    if req.is_active is not None: user.is_active = req.is_active
+    db.commit()
+    return {"message": "更新しました"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """ユーザー削除（管理者のみ）"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="管理者権限が必要です")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="自分自身は削除できません")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+    db.delete(user)
+    db.commit()
+    return {"message": "削除しました"}
 
 
 @router.get("/me", response_model=MeResponse)

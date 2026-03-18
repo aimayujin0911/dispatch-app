@@ -50,7 +50,7 @@ function navigateTo(page) {
     const loaders = {
         dashboard: loadDashboard, dispatches: loadDispatchCalendar, shipments: loadShipments,
         clients: loadClients, partners: loadPartners, vehicles: loadVehicles, drivers: loadDrivers,
-        documents: loadDocuments, map: initMap
+        documents: loadDocuments, map: initMap, users: loadUsers
     };
     if (loaders[page]) loaders[page]();
     // モバイルでのみサイドバーを閉じる
@@ -138,13 +138,102 @@ async function switchBranch(branchId) {
 }
 
 function applyRoleAccess(user) {
-    // dispatcher(配車担当)はサブアプリ(管理・会計)にアクセス不可
+    if (user.role === 'admin') {
+        // 管理者: ユーザー管理を表示
+        const navUsers = document.getElementById('nav-users');
+        if (navUsers) navUsers.style.display = '';
+    }
     if (user.role === 'dispatcher') {
-        // サブアプリリンクを非表示
+        // 配車担当: サブアプリリンクを非表示
         document.querySelectorAll('.nav-item[onclick*="app/top"]').forEach(el => el.style.display = 'none');
         const subHeader = document.querySelector('.sub-app-header');
         if (subHeader) subHeader.style.display = 'none';
     }
+}
+
+// ===== ユーザー管理（管理者のみ） =====
+async function loadUsers() {
+    const users = await apiGet('/auth/users');
+    if (!Array.isArray(users)) return;
+    const roleLabels = {admin:'管理者',manager:'拠点管理者',dispatcher:'配車担当'};
+    document.getElementById('users-table').innerHTML = users.map(u => `<tr>
+        <td><strong>${u.name}</strong></td>
+        <td>${u.email}</td>
+        <td><span class="badge badge-${u.role === 'admin' ? 'blue' : u.role === 'manager' ? 'green' : 'gray'}">${roleLabels[u.role] || u.role}</span></td>
+        <td>${u.branch_name || '-'}</td>
+        <td>${u.is_active ? '✅ 有効' : '❌ 無効'}</td>
+        <td>
+            <button class="btn btn-sm btn-edit" onclick="editUser(${u.id})">編集</button>
+            <button class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:0.75rem;padding:2px 8px" onclick="deleteUser(${u.id},'${u.name}')">削除</button>
+        </td>
+    </tr>`).join('');
+}
+
+async function openUserModal(user = null) {
+    const isEdit = !!user;
+    const branches = await apiGet('/auth/branches');
+    document.getElementById('modal-title').textContent = isEdit ? 'ユーザー編集' : 'ユーザー追加';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group"><label>名前</label><input type="text" id="f-u-name" value="${user?.name || ''}"></div>
+        <div class="form-group"><label>メールアドレス</label><input type="email" id="f-u-email" value="${user?.email || ''}"></div>
+        <div class="form-group"><label>パスワード${isEdit ? '（変更する場合のみ）' : ''}</label><input type="password" id="f-u-password" placeholder="${isEdit ? '空欄なら変更なし' : ''}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>権限</label>
+                <select id="f-u-role">
+                    <option value="admin" ${user?.role === 'admin' ? 'selected' : ''}>管理者</option>
+                    <option value="manager" ${user?.role === 'manager' ? 'selected' : ''}>拠点管理者</option>
+                    <option value="dispatcher" ${!user || user?.role === 'dispatcher' ? 'selected' : ''}>配車担当</option>
+                </select>
+            </div>
+            <div class="form-group"><label>所属拠点</label>
+                <select id="f-u-branch">
+                    <option value="">-- 未設定 --</option>
+                    ${branches.map(b => `<option value="${b.id}" ${user?.branch_id === b.id ? 'selected' : ''}>${b.name}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        ${isEdit ? `<div class="form-group"><label>状態</label><select id="f-u-active"><option value="true" ${user?.is_active !== false ? 'selected' : ''}>有効</option><option value="false" ${user?.is_active === false ? 'selected' : ''}>無効</option></select></div>` : ''}
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="saveUser(${user?.id || 'null'})">${isEdit ? '更新' : '追加'}</button>
+        </div>`;
+    showModal();
+}
+
+async function saveUser(id) {
+    const data = {
+        name: document.getElementById('f-u-name').value,
+        email: document.getElementById('f-u-email').value,
+        role: document.getElementById('f-u-role').value,
+        branch_id: parseInt(document.getElementById('f-u-branch').value) || null,
+    };
+    const pw = document.getElementById('f-u-password').value;
+    if (pw) data.password = pw;
+    else if (!id) return alert('パスワードを入力してください');
+    const activeEl = document.getElementById('f-u-active');
+    if (activeEl) data.is_active = activeEl.value === 'true';
+    if (!data.name || !data.email) return alert('名前とメールは必須です');
+
+    if (id) {
+        await apiPut(`/auth/users/${id}`, data);
+    } else {
+        const resp = await apiPost('/auth/users', data);
+        if (resp.detail) return alert(resp.detail);
+    }
+    closeModal();
+    loadUsers();
+}
+
+async function editUser(id) {
+    const users = await apiGet('/auth/users');
+    const u = users.find(x => x.id === id);
+    if (u) openUserModal(u);
+}
+
+async function deleteUser(id, name) {
+    if (!confirm(`${name}さんを削除しますか？`)) return;
+    await apiDelete(`/auth/users/${id}`);
+    loadUsers();
 }
 
 // ===== API ヘルパー =====
