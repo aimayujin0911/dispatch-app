@@ -1,0 +1,46 @@
+# テナント設定テンプレート
+# 新規テナント作成時にこのファイルをコピーして使用
+# tenants/{tenant_id}/config.yaml
+
+tenant:
+  name: ""            # 会社名
+  id: ""              # テナントID
+
+# 機能ON/OFF
+features:
+  dispatch: true      # 配車表
+  shipments: true     # 案件管理
+  clients: true       # 荷主管理
+  partners: true      # 協力会社
+  vehicles: true      # 車両管理
+  drivers: true       # ドライバー管理
+  documents: true     # 書類管理
+  map: true           # 地図表示
+  billing: true       # 請求管理
+  attendance: true    # 勤怠管理
+  accounting: true    # 会計管理
+  analysis: true      # 売上分析
+  reports: true       # 日報管理
+  rollcall: true      # 点呼管理
+  settings: true      # 設定
+
+# 輸送タイプ選択肢（カスタマイズ可）
+transport_types:
+  - ドライ
+  - 冷蔵
+  - 冷凍
+  - チルド
+  - 危険物
+
+# 単価種別選択肢
+unit_price_types:
+  - 車建
+  - kg単価
+  - ケース単価
+  - 個建
+  - 才建
+
+# UI カスタマイズ
+ui:
+  primary_color: "#3b82f6"
+  company_logo: ""    # ロゴ画像パス（overrides/内）

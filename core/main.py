@@ -1,6 +1,13 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(__file__))
+
+# core/ ディレクトリをパスに追加（相対インポート対応）
+CORE_DIR = os.path.dirname(__file__)
+PROJECT_ROOT = os.path.dirname(CORE_DIR)
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -186,4 +193,5 @@ async def mobile_attendance(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run("core.main:app", host="0.0.0.0", port=port, reload=True)
