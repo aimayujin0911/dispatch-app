@@ -41,6 +41,7 @@ class CompanySettings(Base):
     __tablename__ = "company_settings"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     company_name = Column(String(100), default="")
     address = Column(String(200), default="")
     phone = Column(String(20), default="")
@@ -68,7 +69,8 @@ class Client(Base):
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
+    tenant_id = Column(String(50), default="", index=True)
+    name = Column(String(100), nullable=False)
     address = Column(String(200), default="")
     phone = Column(String(20), default="")
     fax = Column(String(20), default="")
@@ -101,6 +103,7 @@ class PartnerCompany(Base):
     __tablename__ = "partner_companies"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     name = Column(String(100), unique=True, nullable=False)
     address = Column(String(200), default="")
     phone = Column(String(20), default="")
@@ -296,8 +299,9 @@ class Vehicle(Base):
     __tablename__ = "vehicles"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
-    number = Column(String(20), unique=True, nullable=False)
+    number = Column(String(20), nullable=False)
     chassis_number = Column(String(30), default="")
     type = Column(String(50), nullable=False)
     capacity = Column(Float, nullable=False)
@@ -314,6 +318,7 @@ class Driver(Base):
     __tablename__ = "drivers"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     name = Column(String(50), nullable=False)
     phone = Column(String(20), default="")
@@ -337,6 +342,7 @@ class Shipment(Base):
     __tablename__ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     name = Column(String(100), default="")
     client_name = Column(String(100), nullable=False)
@@ -374,6 +380,7 @@ class Dispatch(Base):
     __tablename__ = "dispatches"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), default="", index=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
     partner_id = Column(Integer, ForeignKey("partner_companies.id"), nullable=True)

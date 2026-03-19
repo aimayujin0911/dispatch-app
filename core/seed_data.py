@@ -651,5 +651,110 @@ def seed():
     print("テストデータ投入完了!")
 
 
+def seed_transia():
+    """トランシア（幸手）テナントのテストデータ"""
+    from database import SessionLocal
+    db = SessionLocal()
+
+    # 既にトランシアデータがあればスキップ
+    if db.query(User).filter(User.tenant_id == "transia").first():
+        db.close()
+        print("トランシアデータは既に存在します")
+        return
+
+    today = date.today()
+    from auth import hash_password
+
+    # トランシア営業所
+    t_branch = Branch(name="本社", address="埼玉県幸手市中1-1-1", phone="0480-XX-XXXX", tenant_id="transia")
+    db.add(t_branch)
+    db.flush()
+
+    # トランシア管理者
+    t_admin = User(
+        email="admin@transia.co.jp",
+        password_hash=hash_password("transia1234"),
+        name="トランシア管理者",
+        role="admin",
+        tenant_id="transia",
+        branch_id=t_branch.id,
+    )
+    t_dispatcher = User(
+        email="haisha@transia.co.jp",
+        password_hash=hash_password("transia1234"),
+        name="配車担当",
+        role="dispatcher",
+        tenant_id="transia",
+        branch_id=t_branch.id,
+    )
+    db.add_all([t_admin, t_dispatcher])
+    db.flush()
+
+    # トランシア車両
+    t_vehicles = [
+        Vehicle(number="春日部 100 あ 0001", chassis_number="TRA-001", type="ウイング車", capacity=10, status="通常", tenant_id="transia"),
+        Vehicle(number="春日部 200 い 0002", chassis_number="TRA-002", type="冷蔵車", capacity=4, status="通常", tenant_id="transia"),
+        Vehicle(number="春日部 300 う 0003", chassis_number="TRA-003", type="平ボディ", capacity=2, status="通常", tenant_id="transia"),
+        Vehicle(number="春日部 400 え 0004", chassis_number="TRA-004", type="トレーラー", capacity=20, status="通常", tenant_id="transia"),
+    ]
+    db.add_all(t_vehicles)
+    db.flush()
+
+    # トランシアドライバー
+    t_drivers = [
+        Driver(name="関根 太郎", phone="090-0001-0001", license_type="大型", status="待機中", tenant_id="transia"),
+        Driver(name="石川 次郎", phone="090-0002-0002", license_type="大型", status="待機中", tenant_id="transia"),
+        Driver(name="小林 三郎", phone="090-0003-0003", license_type="中型", status="待機中", tenant_id="transia"),
+    ]
+    db.add_all(t_drivers)
+    db.flush()
+
+    # トランシア荷主
+    t_clients = [
+        Client(name="幸手物産", address="埼玉県幸手市中1-2-3", phone="0480-XX-0001", contact_person="田中部長", payment_terms="月末締め翌月末払い", tenant_id="transia"),
+        Client(name="久喜倉庫", address="埼玉県久喜市久喜中央1-1", phone="0480-XX-0002", contact_person="鈴木課長", payment_terms="月末締め翌月末払い", tenant_id="transia"),
+        Client(name="杉戸食品", address="埼玉県北葛飾郡杉戸町杉戸1-1", phone="0480-XX-0003", contact_person="佐藤主任", payment_terms="20日締め翌月末払い", tenant_id="transia"),
+    ]
+    db.add_all(t_clients)
+    db.flush()
+
+    # トランシア案件
+    t_shipments = [
+        Shipment(name="幸手物産定期便", client_name="幸手物産", cargo_description="雑貨", weight=3000,
+                 pickup_address="埼玉県幸手市中", delivery_address="東京都足立区千住",
+                 pickup_date=today, pickup_time="07:00", delivery_date=today, delivery_time="11:00",
+                 price=55000, status="未配車", frequency_type="曜日指定", frequency_days="月,水,金",
+                 tenant_id="transia"),
+        Shipment(name="久喜倉庫冷蔵便", client_name="久喜倉庫", cargo_description="食品(冷蔵)", weight=2500,
+                 pickup_address="埼玉県久喜市", delivery_address="東京都板橋区",
+                 pickup_date=today, pickup_time="06:00", delivery_date=today, delivery_time="10:00",
+                 price=48000, status="未配車", frequency_type="毎日", frequency_days="",
+                 tenant_id="transia"),
+        Shipment(name="杉戸食品配送", client_name="杉戸食品", cargo_description="冷凍食品", weight=4000,
+                 pickup_address="埼玉県北葛飾郡杉戸町", delivery_address="埼玉県さいたま市大宮区",
+                 pickup_date=today + timedelta(days=1), pickup_time="08:00", delivery_date=today + timedelta(days=1), delivery_time="12:00",
+                 price=42000, status="未配車", frequency_type="曜日指定", frequency_days="火,木",
+                 tenant_id="transia"),
+    ]
+    db.add_all(t_shipments)
+
+    # トランシア自社情報
+    t_settings = CompanySettings(
+        company_name="株式会社トランシア",
+        postal_code="340-0114",
+        address="埼玉県幸手市中1-1-1",
+        phone="0480-XX-XXXX",
+        representative="代表取締役",
+        notes="一般貨物自動車運送事業",
+        tenant_id="transia",
+    )
+    db.add(t_settings)
+
+    db.commit()
+    db.close()
+    print("トランシアテナントデータ投入完了!")
+
+
 if __name__ == "__main__":
     seed()
+    seed_transia()
