@@ -6,7 +6,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date
 from database import get_db
-from models import PartnerInvoice, PartnerInvoiceItem, PartnerCompany
+from models import PartnerInvoice, PartnerInvoiceItem, PartnerCompany, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -50,9 +51,15 @@ class InvoiceUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+def _tenant_partner_ids(db: Session, tenant_id: str) -> list:
+    """Get partner IDs belonging to this tenant"""
+    return [p.id for p in db.query(PartnerCompany.id).filter(PartnerCompany.tenant_id == tenant_id).all()]
+
+
 @router.get("")
-def list_invoices(db: Session = Depends(get_db)):
-    invoices = db.query(PartnerInvoice).order_by(PartnerInvoice.invoice_date.desc()).all()
+def list_invoices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    invoices = db.query(PartnerInvoice).filter(PartnerInvoice.partner_id.in_(partner_ids)).order_by(PartnerInvoice.invoice_date.desc()).all()
     result = []
     for inv in invoices:
         partner = db.query(PartnerCompany).filter(PartnerCompany.id == inv.partner_id).first()
@@ -75,7 +82,11 @@ def list_invoices(db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
+def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify partner belongs to tenant
+    partner = db.query(PartnerCompany).filter(PartnerCompany.id == data.partner_id, PartnerCompany.tenant_id == current_user.tenant_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="協力会社が見つかりません")
     items_data = data.items
     inv_data = data.model_dump(exclude={"items"})
     inv = PartnerInvoice(**inv_data)
@@ -89,7 +100,7 @@ def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """PDFアップロード→テキスト抽出→請求情報を自動解析"""
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     filename = f"invoice_{int(__import__('time').time())}_{file.filename}"
@@ -174,8 +185,9 @@ def _extract_invoice_data(pdf_bytes: bytes) -> dict:
 
 
 @router.put("/{invoice_id}")
-def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db)):
-    inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id).first()
+def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id, PartnerInvoice.partner_id.in_(partner_ids)).first()
     if not inv:
         raise HTTPException(status_code=404, detail="請求書が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -185,17 +197,19 @@ def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(g
 
 
 @router.delete("/{invoice_id}")
-def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id, PartnerInvoice.partner_id.in_(partner_ids)).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="請求書が見つかりません")
     items = db.query(PartnerInvoiceItem).filter(PartnerInvoiceItem.partner_invoice_id == invoice_id).all()
     for item in items:
         db.delete(item)
-    inv = db.query(PartnerInvoice).filter(PartnerInvoice.id == invoice_id).first()
-    if inv:
-        # PDFファイルも削除
-        if inv.pdf_filename:
-            pdf_path = os.path.join(UPLOAD_DIR, inv.pdf_filename)
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
-        db.delete(inv)
+    # PDFファイルも削除
+    if inv.pdf_filename:
+        pdf_path = os.path.join(UPLOAD_DIR, inv.pdf_filename)
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+    db.delete(inv)
     db.commit()
     return {"ok": True}

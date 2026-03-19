@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Dispatch, Shipment, Vehicle, Driver, PartnerCompany
+from models import Dispatch, Shipment, Vehicle, Driver, PartnerCompany, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -41,14 +42,14 @@ class DispatchUpdate(BaseModel):
 
 
 @router.get("")
-def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, db: Session = Depends(get_db)):
+def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy import or_
     query = db.query(Dispatch).options(
         joinedload(Dispatch.vehicle),
         joinedload(Dispatch.driver),
         joinedload(Dispatch.partner),
         joinedload(Dispatch.shipment),
-    )
+    ).filter(Dispatch.tenant_id == current_user.tenant_id)
     if target_date:
         td = date.fromisoformat(target_date)
         query = query.filter(
@@ -108,7 +109,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
 
 
 @router.post("")
-def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
+def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not data.driver_id and not data.partner_id:
         raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
 
@@ -119,6 +120,7 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
         "end_time": data.end_time,
         "status": data.status,
         "notes": data.notes or "",
+        "tenant_id": current_user.tenant_id,
     }
 
     if data.partner_id:
@@ -133,7 +135,7 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
 
     if data.shipment_id:
         dispatch_data["shipment_id"] = data.shipment_id
-        shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id).first()
+        shipment = db.query(Shipment).filter(Shipment.id == data.shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
         if shipment:
             shipment.status = "運行中"
     else:
@@ -145,6 +147,7 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
                 pickup_date=data.date,
                 delivery_date=data.date,
                 status="運行中",
+                tenant_id=current_user.tenant_id,
             )
             db.add(shipment)
             db.flush()
@@ -158,8 +161,8 @@ def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{dispatch_id}")
-def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depends(get_db)):
-    dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id).first()
+def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id, Dispatch.tenant_id == current_user.tenant_id).first()
     if not dispatch:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
     update_data = data.model_dump(exclude_unset=True)
@@ -190,8 +193,8 @@ def update_dispatch(dispatch_id: int, data: DispatchUpdate, db: Session = Depend
 
 
 @router.delete("/{dispatch_id}")
-def delete_dispatch(dispatch_id: int, db: Session = Depends(get_db)):
-    dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id).first()
+def delete_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id, Dispatch.tenant_id == current_user.tenant_id).first()
     if not dispatch:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
     db.delete(dispatch)

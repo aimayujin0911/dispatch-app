@@ -48,6 +48,7 @@ class UserOut(BaseModel):
     name: str
     email: str
     role: str
+    tenant_id: Optional[str] = ""
     branch_id: Optional[int] = None
     branch_name: Optional[str] = None
 
@@ -73,6 +74,7 @@ def _build_user_out(user: User) -> dict:
         "name": user.name,
         "email": user.email,
         "role": user.role,
+        "tenant_id": user.tenant_id or "",
         "branch_id": user.branch_id,
         "branch_name": user.branch.name if user.branch else None,
     }

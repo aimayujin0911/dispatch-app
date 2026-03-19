@@ -1,7 +1,9 @@
 services:
+  # 本番環境 (masterブランチ)
   - type: web
     name: dispatch-app
     runtime: python
+    branch: master
     buildCommand: pip install -r requirements.txt
     startCommand: python run.py
     envVars:
@@ -9,3 +11,19 @@ services:
         value: "3.11"
       - key: DATABASE_URL
         value: "postgresql://neondb_owner:npg_RUl1xojQNu4z@ep-ancient-scene-ad8hqshw-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+      - key: ENVIRONMENT
+        value: "production"
+  # テスト環境 (developブランチ)
+  - type: web
+    name: dispatch-app-dev
+    runtime: python
+    branch: develop
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: DATABASE_URL
+        value: "postgresql://neondb_owner:npg_RUl1xojQNu4z@ep-ancient-scene-ad8hqshw-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+      - key: ENVIRONMENT
+        value: "development"

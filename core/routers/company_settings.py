@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from database import get_db
-from models import CompanySettings, Shipment, Client
+from models import CompanySettings, Shipment, Client, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -41,10 +42,10 @@ class SendInvoiceEmail(BaseModel):
 
 
 @router.get("")
-def get_settings(db: Session = Depends(get_db)):
-    settings = db.query(CompanySettings).first()
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == current_user.tenant_id).first()
     if not settings:
-        settings = CompanySettings(id=1)
+        settings = CompanySettings(tenant_id=current_user.tenant_id)
         db.add(settings)
         db.commit()
         db.refresh(settings)
@@ -52,10 +53,10 @@ def get_settings(db: Session = Depends(get_db)):
 
 
 @router.put("")
-def update_settings(data: SettingsUpdate, db: Session = Depends(get_db)):
-    settings = db.query(CompanySettings).first()
+def update_settings(data: SettingsUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == current_user.tenant_id).first()
     if not settings:
-        settings = CompanySettings(id=1)
+        settings = CompanySettings(tenant_id=current_user.tenant_id)
         db.add(settings)
         db.commit()
         db.refresh(settings)
@@ -66,13 +67,13 @@ def update_settings(data: SettingsUpdate, db: Session = Depends(get_db)):
 
 
 @router.post("/send-invoice")
-def send_invoice_email(data: SendInvoiceEmail, db: Session = Depends(get_db)):
+def send_invoice_email(data: SendInvoiceEmail, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """請求書をメール送付"""
-    settings = db.query(CompanySettings).first()
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == current_user.tenant_id).first()
     if not settings or not settings.smtp_host:
         raise HTTPException(status_code=400, detail="SMTP設定が未設定です。設定画面でメール設定を行ってください。")
 
-    shipments = db.query(Shipment).filter(Shipment.id.in_(data.shipment_ids)).all()
+    shipments = db.query(Shipment).filter(Shipment.id.in_(data.shipment_ids), Shipment.tenant_id == current_user.tenant_id).all()
     if not shipments:
         raise HTTPException(status_code=400, detail="対象案件が見つかりません")
 
@@ -81,7 +82,7 @@ def send_invoice_email(data: SendInvoiceEmail, db: Session = Depends(get_db)):
     if not recipient:
         # 荷主のbilling_emailから取得
         client_name = shipments[0].client_name
-        client = db.query(Client).filter(Client.name == client_name).first()
+        client = db.query(Client).filter(Client.name == client_name, Client.tenant_id == current_user.tenant_id).first()
         if client and client.billing_email:
             recipient = client.billing_email
         else:

@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
-from models import PartnerCompany
+from models import PartnerCompany, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -31,13 +32,14 @@ class PartnerUpdate(BaseModel):
 
 
 @router.get("")
-def list_partners(db: Session = Depends(get_db)):
-    return db.query(PartnerCompany).order_by(PartnerCompany.name).all()
+def list_partners(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(PartnerCompany).filter(PartnerCompany.tenant_id == current_user.tenant_id).order_by(PartnerCompany.name).all()
 
 
 @router.post("")
-def create_partner(data: PartnerCreate, db: Session = Depends(get_db)):
+def create_partner(data: PartnerCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     partner = PartnerCompany(**data.model_dump())
+    partner.tenant_id = current_user.tenant_id
     db.add(partner)
     db.commit()
     db.refresh(partner)
@@ -45,8 +47,8 @@ def create_partner(data: PartnerCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{partner_id}")
-def update_partner(partner_id: int, data: PartnerUpdate, db: Session = Depends(get_db)):
-    partner = db.query(PartnerCompany).filter(PartnerCompany.id == partner_id).first()
+def update_partner(partner_id: int, data: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner = db.query(PartnerCompany).filter(PartnerCompany.id == partner_id, PartnerCompany.tenant_id == current_user.tenant_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="協力会社が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -57,8 +59,8 @@ def update_partner(partner_id: int, data: PartnerUpdate, db: Session = Depends(g
 
 
 @router.delete("/{partner_id}")
-def delete_partner(partner_id: int, db: Session = Depends(get_db)):
-    partner = db.query(PartnerCompany).filter(PartnerCompany.id == partner_id).first()
+def delete_partner(partner_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner = db.query(PartnerCompany).filter(PartnerCompany.id == partner_id, PartnerCompany.tenant_id == current_user.tenant_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="協力会社が見つかりません")
     db.delete(partner)

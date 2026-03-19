@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
-from models import Client, ClientNote
+from models import Client, ClientNote, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -46,8 +47,8 @@ class NoteCreate(BaseModel):
 
 
 @router.get("")
-def list_clients(db: Session = Depends(get_db)):
-    clients = db.query(Client).order_by(Client.name).all()
+def list_clients(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    clients = db.query(Client).filter(Client.tenant_id == current_user.tenant_id).order_by(Client.name).all()
     result = []
     for c in clients:
         d = {col.name: getattr(c, col.name) for col in c.__table__.columns}
@@ -57,8 +58,8 @@ def list_clients(db: Session = Depends(get_db)):
 
 
 @router.get("/{client_id}")
-def get_client(client_id: int, db: Session = Depends(get_db)):
-    client = db.query(Client).filter(Client.id == client_id).first()
+def get_client(client_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="荷主が見つかりません")
     d = {col.name: getattr(client, col.name) for col in client.__table__.columns}
@@ -69,11 +70,12 @@ def get_client(client_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_client(data: ClientCreate, db: Session = Depends(get_db)):
-    existing = db.query(Client).filter(Client.name == data.name).first()
+def create_client(data: ClientCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    existing = db.query(Client).filter(Client.name == data.name, Client.tenant_id == current_user.tenant_id).first()
     if existing:
         raise HTTPException(status_code=400, detail="同名の荷主企業が既に存在します")
     client = Client(**data.model_dump())
+    client.tenant_id = current_user.tenant_id
     db.add(client)
     db.commit()
     db.refresh(client)
@@ -81,8 +83,8 @@ def create_client(data: ClientCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{client_id}")
-def update_client(client_id: int, data: ClientUpdate, db: Session = Depends(get_db)):
-    client = db.query(Client).filter(Client.id == client_id).first()
+def update_client(client_id: int, data: ClientUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="荷主企業が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -93,8 +95,8 @@ def update_client(client_id: int, data: ClientUpdate, db: Session = Depends(get_
 
 
 @router.delete("/{client_id}")
-def delete_client(client_id: int, db: Session = Depends(get_db)):
-    client = db.query(Client).filter(Client.id == client_id).first()
+def delete_client(client_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="荷主企業が見つかりません")
     # 関連ノートも削除
@@ -106,13 +108,21 @@ def delete_client(client_id: int, db: Session = Depends(get_db)):
 
 # --- Client Notes ---
 @router.get("/{client_id}/notes")
-def list_notes(client_id: int, db: Session = Depends(get_db)):
+def list_notes(client_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify client belongs to tenant
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="荷主が見つかりません")
     notes = db.query(ClientNote).filter(ClientNote.client_id == client_id).order_by(ClientNote.date.desc()).all()
     return [{"id": n.id, "date": str(n.date), "content": n.content, "created_by": n.created_by} for n in notes]
 
 
 @router.post("/{client_id}/notes")
-def create_note(client_id: int, data: NoteCreate, db: Session = Depends(get_db)):
+def create_note(client_id: int, data: NoteCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify client belongs to tenant
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="荷主が見つかりません")
     note = ClientNote(client_id=client_id, content=data.content, created_by=data.created_by)
     db.add(note)
     db.commit()
@@ -120,7 +130,11 @@ def create_note(client_id: int, data: NoteCreate, db: Session = Depends(get_db))
 
 
 @router.delete("/{client_id}/notes/{note_id}")
-def delete_note(client_id: int, note_id: int, db: Session = Depends(get_db)):
+def delete_note(client_id: int, note_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify client belongs to tenant
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="荷主が見つかりません")
     note = db.query(ClientNote).filter(ClientNote.id == note_id, ClientNote.client_id == client_id).first()
     if note:
         db.delete(note)

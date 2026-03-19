@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import VehicleNotification, Dispatch, Vehicle, Driver, Shipment
+from models import VehicleNotification, Dispatch, Vehicle, Driver, Shipment, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -46,9 +47,22 @@ class VNUpdate(BaseModel):
     status: Optional[str] = None
 
 
+def _tenant_dispatch_ids(db: Session, tenant_id: str) -> list:
+    """Get dispatch IDs belonging to this tenant"""
+    return [d.id for d in db.query(Dispatch.id).filter(Dispatch.tenant_id == tenant_id).all()]
+
+
 @router.get("")
-def list_notifications(db: Session = Depends(get_db)):
-    vns = db.query(VehicleNotification).order_by(VehicleNotification.arrival_date.desc()).all()
+def list_notifications(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    dispatch_ids = _tenant_dispatch_ids(db, current_user.tenant_id)
+    # Include notifications linked to tenant dispatches, or with no dispatch link
+    from sqlalchemy import or_
+    vns = db.query(VehicleNotification).filter(
+        or_(
+            VehicleNotification.dispatch_id.in_(dispatch_ids) if dispatch_ids else False,
+            VehicleNotification.dispatch_id == None,
+        )
+    ).order_by(VehicleNotification.arrival_date.desc()).all()
     result = []
     for vn in vns:
         d = {c.name: getattr(vn, c.name) for c in vn.__table__.columns}
@@ -60,7 +74,12 @@ def list_notifications(db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_notification(data: VNCreate, db: Session = Depends(get_db)):
+def create_notification(data: VNCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify dispatch belongs to tenant if specified
+    if data.dispatch_id:
+        disp = db.query(Dispatch).filter(Dispatch.id == data.dispatch_id, Dispatch.tenant_id == current_user.tenant_id).first()
+        if not disp:
+            raise HTTPException(status_code=404, detail="配車が見つかりません")
     vn = VehicleNotification(**data.model_dump())
     db.add(vn)
     db.commit()
@@ -69,8 +88,8 @@ def create_notification(data: VNCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/from-dispatch/{dispatch_id}")
-def create_from_dispatch(dispatch_id: int, db: Session = Depends(get_db)):
-    disp = db.query(Dispatch).filter(Dispatch.id == dispatch_id).first()
+def create_from_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    disp = db.query(Dispatch).filter(Dispatch.id == dispatch_id, Dispatch.tenant_id == current_user.tenant_id).first()
     if not disp:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
     vehicle = db.query(Vehicle).filter(Vehicle.id == disp.vehicle_id).first()
@@ -102,8 +121,16 @@ def create_from_dispatch(dispatch_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{vn_id}")
-def update_notification(vn_id: int, data: VNUpdate, db: Session = Depends(get_db)):
-    vn = db.query(VehicleNotification).filter(VehicleNotification.id == vn_id).first()
+def update_notification(vn_id: int, data: VNUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    dispatch_ids = _tenant_dispatch_ids(db, current_user.tenant_id)
+    from sqlalchemy import or_
+    vn = db.query(VehicleNotification).filter(
+        VehicleNotification.id == vn_id,
+        or_(
+            VehicleNotification.dispatch_id.in_(dispatch_ids) if dispatch_ids else False,
+            VehicleNotification.dispatch_id == None,
+        )
+    ).first()
     if not vn:
         raise HTTPException(status_code=404, detail="車番連絡票が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -113,8 +140,16 @@ def update_notification(vn_id: int, data: VNUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{vn_id}")
-def delete_notification(vn_id: int, db: Session = Depends(get_db)):
-    vn = db.query(VehicleNotification).filter(VehicleNotification.id == vn_id).first()
+def delete_notification(vn_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    dispatch_ids = _tenant_dispatch_ids(db, current_user.tenant_id)
+    from sqlalchemy import or_
+    vn = db.query(VehicleNotification).filter(
+        VehicleNotification.id == vn_id,
+        or_(
+            VehicleNotification.dispatch_id.in_(dispatch_ids) if dispatch_ids else False,
+            VehicleNotification.dispatch_id == None,
+        )
+    ).first()
     if vn:
         db.delete(vn)
         db.commit()

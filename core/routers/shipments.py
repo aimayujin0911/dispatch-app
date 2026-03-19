@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Shipment
+from models import Shipment, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -64,8 +65,8 @@ class ShipmentUpdate(BaseModel):
 
 
 @router.get("")
-def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
-    q = db.query(Shipment)
+def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(Shipment).filter(Shipment.tenant_id == current_user.tenant_id)
     if year and month:
         from datetime import date as d
         start = d(year, month, 1)
@@ -81,8 +82,9 @@ def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db))
 
 
 @router.post("")
-def create_shipment(data: ShipmentCreate, db: Session = Depends(get_db)):
+def create_shipment(data: ShipmentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     shipment = Shipment(**data.model_dump())
+    shipment.tenant_id = current_user.tenant_id
     db.add(shipment)
     db.commit()
     db.refresh(shipment)
@@ -90,8 +92,8 @@ def create_shipment(data: ShipmentCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{shipment_id}")
-def update_shipment(shipment_id: int, data: ShipmentUpdate, db: Session = Depends(get_db)):
-    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+def update_shipment(shipment_id: int, data: ShipmentUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="案件が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -102,8 +104,8 @@ def update_shipment(shipment_id: int, data: ShipmentUpdate, db: Session = Depend
 
 
 @router.delete("/{shipment_id}")
-def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
-    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+def delete_shipment(shipment_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="案件が見つかりません")
     db.delete(shipment)

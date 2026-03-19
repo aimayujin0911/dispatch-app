@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Vendor, AccountEntry
+from models import Vendor, AccountEntry, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -41,15 +42,18 @@ class BulkCostImport(BaseModel):
 
 
 @router.get("")
-def list_vendors(vendor_type: str = "", db: Session = Depends(get_db)):
+def list_vendors(vendor_type: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Vendor has no tenant_id; filter by tenant_id if column exists, otherwise return all for authenticated user
     q = db.query(Vendor)
     if vendor_type:
         q = q.filter(Vendor.vendor_type == vendor_type)
+    if hasattr(Vendor, 'tenant_id'):
+        q = q.filter(Vendor.tenant_id == current_user.tenant_id)
     return q.order_by(Vendor.name).all()
 
 
 @router.get("/{vendor_id}")
-def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
+def get_vendor(vendor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     v = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if not v:
         raise HTTPException(status_code=404, detail="取引先が見つかりません")
@@ -57,8 +61,10 @@ def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_vendor(data: VendorCreate, db: Session = Depends(get_db)):
+def create_vendor(data: VendorCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     v = Vendor(**data.model_dump())
+    if hasattr(v, 'tenant_id'):
+        v.tenant_id = current_user.tenant_id
     db.add(v)
     db.commit()
     db.refresh(v)
@@ -66,8 +72,11 @@ def create_vendor(data: VendorCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{vendor_id}")
-def update_vendor(vendor_id: int, data: VendorUpdate, db: Session = Depends(get_db)):
-    v = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+def update_vendor(vendor_id: int, data: VendorUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(Vendor).filter(Vendor.id == vendor_id)
+    if hasattr(Vendor, 'tenant_id'):
+        q = q.filter(Vendor.tenant_id == current_user.tenant_id)
+    v = q.first()
     if not v:
         raise HTTPException(status_code=404, detail="取引先が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -77,8 +86,11 @@ def update_vendor(vendor_id: int, data: VendorUpdate, db: Session = Depends(get_
 
 
 @router.delete("/{vendor_id}")
-def delete_vendor(vendor_id: int, db: Session = Depends(get_db)):
-    v = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+def delete_vendor(vendor_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(Vendor).filter(Vendor.id == vendor_id)
+    if hasattr(Vendor, 'tenant_id'):
+        q = q.filter(Vendor.tenant_id == current_user.tenant_id)
+    v = q.first()
     if v:
         db.delete(v)
         db.commit()
@@ -86,9 +98,12 @@ def delete_vendor(vendor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/bulk-cost-import")
-def bulk_cost_import(data: BulkCostImport, db: Session = Depends(get_db)):
+def bulk_cost_import(data: BulkCostImport, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """取引先からの一括請求を会計データとして取り込む"""
-    vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
+    q = db.query(Vendor).filter(Vendor.id == data.vendor_id)
+    if hasattr(Vendor, 'tenant_id'):
+        q = q.filter(Vendor.tenant_id == current_user.tenant_id)
+    vendor = q.first()
     if not vendor:
         raise HTTPException(status_code=404, detail="取引先が見つかりません")
 
@@ -106,6 +121,8 @@ def bulk_cost_import(data: BulkCostImport, db: Session = Depends(get_db)):
                 related_partner_id=vendor.id,
                 notes=f"取引先: {vendor.name}",
             )
+            if hasattr(entry, 'tenant_id'):
+                entry.tenant_id = current_user.tenant_id
             db.add(entry)
             created += 1
     else:
@@ -119,6 +136,8 @@ def bulk_cost_import(data: BulkCostImport, db: Session = Depends(get_db)):
             related_partner_id=vendor.id,
             notes=f"取引先: {vendor.name}",
         )
+        if hasattr(entry, 'tenant_id'):
+            entry.tenant_id = current_user.tenant_id
         db.add(entry)
         created = 1
 

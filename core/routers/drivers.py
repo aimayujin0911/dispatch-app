@@ -5,7 +5,8 @@ from typing import Optional
 from datetime import date
 import hashlib
 from database import get_db
-from models import Driver
+from models import Driver, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -50,8 +51,8 @@ class DriverLogin(BaseModel):
 
 
 @router.get("")
-def list_drivers(db: Session = Depends(get_db)):
-    drivers = db.query(Driver).order_by(Driver.id).all()
+def list_drivers(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    drivers = db.query(Driver).filter(Driver.tenant_id == current_user.tenant_id).order_by(Driver.id).all()
     result = []
     for d in drivers:
         result.append({
@@ -71,8 +72,8 @@ def list_drivers(db: Session = Depends(get_db)):
 
 
 @router.get("/{driver_id}")
-def get_driver(driver_id: int, db: Session = Depends(get_db)):
-    d = db.query(Driver).filter(Driver.id == driver_id).first()
+def get_driver(driver_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    d = db.query(Driver).filter(Driver.id == driver_id, Driver.tenant_id == current_user.tenant_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     return {
@@ -91,9 +92,10 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_driver(data: DriverCreate, db: Session = Depends(get_db)):
+def create_driver(data: DriverCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     driver_data = data.model_dump(exclude={"password"})
     driver = Driver(**driver_data)
+    driver.tenant_id = current_user.tenant_id
     if data.password:
         driver.password_hash = hash_password(data.password)
     db.add(driver)
@@ -103,8 +105,8 @@ def create_driver(data: DriverCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{driver_id}")
-def update_driver(driver_id: int, data: DriverUpdate, db: Session = Depends(get_db)):
-    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+def update_driver(driver_id: int, data: DriverUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver = db.query(Driver).filter(Driver.id == driver_id, Driver.tenant_id == current_user.tenant_id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     update_data = data.model_dump(exclude_unset=True)
@@ -119,8 +121,8 @@ def update_driver(driver_id: int, data: DriverUpdate, db: Session = Depends(get_
 
 
 @router.delete("/{driver_id}")
-def delete_driver(driver_id: int, db: Session = Depends(get_db)):
-    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver = db.query(Driver).filter(Driver.id == driver_id, Driver.tenant_id == current_user.tenant_id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     db.delete(driver)
@@ -140,9 +142,9 @@ def driver_login(data: DriverLogin, db: Session = Depends(get_db)):
 
 
 @router.put("/{driver_id}/leave")
-def update_leave_balance(driver_id: int, delta: float = 0, db: Session = Depends(get_db)):
+def update_leave_balance(driver_id: int, delta: float = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """有給残日数の更新"""
-    driver = db.query(Driver).filter(Driver.id == driver_id).first()
+    driver = db.query(Driver).filter(Driver.id == driver_id, Driver.tenant_id == current_user.tenant_id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     driver.paid_leave_balance = max(0, (driver.paid_leave_balance or 0) + delta)

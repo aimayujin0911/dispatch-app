@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import TransportRequest, PartnerCompany
+from models import TransportRequest, PartnerCompany, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -53,9 +54,15 @@ class TRUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+def _tenant_partner_ids(db: Session, tenant_id: str) -> list:
+    """Get partner IDs belonging to this tenant"""
+    return [p.id for p in db.query(PartnerCompany.id).filter(PartnerCompany.tenant_id == tenant_id).all()]
+
+
 @router.get("")
-def list_requests(db: Session = Depends(get_db)):
-    reqs = db.query(TransportRequest).order_by(TransportRequest.created_at.desc()).all()
+def list_requests(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    reqs = db.query(TransportRequest).filter(TransportRequest.partner_id.in_(partner_ids)).order_by(TransportRequest.created_at.desc()).all()
     result = []
     for r in reqs:
         partner = db.query(PartnerCompany).filter(PartnerCompany.id == r.partner_id).first()
@@ -71,7 +78,11 @@ def list_requests(db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_request(data: TRCreate, db: Session = Depends(get_db)):
+def create_request(data: TRCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify partner belongs to tenant
+    partner = db.query(PartnerCompany).filter(PartnerCompany.id == data.partner_id, PartnerCompany.tenant_id == current_user.tenant_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="協力会社が見つかりません")
     tr = TransportRequest(**data.model_dump())
     db.add(tr)
     db.commit()
@@ -82,8 +93,9 @@ def create_request(data: TRCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{req_id}")
-def update_request(req_id: int, data: TRUpdate, db: Session = Depends(get_db)):
-    tr = db.query(TransportRequest).filter(TransportRequest.id == req_id).first()
+def update_request(req_id: int, data: TRUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    tr = db.query(TransportRequest).filter(TransportRequest.id == req_id, TransportRequest.partner_id.in_(partner_ids)).first()
     if not tr:
         raise HTTPException(status_code=404, detail="輸送依頼書が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -93,8 +105,9 @@ def update_request(req_id: int, data: TRUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{req_id}")
-def delete_request(req_id: int, db: Session = Depends(get_db)):
-    tr = db.query(TransportRequest).filter(TransportRequest.id == req_id).first()
+def delete_request(req_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    partner_ids = _tenant_partner_ids(db, current_user.tenant_id)
+    tr = db.query(TransportRequest).filter(TransportRequest.id == req_id, TransportRequest.partner_id.in_(partner_ids)).first()
     if tr:
         db.delete(tr)
         db.commit()

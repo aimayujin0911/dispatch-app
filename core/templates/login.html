@@ -373,6 +373,17 @@
                 });
             }
 
+            function redirectToTenant() {
+                var user = JSON.parse(localStorage.getItem('user') || '{}');
+                var tid = user.tenant_id || '';
+                var host = location.hostname;
+                if (tid && tid !== 'demo' && host === 'unsoubako.com') {
+                    window.location.href = 'https://' + tid + '.unsoubako.com/';
+                } else {
+                    window.location.href = '/';
+                }
+            }
+
             function handleAuthSuccess(data) {
                 if (data.access_token) {
                     localStorage.setItem('access_token', data.access_token);
@@ -387,7 +398,7 @@
                         localStorage.setItem('branch_id', data.branches[0].id);
                         localStorage.setItem('branch_name', data.branches[0].name);
                     }
-                    window.location.href = '/';
+                    redirectToTenant();
                 }
             }
 
@@ -402,7 +413,7 @@
                     li.addEventListener('click', function () {
                         localStorage.setItem('branch_id', branch.id);
                         localStorage.setItem('branch_name', branch.name);
-                        window.location.href = '/';
+                        redirectToTenant();
                     });
                     list.appendChild(li);
                 });
@@ -481,7 +492,15 @@
 
             // ---- Redirect if already logged in ----
             if (localStorage.getItem('access_token')) {
-                window.location.href = '/';
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                const tid = user.tenant_id || '';
+                const host = location.hostname;
+                // テナントIDがあり、まだルートドメインにいる場合はサブドメインへリダイレクト
+                if (tid && tid !== 'demo' && host === 'unsoubako.com') {
+                    window.location.href = 'https://' + tid + '.unsoubako.com/';
+                } else {
+                    window.location.href = '/';
+                }
             }
         })();
     </script>

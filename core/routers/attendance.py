@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import Attendance, Driver, Dispatch, Vehicle
+from models import Attendance, Driver, Dispatch, Vehicle, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -77,10 +78,18 @@ class AttendanceUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+def _tenant_driver_ids(db: Session, tenant_id: str) -> list:
+    """Get driver IDs belonging to this tenant"""
+    return [d.id for d in db.query(Driver.id).filter(Driver.tenant_id == tenant_id).all()]
+
+
 @router.get("")
-def list_attendance(year: int = 0, month: int = 0, driver_id: int = 0, db: Session = Depends(get_db)):
-    q = db.query(Attendance)
+def list_attendance(year: int = 0, month: int = 0, driver_id: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
+    q = db.query(Attendance).filter(Attendance.driver_id.in_(driver_ids))
     if driver_id:
+        if driver_id not in driver_ids:
+            return []
         q = q.filter(Attendance.driver_id == driver_id)
     if year and month:
         from datetime import date as d
@@ -109,7 +118,11 @@ def list_attendance(year: int = 0, month: int = 0, driver_id: int = 0, db: Sessi
 
 
 @router.post("")
-def create_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
+def create_attendance(data: AttendanceCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify driver belongs to tenant
+    driver = db.query(Driver).filter(Driver.id == data.driver_id, Driver.tenant_id == current_user.tenant_id).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     att = Attendance(**data.model_dump())
     if att.clock_in and att.clock_out:
         work_mins = _time_diff(att.clock_in, att.clock_out) - att.break_minutes
@@ -123,9 +136,9 @@ def create_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/from-dispatches")
-def generate_from_dispatches(year: int = 0, month: int = 0, target_date: str = "", db: Session = Depends(get_db)):
+def generate_from_dispatches(year: int = 0, month: int = 0, target_date: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if target_date:
-        dispatches = db.query(Dispatch).filter(Dispatch.date == target_date).all()
+        dispatches = db.query(Dispatch).filter(Dispatch.date == target_date, Dispatch.tenant_id == current_user.tenant_id).all()
     elif year and month:
         from datetime import date as d
         start = d(year, month, 1)
@@ -133,7 +146,7 @@ def generate_from_dispatches(year: int = 0, month: int = 0, target_date: str = "
             end = d(year + 1, 1, 1)
         else:
             end = d(year, month + 1, 1)
-        dispatches = db.query(Dispatch).filter(Dispatch.date >= start, Dispatch.date < end).all()
+        dispatches = db.query(Dispatch).filter(Dispatch.date >= start, Dispatch.date < end, Dispatch.tenant_id == current_user.tenant_id).all()
     else:
         dispatches = []
     created = 0
@@ -171,8 +184,9 @@ def generate_from_dispatches(year: int = 0, month: int = 0, target_date: str = "
 
 
 @router.put("/{att_id}")
-def update_attendance(att_id: int, data: AttendanceUpdate, db: Session = Depends(get_db)):
-    att = db.query(Attendance).filter(Attendance.id == att_id).first()
+def update_attendance(att_id: int, data: AttendanceUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
+    att = db.query(Attendance).filter(Attendance.id == att_id, Attendance.driver_id.in_(driver_ids)).first()
     if not att:
         raise HTTPException(status_code=404, detail="勤怠記録が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -186,8 +200,9 @@ def update_attendance(att_id: int, data: AttendanceUpdate, db: Session = Depends
 
 
 @router.delete("/{att_id}")
-def delete_attendance(att_id: int, db: Session = Depends(get_db)):
-    att = db.query(Attendance).filter(Attendance.id == att_id).first()
+def delete_attendance(att_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
+    att = db.query(Attendance).filter(Attendance.id == att_id, Attendance.driver_id.in_(driver_ids)).first()
     if att:
         db.delete(att)
         db.commit()

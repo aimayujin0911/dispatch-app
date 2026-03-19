@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from database import get_db
-from models import AccountEntry, Shipment, Vehicle, VehicleCost, Dispatch, Attendance
+from models import AccountEntry, Shipment, Vehicle, VehicleCost, Dispatch, Attendance, Driver, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -35,9 +36,42 @@ class EntryUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+def _tenant_vehicle_ids(db: Session, tenant_id: str) -> list:
+    return [v.id for v in db.query(Vehicle.id).filter(Vehicle.tenant_id == tenant_id).all()]
+
+
+def _tenant_shipment_ids(db: Session, tenant_id: str) -> list:
+    return [s.id for s in db.query(Shipment.id).filter(Shipment.tenant_id == tenant_id).all()]
+
+
+def _tenant_account_entries(db: Session, tenant_id: str):
+    """Filter AccountEntry by tenant: entries linked to tenant's vehicles or shipments, or with no link"""
+    vehicle_ids = _tenant_vehicle_ids(db, tenant_id)
+    shipment_ids = _tenant_shipment_ids(db, tenant_id)
+    from sqlalchemy import or_
+    return db.query(AccountEntry).filter(
+        or_(
+            AccountEntry.vehicle_id.in_(vehicle_ids),
+            AccountEntry.related_shipment_id.in_(shipment_ids),
+            # Include entries with no vehicle/shipment link (general entries)
+            # that were created within this tenant context
+            (AccountEntry.vehicle_id == None) & (AccountEntry.related_shipment_id == None)
+        )
+    )
+
+
 @router.get("")
-def list_entries(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
-    q = db.query(AccountEntry)
+def list_entries(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    vehicle_ids = _tenant_vehicle_ids(db, current_user.tenant_id)
+    shipment_ids = _tenant_shipment_ids(db, current_user.tenant_id)
+    from sqlalchemy import or_
+    q = db.query(AccountEntry).filter(
+        or_(
+            AccountEntry.vehicle_id.in_(vehicle_ids) if vehicle_ids else False,
+            AccountEntry.related_shipment_id.in_(shipment_ids) if shipment_ids else False,
+            (AccountEntry.vehicle_id == None) & (AccountEntry.related_shipment_id == None),
+        )
+    )
     if year and month:
         start = date(year, month, 1)
         if month == 12:
@@ -63,13 +97,22 @@ def list_entries(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
 
 
 @router.get("/categories")
-def get_categories():
+def get_categories(current_user: User = Depends(get_current_user)):
     return {"income": INCOME_CATEGORIES, "expense": EXPENSE_CATEGORIES}
 
 
 @router.get("/summary")
-def get_summary(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
-    q = db.query(AccountEntry)
+def get_summary(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    vehicle_ids = _tenant_vehicle_ids(db, current_user.tenant_id)
+    shipment_ids = _tenant_shipment_ids(db, current_user.tenant_id)
+    from sqlalchemy import or_
+    q = db.query(AccountEntry).filter(
+        or_(
+            AccountEntry.vehicle_id.in_(vehicle_ids) if vehicle_ids else False,
+            AccountEntry.related_shipment_id.in_(shipment_ids) if shipment_ids else False,
+            (AccountEntry.vehicle_id == None) & (AccountEntry.related_shipment_id == None),
+        )
+    )
     if year and month:
         start = date(year, month, 1)
         if month == 12:
@@ -89,11 +132,20 @@ def get_summary(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
 
 
 @router.get("/vehicle-pnl")
-def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
+def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """車両ごとの損益計算"""
-    vehicles = db.query(Vehicle).all()
-    q_entries = db.query(AccountEntry)
-    q_dispatches = db.query(Dispatch)
+    tid = current_user.tenant_id
+    vehicles = db.query(Vehicle).filter(Vehicle.tenant_id == tid).all()
+    vehicle_ids = [v.id for v in vehicles]
+
+    from sqlalchemy import or_
+    q_entries = db.query(AccountEntry).filter(
+        or_(
+            AccountEntry.vehicle_id.in_(vehicle_ids) if vehicle_ids else False,
+            (AccountEntry.vehicle_id == None),
+        )
+    )
+    q_dispatches = db.query(Dispatch).filter(Dispatch.tenant_id == tid)
     if year and month:
         start = date(year, month, 1)
         if month == 12:
@@ -111,7 +163,8 @@ def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get
             vehicle_revenue[d.vehicle_id] = vehicle_revenue.get(d.vehicle_id, 0) + d.shipment.price
 
     # 車両紐付けなしの燃料費・高速代を走行距離で按分
-    q_attendance = db.query(Attendance)
+    driver_ids = [d.id for d in db.query(Driver.id).filter(Driver.tenant_id == tid).all()]
+    q_attendance = db.query(Attendance).filter(Attendance.driver_id.in_(driver_ids) if driver_ids else False)
     if year and month:
         q_attendance = q_attendance.filter(Attendance.date >= start, Attendance.date < end)
     attendances = q_attendance.all()
@@ -168,7 +221,12 @@ def vehicle_profit_loss(year: int = 0, month: int = 0, db: Session = Depends(get
 
 
 @router.post("")
-def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
+def create_entry(data: EntryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify vehicle belongs to tenant if specified
+    if data.vehicle_id:
+        vehicle = db.query(Vehicle).filter(Vehicle.id == data.vehicle_id, Vehicle.tenant_id == current_user.tenant_id).first()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="車両が見つかりません")
     entry = AccountEntry(**data.model_dump())
     db.add(entry)
     db.commit()
@@ -177,9 +235,10 @@ def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/import-revenue")
-def import_revenue(year: int = 0, month: int = 0, db: Session = Depends(get_db)):
+def import_revenue(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """完了案件から売上を自動インポート"""
-    q = db.query(Shipment).filter(Shipment.status == "完了")
+    tid = current_user.tenant_id
+    q = db.query(Shipment).filter(Shipment.status == "完了", Shipment.tenant_id == tid)
     if year and month:
         start = date(year, month, 1)
         if month == 12:
@@ -197,7 +256,7 @@ def import_revenue(year: int = 0, month: int = 0, db: Session = Depends(get_db))
         if existing:
             continue
         # 車両IDを配車から取得
-        dispatch = db.query(Dispatch).filter(Dispatch.shipment_id == s.id).first()
+        dispatch = db.query(Dispatch).filter(Dispatch.shipment_id == s.id, Dispatch.tenant_id == tid).first()
         entry = AccountEntry(
             date=s.delivery_date,
             entry_type="収入",
@@ -214,10 +273,19 @@ def import_revenue(year: int = 0, month: int = 0, db: Session = Depends(get_db))
 
 
 @router.put("/{entry_id}")
-def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db)):
+def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     entry = db.query(AccountEntry).filter(AccountEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="仕訳が見つかりません")
+    # Verify ownership through vehicle or shipment link
+    if entry.vehicle_id:
+        v = db.query(Vehicle).filter(Vehicle.id == entry.vehicle_id, Vehicle.tenant_id == current_user.tenant_id).first()
+        if not v:
+            raise HTTPException(status_code=404, detail="仕訳が見つかりません")
+    if entry.related_shipment_id:
+        s = db.query(Shipment).filter(Shipment.id == entry.related_shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="仕訳が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(entry, key, value)
     db.commit()
@@ -225,11 +293,21 @@ def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db)
 
 
 @router.delete("/{entry_id}")
-def delete_entry(entry_id: int, db: Session = Depends(get_db)):
+def delete_entry(entry_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     entry = db.query(AccountEntry).filter(AccountEntry.id == entry_id).first()
-    if entry:
-        db.delete(entry)
-        db.commit()
+    if not entry:
+        return {"ok": True}
+    # Verify ownership through vehicle or shipment link
+    if entry.vehicle_id:
+        v = db.query(Vehicle).filter(Vehicle.id == entry.vehicle_id, Vehicle.tenant_id == current_user.tenant_id).first()
+        if not v:
+            raise HTTPException(status_code=404, detail="仕訳が見つかりません")
+    if entry.related_shipment_id:
+        s = db.query(Shipment).filter(Shipment.id == entry.related_shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
+        if not s:
+            raise HTTPException(status_code=404, detail="仕訳が見つかりません")
+    db.delete(entry)
+    db.commit()
     return {"ok": True}
 
 
@@ -245,9 +323,12 @@ class VehicleCostCreate(BaseModel):
 
 
 @router.get("/vehicle-costs")
-def list_vehicle_costs(vehicle_id: int = 0, db: Session = Depends(get_db)):
-    q = db.query(VehicleCost)
+def list_vehicle_costs(vehicle_id: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tenant_vehicle_ids = _tenant_vehicle_ids(db, current_user.tenant_id)
+    q = db.query(VehicleCost).filter(VehicleCost.vehicle_id.in_(tenant_vehicle_ids))
     if vehicle_id:
+        if vehicle_id not in tenant_vehicle_ids:
+            return []
         q = q.filter(VehicleCost.vehicle_id == vehicle_id)
     costs = q.all()
     result = []
@@ -266,7 +347,11 @@ def list_vehicle_costs(vehicle_id: int = 0, db: Session = Depends(get_db)):
 
 
 @router.post("/vehicle-costs")
-def create_vehicle_cost(data: VehicleCostCreate, db: Session = Depends(get_db)):
+def create_vehicle_cost(data: VehicleCostCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify vehicle belongs to tenant
+    vehicle = db.query(Vehicle).filter(Vehicle.id == data.vehicle_id, Vehicle.tenant_id == current_user.tenant_id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="車両が見つかりません")
     cost = VehicleCost(**data.model_dump())
     db.add(cost)
     db.commit()
@@ -274,8 +359,9 @@ def create_vehicle_cost(data: VehicleCostCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/vehicle-costs/{cost_id}")
-def delete_vehicle_cost(cost_id: int, db: Session = Depends(get_db)):
-    cost = db.query(VehicleCost).filter(VehicleCost.id == cost_id).first()
+def delete_vehicle_cost(cost_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tenant_vehicle_ids = _tenant_vehicle_ids(db, current_user.tenant_id)
+    cost = db.query(VehicleCost).filter(VehicleCost.id == cost_id, VehicleCost.vehicle_id.in_(tenant_vehicle_ids)).first()
     if cost:
         db.delete(cost)
         db.commit()

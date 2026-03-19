@@ -17,9 +17,9 @@ def seed():
 
     today = date.today()
 
-    # 営業所
-    branch_honsha = Branch(name="本社", address="東京都大田区南蒲田1-10-5", phone="03-5555-1234")
-    branch_yokohama = Branch(name="横浜営業所", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-555-6789")
+    # 営業所 (デモテナント)
+    branch_honsha = Branch(name="本社", address="東京都大田区南蒲田1-10-5", phone="03-5555-1234", tenant_id="demo")
+    branch_yokohama = Branch(name="横浜営業所", address="神奈川県横浜市鶴見区鶴見中央1-1", phone="045-555-6789", tenant_id="demo")
     db.add_all([branch_honsha, branch_yokohama])
     db.flush()
 
@@ -30,6 +30,7 @@ def seed():
         password_hash=hash_password("admin1234"),
         name="管理者",
         role="admin",
+        tenant_id="demo",
         branch_id=branch_honsha.id,
     )
     manager_user = User(
@@ -37,6 +38,7 @@ def seed():
         password_hash=hash_password("manager1234"),
         name="横浜所長",
         role="manager",
+        tenant_id="demo",
         branch_id=branch_yokohama.id,
     )
     dispatcher_user = User(
@@ -44,6 +46,7 @@ def seed():
         password_hash=hash_password("dispatcher1234"),
         name="本社配車担当",
         role="dispatcher",
+        tenant_id="demo",
         branch_id=branch_honsha.id,
     )
     db.add_all([admin_user, manager_user, dispatcher_user])
@@ -52,6 +55,7 @@ def seed():
     # 自社情報
     settings = CompanySettings(
         id=1,
+        tenant_id="demo",
         company_name="株式会社サンプル運輸",
         postal_code="144-0035",
         address="東京都大田区南蒲田1-10-5",
@@ -645,6 +649,10 @@ def seed():
     ]
     for d, cat, desc, amt, v_id in expenses:
         db.add(AccountEntry(date=d, entry_type="支出", category=cat, description=desc, amount=amt, vehicle_id=v_id))
+
+    # 全デモデータにtenant_id="demo"を一括設定
+    for model in [Vehicle, Driver, Shipment, Dispatch, Client, PartnerCompany]:
+        db.query(model).filter(model.tenant_id == "").update({"tenant_id": "demo"})
 
     db.commit()
     db.close()

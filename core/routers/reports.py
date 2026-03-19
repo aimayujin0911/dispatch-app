@@ -5,7 +5,8 @@ from typing import Optional
 from datetime import date
 import json
 from database import get_db
-from models import DailyReport, Dispatch, Shipment
+from models import DailyReport, Dispatch, Shipment, Driver, User
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -40,11 +41,17 @@ class ReportUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+def _tenant_driver_ids(db: Session, tenant_id: str) -> list:
+    """Get driver IDs belonging to this tenant"""
+    return [d.id for d in db.query(Driver.id).filter(Driver.tenant_id == tenant_id).all()]
+
+
 @router.get("")
-def list_reports(date: str = "", db: Session = Depends(get_db)):
+def list_reports(date: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
     q = db.query(DailyReport).options(
         joinedload(DailyReport.driver)
-    )
+    ).filter(DailyReport.driver_id.in_(driver_ids))
     if date:
         from datetime import date as d
         try:
@@ -75,7 +82,11 @@ def list_reports(date: str = "", db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_report(data: ReportCreate, db: Session = Depends(get_db)):
+def create_report(data: ReportCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Verify driver belongs to tenant
+    driver = db.query(Driver).filter(Driver.id == data.driver_id, Driver.tenant_id == current_user.tenant_id).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="ドライバーが見つかりません")
     report = DailyReport(**data.model_dump())
     db.add(report)
     db.commit()
@@ -84,12 +95,12 @@ def create_report(data: ReportCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/auto-generate")
-def auto_generate_reports(target_date: str, db: Session = Depends(get_db)):
+def auto_generate_reports(target_date: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """配車データから日報を自動生成"""
     td = date.fromisoformat(target_date)
     dispatches = db.query(Dispatch).options(
         joinedload(Dispatch.shipment)
-    ).filter(Dispatch.date == td).all()
+    ).filter(Dispatch.date == td, Dispatch.tenant_id == current_user.tenant_id).all()
 
     # ドライバーごとにグループ化
     by_driver = {}
@@ -148,8 +159,9 @@ def auto_generate_reports(target_date: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{report_id}")
-def update_report(report_id: int, data: ReportUpdate, db: Session = Depends(get_db)):
-    report = db.query(DailyReport).filter(DailyReport.id == report_id).first()
+def update_report(report_id: int, data: ReportUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
+    report = db.query(DailyReport).filter(DailyReport.id == report_id, DailyReport.driver_id.in_(driver_ids)).first()
     if not report:
         raise HTTPException(status_code=404, detail="日報が見つかりません")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -160,8 +172,9 @@ def update_report(report_id: int, data: ReportUpdate, db: Session = Depends(get_
 
 
 @router.delete("/{report_id}")
-def delete_report(report_id: int, db: Session = Depends(get_db)):
-    report = db.query(DailyReport).filter(DailyReport.id == report_id).first()
+def delete_report(report_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    driver_ids = _tenant_driver_ids(db, current_user.tenant_id)
+    report = db.query(DailyReport).filter(DailyReport.id == report_id, DailyReport.driver_id.in_(driver_ids)).first()
     if not report:
         raise HTTPException(status_code=404, detail="日報が見つかりません")
     db.delete(report)
