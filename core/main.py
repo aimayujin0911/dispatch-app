@@ -165,8 +165,18 @@ async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
+@app.get("/lp", response_class=HTMLResponse)
+async def landing_page(request: Request):
+    return templates.TemplateResponse("lp.html", {"request": request})
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    # ルートドメイン（unsoubako.com）の場合はLPを表示
+    host = request.headers.get("host", "")
+    # サブドメインなし（ルートドメイン or www）の場合はLP
+    if host in ("unsoubako.com", "www.unsoubako.com"):
+        return templates.TemplateResponse("lp.html", {"request": request})
     return templates.TemplateResponse("index.html", {"request": request})
 
 
