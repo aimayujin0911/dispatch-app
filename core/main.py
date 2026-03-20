@@ -156,6 +156,15 @@ def seed_on_startup():
                 existing_op.password_hash = hash_password("Ligo0106")
                 db.commit()
                 logger.info(f"Updated existing user to operator: {op_email}")
+        # トランシアテナントデータが無ければ投入
+        if not db.query(User).filter(User.tenant_id == "transia").first():
+            logger.info("Transia tenant not found, seeding...")
+            try:
+                from seed_data import seed_transia
+                seed_transia()
+                logger.info("Transia tenant seed completed")
+            except Exception as e:
+                logger.error(f"Transia seed failed: {e}")
     finally:
         db.close()
 
