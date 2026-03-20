@@ -36,6 +36,18 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     branch = relationship("Branch", back_populates="users")
+    accessible_tenants = relationship("UserTenant", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserTenant(Base):
+    """ユーザーがアクセス可能な追加テナント"""
+    __tablename__ = "user_tenants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(String(50), nullable=False)
+
+    user = relationship("User", back_populates="accessible_tenants")
 
 
 class CompanySettings(Base):

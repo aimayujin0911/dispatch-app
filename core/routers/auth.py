@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from database import get_db
-from models import User, Branch, Driver
+from sqlalchemy import distinct
+from models import User, Branch, Driver, UserTenant
 from auth import hash_password, verify_password, create_access_token, get_current_user
 
 router = APIRouter()
@@ -62,6 +63,8 @@ class MeResponse(UserOut):
     branches: List[BranchOut] = []
     can_switch_branch: bool = False    # admin のみ拠点切替可能
     can_access_admin: bool = False     # admin/manager のみ管理・会計アクセス可能
+    accessible_tenants: List[str] = []  # アクセス可能テナント一覧
+    can_switch_tenant: bool = False     # テナント切替可能か
 
 
 class TokenResponse(BaseModel):
@@ -87,20 +90,51 @@ def _build_user_out(user: User) -> dict:
     }
 
 
-def _login_response(user: User) -> dict:
+def _get_accessible_tenants(user: User, db) -> list:
+    """ユーザーがアクセス可能なテナント一覧を返す"""
+    if user.role == "operator":
+        # オペレーターは全テナント
+        tenant_ids = db.query(distinct(User.tenant_id)).filter(
+            User.tenant_id != "", User.tenant_id != None
+        ).all()
+        return [t[0] for t in tenant_ids]
+    # 自分のテナント + user_tenants の追加テナント
+    tenants = []
+    if user.tenant_id:
+        tenants.append(user.tenant_id)
+    extra = db.query(UserTenant.tenant_id).filter(UserTenant.user_id == user.id).all()
+    for t in extra:
+        if t[0] and t[0] not in tenants:
+            tenants.append(t[0])
+    return tenants
+
+
+def _login_response(user: User, db=None, active_tenant: str = "") -> dict:
     """ログイン / 登録後の共通レスポンスを生成"""
-    token = create_access_token({
+    payload = {
         "sub": str(user.id),
         "email": user.email or "",
         "role": user.role,
         "branch_id": user.branch_id,
         "driver_id": user.driver_id,
-    })
-    return {
+    }
+    # active_tenantをJWTに含める（オペレーター or テナント切替時）
+    if active_tenant:
+        payload["active_tenant"] = active_tenant
+    token = create_access_token(payload)
+    user_out = _build_user_out(user)
+    if active_tenant:
+        user_out["tenant_id"] = active_tenant
+    result = {
         "access_token": token,
         "token_type": "bearer",
-        "user": _build_user_out(user),
+        "user": user_out,
     }
+    # アクセス可能テナント一覧を付与
+    if db:
+        tenants = _get_accessible_tenants(user, db)
+        result["tenants"] = tenants
+    return result
 
 
 # ── エンドポイント ────────────────────────────────────────
@@ -123,7 +157,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="ログイン情報が正しくありません",
         )
-    return _login_response(user)
+    return _login_response(user, db=db)
 
 
 @router.get("/users")
@@ -131,8 +165,8 @@ def list_users(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """ユーザー一覧（管理者のみ）"""
-    if current_user.role != "admin":
+    """ユーザー一覧（管理者/オペレーターのみ）"""
+    if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
     users = db.query(User).order_by(User.id).all()
     result = []
@@ -159,10 +193,10 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     """ユーザー追加（管理者のみ）"""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
-    if req.role not in ("admin", "manager", "dispatcher", "driver"):
-        raise HTTPException(status_code=400, detail="権限はadmin/manager/dispatcher/driverのいずれかです")
+    if req.role not in ("admin", "manager", "dispatcher", "driver", "operator"):
+        raise HTTPException(status_code=400, detail="権限はadmin/manager/dispatcher/driver/operatorのいずれかです")
     # email or login_id のどちらかは必須
     if not req.email and not req.login_id:
         raise HTTPException(status_code=400, detail="メールアドレスまたはログインIDのどちらかは必須です")
@@ -222,7 +256,7 @@ def update_user(
     db: Session = Depends(get_db),
 ):
     """ユーザー編集（管理者のみ）"""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -251,7 +285,7 @@ def delete_user(
     db: Session = Depends(get_db),
 ):
     """ユーザー削除（管理者のみ）"""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="自分自身は削除できません")
@@ -272,8 +306,13 @@ def get_me(
     branches = db.query(Branch).filter(Branch.is_active == True).order_by(Branch.id).all()
     user_dict = _build_user_out(current_user)
     user_dict["branches"] = [{"id": b.id, "name": b.name} for b in branches]
-    user_dict["can_switch_branch"] = current_user.role == "admin"
-    user_dict["can_access_admin"] = current_user.role in ("admin", "manager")
+    user_dict["can_switch_branch"] = current_user.role in ("admin", "operator")
+    user_dict["can_access_admin"] = current_user.role in ("admin", "manager", "operator")
+    user_dict["is_operator"] = current_user.role == "operator"
+    # アクセス可能テナント一覧
+    tenants = _get_accessible_tenants(current_user, db)
+    user_dict["accessible_tenants"] = tenants
+    user_dict["can_switch_tenant"] = len(tenants) > 1 or current_user.role == "operator"
     return user_dict
 
 
@@ -308,6 +347,36 @@ def switch_branch(
         "token_type": "bearer",
         "user": _build_user_out(current_user),
     }
+
+
+@router.get("/tenants")
+def list_tenants(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """テナント一覧（オペレーターのみ）"""
+    if current_user.role != "operator":
+        raise HTTPException(status_code=403, detail="運営管理者のみアクセスできます")
+    # usersテーブルからユニークなtenant_idを取得
+    tenant_ids = db.query(distinct(User.tenant_id)).filter(User.tenant_id != "", User.tenant_id != None).all()
+    return [{"tenant_id": t[0]} for t in tenant_ids]
+
+
+class SwitchTenantRequest(BaseModel):
+    tenant_id: str
+
+
+@router.put("/switch-tenant")
+def switch_tenant(
+    req: SwitchTenantRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """テナント切替 → 新しいJWTを返す（オペレーター or 複数テナントユーザー）"""
+    accessible = _get_accessible_tenants(current_user, db)
+    if current_user.role != "operator" and req.tenant_id not in accessible:
+        raise HTTPException(status_code=403, detail="このテナントへのアクセス権がありません")
+    return _login_response(current_user, db=db, active_tenant=req.tenant_id)
 
 
 @router.get("/branches", response_model=List[BranchOut])

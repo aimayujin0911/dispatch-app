@@ -132,6 +132,30 @@ def seed_on_startup():
                 db.commit()
             except Exception:
                 db.rollback()
+        # オペレーター（運営管理者）アカウント自動作成
+        from models import User
+        from auth import hash_password
+        op_email = "yuujin@li-go.jp"
+        existing_op = db.query(User).filter(User.email == op_email).first()
+        if not existing_op:
+            op_user = User(
+                email=op_email,
+                password_hash=hash_password("Ligo0106"),
+                name="運営管理者",
+                role="operator",
+                tenant_id="",
+                branch_id=None,
+            )
+            db.add(op_user)
+            db.commit()
+            logger.info(f"Operator account created: {op_email}")
+        else:
+            # 既存ユーザーがoperatorじゃなければ更新
+            if existing_op.role != "operator":
+                existing_op.role = "operator"
+                existing_op.password_hash = hash_password("Ligo0106")
+                db.commit()
+                logger.info(f"Updated existing user to operator: {op_email}")
     finally:
         db.close()
 
@@ -164,6 +188,12 @@ app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    host = request.headers.get("host", "").split(":")[0]  # ポート除去
+    # サブドメインからのアクセスはルートドメインにリダイレクト
+    tenant_domains = {"hakoprofor.jp", "unsoubako.com"}
+    for d in tenant_domains:
+        if host != d and host != f"www.{d}" and host.endswith(f".{d}"):
+            return RedirectResponse(url=f"https://{d}/login", status_code=302)
     return templates.TemplateResponse("login.html", {"request": request})
 
 

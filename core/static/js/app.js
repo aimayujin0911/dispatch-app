@@ -95,8 +95,17 @@ function authHeaders() {
     if (token) h['Authorization'] = `Bearer ${token}`;
     return h;
 }
+function getLoginUrl() {
+    // ルートドメインの /login を返す（サブドメインにログインページを置かない）
+    var h = location.hostname;
+    var ds = ['hakoprofor.jp', 'unsoubako.com'];
+    for (var i = 0; i < ds.length; i++) {
+        if (h === ds[i] || h.endsWith('.' + ds[i])) return 'https://' + ds[i] + '/login';
+    }
+    return '/login'; // ローカル開発 or onrender.com
+}
 function checkAuth() {
-    if (!getToken()) { location.href = '/login'; return false; }
+    if (!getToken()) { location.href = getLoginUrl(); return false; }
     // ドライバーはドライバーアプリのみアクセス可
     const u = JSON.parse(localStorage.getItem('user') || '{}');
     if (u.role === 'driver') { location.href = '/m/attendance'; return false; }
@@ -105,7 +114,7 @@ function checkAuth() {
 function logout() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_info');
-    location.href = '/login';
+    location.href = getLoginUrl();
 }
 async function loadUserInfo() {
     try {
@@ -117,6 +126,14 @@ async function loadUserInfo() {
         const userEl = document.getElementById('currentUser');
         if (userEl) {
             let html = '';
+            // テナント切替ドロップダウン（複数テナント or オペレーター）
+            if (user.can_switch_tenant && user.accessible_tenants && user.accessible_tenants.length > 1) {
+                html += `<select onchange="switchTenant(this.value)" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer">`;
+                user.accessible_tenants.forEach(t => {
+                    html += `<option value="${t}" ${t === user.tenant_id ? 'selected' : ''} style="color:#000">${t}</option>`;
+                });
+                html += `</select> `;
+            }
             // 管理者: 拠点切替ドロップダウン
             if (user.can_switch_branch && user.branches && user.branches.length > 1) {
                 html += `<select onchange="switchBranch(this.value)" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer">`;
@@ -128,7 +145,7 @@ async function loadUserInfo() {
                 html += `<span style="font-size:0.75rem;opacity:0.8">📍${user.branch_name}</span> `;
             }
             // ロールバッジ
-            const roleLabels = {admin:'管理者',manager:'拠点管理者',dispatcher:'配車担当'};
+            const roleLabels = {admin:'管理者',manager:'拠点管理者',dispatcher:'配車担当',operator:'運営管理者'};
             html += `<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85)">${roleLabels[user.role]||user.role}</span> `;
             html += `${user.name} `;
             html += `<button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer">ログアウト</button>`;
@@ -138,6 +155,32 @@ async function loadUserInfo() {
         applyRoleAccess(user);
         return user;
     } catch(e) { return null; }
+}
+
+async function switchTenant(tenantId) {
+    try {
+        const resp = await fetch(API + '/auth/switch-tenant', {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify({ tenant_id: tenantId })
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            localStorage.setItem('access_token', data.access_token);
+            if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+            // テナントのサブドメインにリダイレクト
+            var h = location.hostname;
+            var ds = ['hakoprofor.jp', 'unsoubako.com'];
+            var md = '';
+            for (var i = 0; i < ds.length; i++) {
+                if (h === ds[i] || h.endsWith('.' + ds[i])) { md = ds[i]; break; }
+            }
+            if (md) {
+                location.href = 'https://' + tenantId + '.' + md + '/?auth_token=' + encodeURIComponent(data.access_token) + '&auth_user=' + encodeURIComponent(JSON.stringify(data.user));
+            } else {
+                location.reload();
+            }
+        }
+    } catch(e) { console.error(e); }
 }
 
 async function switchBranch(branchId) {

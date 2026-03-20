@@ -57,7 +57,7 @@
         <a href="/app/users" class="active">👥 ユーザー</a>
         <a href="/m/attendance">📱 ドライバー</a>
         <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:auto">📬 開発への依頼</button>
-        <button onclick="localStorage.removeItem('access_token');localStorage.removeItem('user');location.href='/login'" style="background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">🚪 ログアウト</button>
+        <button onclick="localStorage.removeItem('access_token');localStorage.removeItem('user');var h=location.hostname,ds=['hakoprofor.jp','unsoubako.com'],u='/login';for(var i=0;i<ds.length;i++){if(h===ds[i]||h.endsWith('.'+ds[i])){u='https://'+ds[i]+'/login';break;}}location.href=u" style="background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:8px">🚪 ログアウト</button>
     </nav>
 
     <div class="container">
@@ -285,5 +285,6 @@ function handleScreenshotDrop(e){e.preventDefault();e.currentTarget.style.border
 async function submitFeedback(e){e.preventDefault();const b=document.getElementById('fb-submit-btn');b.disabled=true;b.textContent='送信中...';const f=new FormData();f.append('category',document.getElementById('fb-category').value);f.append('title',document.getElementById('fb-title').value);f.append('description',document.getElementById('fb-desc').value);f.append('priority',document.getElementById('fb-priority').value);f.append('page',document.getElementById('fb-page').value);const u=JSON.parse(localStorage.getItem('user')||'{}');f.append('user_name',u.name||'');f.append('user_email',u.email||'');const s=document.getElementById('fb-screenshot').files[0];if(s)f.append('screenshot',s);try{const t=localStorage.getItem('access_token');const h=t?{'Authorization':'Bearer '+t}:{};const r=await fetch('/api/feedback',{method:'POST',headers:h,body:f});if(r.ok){document.getElementById('feedbackForm').style.display='none';document.getElementById('fb-success').style.display='block';setTimeout(closeFeedbackModal,2000);}else{alert('送信に失敗しました');}}catch(x){alert('送信エラー: '+x.message);}b.disabled=false;b.textContent='送信';}
 document.getElementById('feedbackOverlay').addEventListener('click',function(e){if(e.target===this)closeFeedbackModal();});
 </script>
+<script src="/static/js/tenant-switcher.js"></script>
 </body>
 </html>

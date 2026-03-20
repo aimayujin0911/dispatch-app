@@ -78,6 +78,10 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None or not user.is_active:
         raise credentials_exception
+    # JWTに含まれるactive_tenantを適用（オペレーター or 複数テナントユーザー）
+    active_tenant = payload.get("active_tenant", "")
+    if active_tenant:
+        user.tenant_id = active_tenant
     return user
 
 
