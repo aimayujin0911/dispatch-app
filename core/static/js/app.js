@@ -8,6 +8,15 @@ let dragState = null;
 let resizeState = null;
 let justDragged = false;
 let shipmentDragState = null;
+let _bgSyncTimer = null; // D&D後のバックグラウンド同期タイマー
+
+function scheduleBgSync(delaySec = 5) {
+    if (_bgSyncTimer) clearTimeout(_bgSyncTimer);
+    _bgSyncTimer = setTimeout(() => { _bgSyncTimer = null; loadDispatchCalendar(); }, delaySec * 1000);
+}
+function cancelBgSync() {
+    if (_bgSyncTimer) { clearTimeout(_bgSyncTimer); _bgSyncTimer = null; }
+}
 
 // ===== テーブルソート =====
 const _tableData = {};  // テーブルID → {data, renderFn, sortKey, sortDir}
@@ -510,12 +519,12 @@ async function loadDispatchCalendar() {
             </div>
         </div>
         <div class="cal-legend" style="display:flex;gap:10px;padding:2px 8px;font-size:0.7rem;color:#64748b;align-items:center;flex-wrap:wrap">
-            <span style="font-weight:600;color:#475569">積載重量:</span>
-            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#eff6ff;border-left:3px solid #93c5fd;border-radius:2px;display:inline-block"></span>~3t</span>
-            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#dbeafe;border-left:3px solid #60a5fa;border-radius:2px;display:inline-block"></span>~6t</span>
-            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#bfdbfe;border-left:3px solid #3b82f6;border-radius:2px;display:inline-block"></span>~9t</span>
-            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#93c5fd;border-left:3px solid #2563eb;border-radius:2px;display:inline-block"></span>~12t</span>
-            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#60a5fa;border-left:3px solid #1d4ed8;border-radius:2px;display:inline-block"></span>12t~</span>
+            <span style="font-weight:600;color:#475569">積載率:</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#eff6ff;border-left:3px solid #93c5fd;border-radius:2px;display:inline-block"></span>~20%</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#dbeafe;border-left:3px solid #60a5fa;border-radius:2px;display:inline-block"></span>~40%</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#bfdbfe;border-left:3px solid #3b82f6;border-radius:2px;display:inline-block"></span>~60%</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#93c5fd;border-left:3px solid #2563eb;border-radius:2px;display:inline-block"></span>~80%</span>
+            <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#60a5fa;border-left:3px solid #1d4ed8;border-radius:2px;display:inline-block"></span>80%~</span>
             <span style="margin-left:8px;display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;border:2px solid #f97316;border-radius:2px;display:inline-block"></span>重複</span>
             <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#fee2e2;border:2px solid #dc2626;border-radius:2px;display:inline-block"></span>積載超過</span>
             <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:2px;height:14px;background:#ef4444;display:inline-block"></span>現在時刻</span>
@@ -710,7 +719,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         dispatchLanes.forEach(d => {
             const left = ((d.startMin - HOUR_START * 60) / totalMin) * 100;
             const width = ((d.endMin - d.startMin) / totalMin) * 100;
-            const wc = getWeightColor(d.weight);
+            const wc = getWeightColor(d.weight, d.vehicle_capacity);
             const capPct = (d.weight > 0 && d.vehicle_capacity > 0) ? Math.round(d.weight / (d.vehicle_capacity * 1000) * 100) : 0;
             const capBadge = capPct > 0 ? ` [${capPct}%]` : '';
             const isOverload = capPct > 100;
@@ -804,7 +813,7 @@ function buildPartnerRows(dayStr, dispatches, partners) {
 
             const left = ((startMin - HOUR_START * 60) / totalMin) * 100;
             const width = ((endMin - startMin) / totalMin) * 100;
-            const wc = getWeightColor(d.weight);
+            const wc = getWeightColor(d.weight, d.vehicle_capacity);
             const top = lane * 32 + 4;
             const cargoShort = d.cargo_description ? ` [${d.cargo_description}]` : '';
 
@@ -830,6 +839,7 @@ function printDispatchTable() {
 function startGanttDrag(e, dispatchId, vehicleId) {
     if (e.target.classList.contains('gantt-bar-resize')) return;
     e.preventDefault();
+    cancelBgSync(); // ドラッグ中のバックグラウンド同期を防止
     const bar = e.target.closest('.gantt-bar');
     const timeline = bar.closest('.gantt-timeline');
     const origStart = bar.dataset.start;
@@ -1026,11 +1036,10 @@ async function onGanttDragEnd(e) {
                 });
                 return;
             }
-            // 成功: キャッシュを更新して静かに同期
+            // 成功: キャッシュを更新して静かに同期（デバウンス: 最後のD&Dから5秒後に1回だけ）
             invalidateCache('/dispatches');
             invalidateCache('_lastDispatches');
-            // キャッシュのみ更新（DOMは既に正しい位置）、5秒後にバックグラウンド同期
-            setTimeout(() => loadDispatchCalendar(), 5000);
+            scheduleBgSync(5);
         }).catch(e => {
             alert('配車の更新に失敗しました: ' + e.message);
             loadDispatchCalendar();
@@ -1041,6 +1050,7 @@ async function onGanttDragEnd(e) {
 // ===== 未配車案件ドラッグ＆ドロップ =====
 function startShipmentDrag(e, shipmentId, clientName, pickup, delivery, dayStr) {
     e.preventDefault();
+    cancelBgSync(); // ドラッグ中のバックグラウンド同期を防止
     shipmentDragState = {
         shipmentId, clientName, pickup, delivery, dayStr,
         startX: e.clientX, startY: e.clientY,
@@ -1371,16 +1381,17 @@ function getDispatchColor(status) {
 }
 
 // 重量に応じた色を返す（重いほど濃い青）
-function getWeightColor(weight) {
-    if (!weight || weight <= 0) return { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' }; // 極薄青
-    // 0~15000kgの範囲で5段階
-    const level = Math.min(Math.floor(weight / 3000), 4);
+function getWeightColor(weight, vehicleCapacity) {
+    if (!weight || weight <= 0 || !vehicleCapacity || vehicleCapacity <= 0) return { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' }; // 未設定: 極薄青
+    // 積載率(%)で5段階
+    const pct = (weight / (vehicleCapacity * 1000)) * 100;
+    const level = pct > 100 ? 4 : pct >= 80 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : pct >= 20 ? 1 : 0;
     const colors = [
-        { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' },  // ~3t: 極薄青
-        { bg: '#dbeafe', border: '#60a5fa', text: '#1e40af' },  // ~6t: 薄青
-        { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a' },  // ~9t: 中青
-        { bg: '#93c5fd', border: '#2563eb', text: '#1e3a8a' },  // ~12t: 濃青
-        { bg: '#60a5fa', border: '#1d4ed8', text: '#fff' },     // 12t~: 最濃
+        { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' },  // ~20%: 極薄青
+        { bg: '#dbeafe', border: '#60a5fa', text: '#1e40af' },  // ~40%: 薄青
+        { bg: '#bfdbfe', border: '#3b82f6', text: '#1e3a8a' },  // ~60%: 中青
+        { bg: '#93c5fd', border: '#2563eb', text: '#1e3a8a' },  // ~80%: 濃青
+        { bg: '#60a5fa', border: '#1d4ed8', text: '#fff' },     // 80%~: 最濃
     ];
     return colors[level];
 }
