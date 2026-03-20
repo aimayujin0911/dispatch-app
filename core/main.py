@@ -187,25 +187,31 @@ def seed_on_startup():
         except Exception:
             db.rollback()
         # 既存ドライバーに対応するUserが無ければ自動作成（Driver⇔User統合）
-        from models import Driver
-        orphan_drivers = db.query(Driver).filter(
-            ~Driver.id.in_(
-                db.query(User.driver_id).filter(User.driver_id != None)
+        try:
+            from models import Driver
+            linked_driver_ids = set(
+                r[0] for r in db.query(User.driver_id).filter(User.driver_id != None).all()
             )
-        ).all()
-        if orphan_drivers:
-            for drv in orphan_drivers:
-                u = User(
-                    name=drv.name,
-                    role="driver",
-                    tenant_id=drv.tenant_id or "demo",
-                    branch_id=drv.branch_id,
-                    driver_id=drv.id,
-                    password_hash="",  # ログイン不可（ユーザー管理で後から設定）
-                )
-                db.add(u)
-            db.commit()
-            logger.info(f"Created User records for {len(orphan_drivers)} orphan drivers")
+            all_drivers = db.query(Driver).all()
+            created = 0
+            for drv in all_drivers:
+                if drv.id not in linked_driver_ids:
+                    u = User(
+                        name=drv.name,
+                        role="driver",
+                        tenant_id=drv.tenant_id or "demo",
+                        branch_id=None,  # 外部キー制約回避
+                        driver_id=drv.id,
+                        password_hash="",
+                    )
+                    db.add(u)
+                    created += 1
+            if created:
+                db.commit()
+                logger.info(f"Created User records for {created} orphan drivers")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Driver-User sync failed: {e}")
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")
