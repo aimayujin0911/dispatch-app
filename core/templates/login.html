@@ -622,13 +622,9 @@
                         throw new Error('invalid');
                     })
                     .then(function(user) {
-                        // トークン有効 → リダイレクト
+                        // トークン有効 → 常にリダイレクト（ログイン前にテナントモーダルを出さない）
                         localStorage.setItem('user', JSON.stringify(user));
-                        if (user.can_switch_tenant && user.accessible_tenants && user.accessible_tenants.length > 1) {
-                            showTenantModalWithList(user.accessible_tenants);
-                        } else {
-                            redirectToTenant();
-                        }
+                        redirectToTenant();
                     })
                     .catch(function() {
                         // トークン無効 → クリアしてログインフォーム表示

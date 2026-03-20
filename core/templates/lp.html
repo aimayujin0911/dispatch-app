@@ -153,7 +153,7 @@
                 </p>
                 <div class="hero-cta">
                     <a href="#contact" class="btn-cta btn-cta-large">無料相談する →</a>
-                    <span class="sub-text">初期費用0円・最短2週間で導入</span>
+                    <span class="sub-text">初期費用0円・月々5万円〜・最短2週間で導入</span>
                 </div>
             </div>
             <div class="hero-img">
@@ -194,8 +194,8 @@
                 </div>
                 <div class="usp-card">
                     <div class="icon">💰</div>
-                    <h3>初期費用0円</h3>
-                    <p>大規模な初期投資は不要。月額利用料のみのシンプルな料金体系。まずは無料トライアルで、御社の業務に合うか確認できます。</p>
+                    <h3>初期費用0円・月々5万円</h3>
+                    <p>大規模な初期投資は不要。月額5万円のシンプルな料金体系。まずは無料トライアルで、御社の業務に合うか確認できます。</p>
                 </div>
             </div>
         </div>
@@ -375,13 +375,38 @@
     <section class="final-cta" id="contact">
         <h2>まずは無料でご相談ください。</h2>
         <p>御社の配車業務をお聞きした上で、最適なシステム構成をご提案します。</p>
-        <a href="mailto:info@unsoubako.com" class="btn-cta btn-cta-large">無料相談する →</a>
-        <p style="margin-top:16px;font-size:0.85rem;opacity:0.7">メールでのお問い合わせ: info@unsoubako.com</p>
+        <div style="max-width:500px;margin:32px auto 0;background:#fff;border-radius:16px;padding:32px;text-align:left;">
+            <form id="contact-form" onsubmit="return submitContact(event)">
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">会社名</label>
+                    <input type="text" id="cf-company" placeholder="株式会社〇〇" required style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;color:#1e293b;outline:none">
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">お名前</label>
+                    <input type="text" id="cf-name" placeholder="山田 太郎" required style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;color:#1e293b;outline:none">
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">メールアドレス</label>
+                    <input type="email" id="cf-email" placeholder="example@company.com" required style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;color:#1e293b;outline:none">
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">電話番号</label>
+                    <input type="tel" id="cf-phone" placeholder="03-0000-0000" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;color:#1e293b;outline:none">
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">ご相談内容</label>
+                    <textarea id="cf-message" rows="4" placeholder="配車管理の課題やご要望をお聞かせください" style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;color:#1e293b;outline:none;resize:vertical;font-family:inherit"></textarea>
+                </div>
+                <button type="submit" id="cf-submit" style="width:100%;padding:14px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">無料相談を申し込む</button>
+                <div id="cf-result" style="display:none;margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:14px"></div>
+            </form>
+        </div>
     </section>
 
     <!-- フッター -->
     <footer>
         <p>© 2026 ハコプロfor</p>
+        <p style="margin-top:8px;font-size:0.8rem;color:#a8a29e">運営: 株式会社Li-Go</p>
         <p style="margin-top:8px"><a href="/login">管理画面ログイン</a></p>
     </footer>
 
@@ -404,6 +429,56 @@
             if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
+    </script>
+    <script>
+    function submitContact(e) {
+        e.preventDefault();
+        var btn = document.getElementById('cf-submit');
+        var result = document.getElementById('cf-result');
+        btn.disabled = true;
+        btn.textContent = '送信中...';
+        result.style.display = 'none';
+
+        var data = {
+            company: document.getElementById('cf-company').value.trim(),
+            name: document.getElementById('cf-name').value.trim(),
+            email: document.getElementById('cf-email').value.trim(),
+            phone: document.getElementById('cf-phone').value.trim(),
+            message: document.getElementById('cf-message').value.trim()
+        };
+
+        fetch('/api/inquiries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(function(res) { return res.json().then(function(d) { return {ok: res.ok, data: d}; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '無料相談を申し込む';
+            if (res.ok) {
+                result.style.display = 'block';
+                result.style.background = '#f0fdf4';
+                result.style.color = '#166534';
+                result.textContent = 'お問い合わせありがとうございます。担当者よりご連絡いたします。';
+                document.getElementById('contact-form').reset();
+            } else {
+                result.style.display = 'block';
+                result.style.background = '#fef2f2';
+                result.style.color = '#dc2626';
+                result.textContent = '送信に失敗しました。時間をおいて再度お試しください。';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = '無料相談を申し込む';
+            result.style.display = 'block';
+            result.style.background = '#fef2f2';
+            result.style.color = '#dc2626';
+            result.textContent = '送信に失敗しました。時間をおいて再度お試しください。';
+        });
+        return false;
+    }
     </script>
 </body>
 </html>

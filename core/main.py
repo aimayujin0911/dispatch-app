@@ -17,7 +17,7 @@ from database import engine, Base
 from routers import (auth as auth_router, vehicles, drivers, shipments, dispatches, reports, dashboard,
                      clients, partners, partner_invoices, transport_requests,
                      vehicle_notifications, attendance, accounting, export, company_settings,
-                     vendors, feedback)
+                     vendors, feedback, inquiries)
 
 Base.metadata.create_all(bind=engine)
 
@@ -193,6 +193,7 @@ app.include_router(export.router, prefix="/api/export", tags=["export"])
 app.include_router(company_settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(vendors.router, prefix="/api/vendors", tags=["vendors"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
+app.include_router(inquiries.router, prefix="/api/inquiries", tags=["inquiries"])
 
 
 @app.get("/login", response_class=HTMLResponse)

@@ -431,3 +431,17 @@ class DailyReport(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     driver = relationship("Driver", back_populates="daily_reports")
+
+
+class Inquiry(Base):
+    """問い合わせ"""
+    __tablename__ = "inquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company = Column(String(100), default="")
+    name = Column(String(50), nullable=False)
+    email = Column(String(100), nullable=False)
+    phone = Column(String(20), default="")
+    message = Column(Text, default="")
+    status = Column(String(20), default="未対応")  # 未対応/対応中/対応済み
+    created_at = Column(DateTime, default=datetime.now)
