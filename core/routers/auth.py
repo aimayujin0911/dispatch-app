@@ -169,7 +169,11 @@ def list_users(
     """ユーザー一覧（管理者/オペレーターのみ）"""
     if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
-    users = db.query(User).order_by(User.id).all()
+    # テナントでフィルタ（current_user.tenant_idはJWTのactive_tenantで上書き済み）
+    q = db.query(User)
+    if current_user.tenant_id:
+        q = q.filter(User.tenant_id == current_user.tenant_id)
+    users = q.order_by(User.id).all()
     result = []
     for u in users:
         result.append({
@@ -259,7 +263,10 @@ def update_user(
     """ユーザー編集（管理者のみ）"""
     if current_user.role not in ("admin", "operator"):
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
-    user = db.query(User).filter(User.id == user_id).first()
+    q = db.query(User).filter(User.id == user_id)
+    if current_user.tenant_id:
+        q = q.filter(User.tenant_id == current_user.tenant_id)
+    user = q.first()
     if not user:
         raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
     if req.name is not None: user.name = req.name
@@ -290,7 +297,10 @@ def delete_user(
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="自分自身は削除できません")
-    user = db.query(User).filter(User.id == user_id).first()
+    q = db.query(User).filter(User.id == user_id)
+    if current_user.tenant_id:
+        q = q.filter(User.tenant_id == current_user.tenant_id)
+    user = q.first()
     if not user:
         raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
     db.delete(user)

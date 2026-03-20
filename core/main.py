@@ -156,6 +156,24 @@ def seed_on_startup():
                 existing_op.password_hash = hash_password("Ligo0106")
                 db.commit()
                 logger.info(f"Updated existing user to operator: {op_email}")
+        # デモデータのtenant_idが空のレコードを "demo" に修正
+        demo_tables = ["drivers", "vehicles", "shipments", "clients"]
+        for tbl in demo_tables:
+            try:
+                db.execute(text(
+                    f"UPDATE {tbl} SET tenant_id = 'demo' WHERE tenant_id IS NULL OR tenant_id = ''"
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
+        # Userも同様（operatorと空テナント以外）
+        try:
+            db.execute(text(
+                "UPDATE users SET tenant_id = 'demo' WHERE (tenant_id IS NULL OR tenant_id = '') AND role != 'operator'"
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")
