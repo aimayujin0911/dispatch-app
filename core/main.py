@@ -173,8 +173,11 @@ async def landing_page(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     host = request.headers.get("host", "")
-    # ルートドメイン or www → LP表示
-    if host in ("unsoubako.com", "www.unsoubako.com"):
+    # サブドメインがある場合はメインアプリ表示
+    # 例: demo.unsoubako.com → アプリ、unsoubako.com → LP
+    # テスト環境: dispatch-app-dev.onrender.com → LP（サブドメインなし）
+    lp_hosts = ("unsoubako.com", "www.unsoubako.com", "dispatch-app-dev.onrender.com")
+    if host in lp_hosts:
         return templates.TemplateResponse("lp.html", {"request": request})
     return templates.TemplateResponse("index.html", {"request": request})
 
