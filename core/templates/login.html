@@ -603,6 +603,14 @@
                     });
             });
 
+            // ---- ログアウト経由の場合、ルートドメインのlocalStorageもクリア ----
+            if (new URLSearchParams(location.search).get('logout') === '1') {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('user_info');
+                history.replaceState(null, '', '/login');
+            }
+
             // ---- Redirect if already logged in (トークン検証してからリダイレクト) ----
             (function() {
                 var token = localStorage.getItem('access_token');

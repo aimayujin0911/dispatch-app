@@ -95,14 +95,15 @@ function authHeaders() {
     if (token) h['Authorization'] = `Bearer ${token}`;
     return h;
 }
-function getLoginUrl() {
+function getLoginUrl(isLogout) {
     // ルートドメインの /login を返す（サブドメインにログインページを置かない）
     var h = location.hostname;
     var ds = ['hakoprofor.jp', 'unsoubako.com'];
+    var suffix = isLogout ? '?logout=1' : '';
     for (var i = 0; i < ds.length; i++) {
-        if (h === ds[i] || h.endsWith('.' + ds[i])) return 'https://' + ds[i] + '/login';
+        if (h === ds[i] || h.endsWith('.' + ds[i])) return 'https://' + ds[i] + '/login' + suffix;
     }
-    return '/login'; // ローカル開発 or onrender.com
+    return '/login' + suffix;
 }
 function checkAuth() {
     if (!getToken()) { location.href = getLoginUrl(); return false; }
@@ -114,7 +115,7 @@ function checkAuth() {
 function logout() {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_info');
-    location.href = getLoginUrl();
+    location.href = getLoginUrl(true);
 }
 async function loadUserInfo() {
     try {
@@ -148,7 +149,6 @@ async function loadUserInfo() {
             const roleLabels = {admin:'管理者',manager:'拠点管理者',dispatcher:'配車担当',operator:'運営管理者'};
             html += `<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85)">${roleLabels[user.role]||user.role}</span> `;
             html += `${user.name} `;
-            html += `<button onclick="logout()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer">ログアウト</button>`;
             userEl.innerHTML = html;
         }
         // ロールに基づいてサイドバーのサブアプリリンクを制御

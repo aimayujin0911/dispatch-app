@@ -44,7 +44,7 @@
     <a href="/app/users">👥 ユーザー</a>
     <a href="/m/attendance">📱 ドライバー</a>
     <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:auto">📬 開発への依頼</button>
-    <button onclick="localStorage.removeItem('access_token');localStorage.removeItem('user');var h=location.hostname,ds=['hakoprofor.jp','unsoubako.com'],u='/login';for(var i=0;i<ds.length;i++){if(h===ds[i]||h.endsWith('.'+ds[i])){u='https://'+ds[i]+'/login';break;}}location.href=u" style="background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:8px">🚪 ログアウト</button>
+    <button onclick="localStorage.removeItem('access_token');localStorage.removeItem('user');var h=location.hostname,ds=['hakoprofor.jp','unsoubako.com'],u='/login?logout=1';for(var i=0;i<ds.length;i++){if(h===ds[i]||h.endsWith('.'+ds[i])){u='https://'+ds[i]+'/login?logout=1';break;}}location.href=u" style="background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;margin-left:8px">🚪 ログアウト</button>
 </nav>
 <div class="container">
     <h1>会社情報・設定</h1>
