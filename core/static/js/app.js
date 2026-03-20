@@ -97,6 +97,9 @@ function authHeaders() {
 }
 function checkAuth() {
     if (!getToken()) { location.href = '/login'; return false; }
+    // ドライバーはドライバーアプリのみアクセス可
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    if (u.role === 'driver') { location.href = '/m/attendance'; return false; }
     return true;
 }
 function logout() {

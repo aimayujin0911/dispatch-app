@@ -392,6 +392,8 @@
 (function(){
     const token = localStorage.getItem('access_token');
     if (!token) { location.href = '/login'; return; }
+    const _u = JSON.parse(localStorage.getItem('user') || '{}');
+    if (_u.role === 'driver') { location.href = '/m/attendance'; return; }
 })();
 
 function _authH() { const h = {'Content-Type':'application/json'}; const t = localStorage.getItem('access_token'); if(t) h['Authorization']='Bearer '+t; return h; }

@@ -375,6 +375,11 @@
 
             function redirectToTenant() {
                 var user = JSON.parse(localStorage.getItem('user') || '{}');
+                // ドライバーはドライバーアプリに直接リダイレクト
+                if (user.role === 'driver') {
+                    window.location.href = '/m/attendance';
+                    return;
+                }
                 var tid = user.tenant_id || '';
                 var token = localStorage.getItem('access_token') || '';
                 var host = location.hostname;

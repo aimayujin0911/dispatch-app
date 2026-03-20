@@ -90,6 +90,8 @@
     // 認証
     const token = localStorage.getItem('access_token');
     if (!token) location.href = '/login';
+    const _u = JSON.parse(localStorage.getItem('user') || '{}');
+    if (_u.role === 'driver') { location.href = '/m/attendance'; return; }
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (user.role !== 'admin') { alert('管理者のみアクセスできます'); location.href = '/'; }
 
