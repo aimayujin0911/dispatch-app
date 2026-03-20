@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from database import get_db
-from models import User, Branch
+from models import User, Branch, Driver
 from auth import hash_password, verify_password, create_access_token, get_current_user
 
 router = APIRouter()
@@ -175,6 +175,18 @@ def create_user(
         existing = db.query(User).filter(User.login_id == req.login_id).first()
         if existing:
             raise HTTPException(status_code=400, detail="このログインIDは既に使用されています")
+    # ドライバーロールの場合、Driverレコードも自動作成（driver_id未指定時）
+    driver_id = req.driver_id
+    if req.role == "driver" and not driver_id:
+        driver = Driver(
+            name=req.name,
+            tenant_id=current_user.tenant_id,
+            branch_id=req.branch_id,
+        )
+        db.add(driver)
+        db.flush()
+        driver_id = driver.id
+
     user = User(
         name=req.name,
         email=req.email or None,
@@ -182,7 +194,7 @@ def create_user(
         password_hash=hash_password(req.password),
         role=req.role,
         branch_id=req.branch_id,
-        driver_id=req.driver_id,
+        driver_id=driver_id,
         tenant_id=current_user.tenant_id,
     )
     db.add(user)
@@ -223,6 +235,11 @@ def update_user(
     if req.branch_id is not None: user.branch_id = req.branch_id
     if req.driver_id is not None: user.driver_id = req.driver_id
     if req.is_active is not None: user.is_active = req.is_active
+    # 紐付いたDriverの名前も同期
+    if req.name is not None and user.driver_id:
+        linked_driver = db.query(Driver).filter(Driver.id == user.driver_id).first()
+        if linked_driver:
+            linked_driver.name = req.name
     db.commit()
     return {"message": "更新しました"}
 

@@ -3,16 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
-import hashlib
 from database import get_db
 from models import Driver, User
-from core.auth import get_current_user
+from auth import get_current_user, hash_password
 
 router = APIRouter()
-
-
-def hash_password(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest() if pw else ""
 
 
 class DriverCreate(BaseModel):
@@ -53,8 +48,12 @@ class DriverLogin(BaseModel):
 @router.get("")
 def list_drivers(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     drivers = db.query(Driver).filter(Driver.tenant_id == current_user.tenant_id).order_by(Driver.id).all()
+    # 紐付いたUser情報をまとめて取得
+    driver_ids = [d.id for d in drivers]
+    linked_users = {u.driver_id: u for u in db.query(User).filter(User.driver_id.in_(driver_ids)).all()} if driver_ids else {}
     result = []
     for d in drivers:
+        linked = linked_users.get(d.id)
         result.append({
             "id": d.id, "name": d.name, "phone": d.phone,
             "email": d.email or "",
@@ -65,7 +64,9 @@ def list_drivers(db: Session = Depends(get_db), current_user: User = Depends(get
             "paid_leave_balance": getattr(d, 'paid_leave_balance', 10.0) or 10.0,
             "work_start": getattr(d, 'work_start', '08:00') or '08:00',
             "work_end": getattr(d, 'work_end', '17:00') or '17:00',
-            "has_login": bool(d.email and d.password_hash),
+            "has_login": bool(linked and linked.login_id and linked.password_hash),
+            "login_id": linked.login_id or "" if linked else "",
+            "user_id": linked.id if linked else None,
             "notes": d.notes,
         })
     return result
@@ -96,9 +97,22 @@ def create_driver(data: DriverCreate, db: Session = Depends(get_db), current_use
     driver_data = data.model_dump(exclude={"password"})
     driver = Driver(**driver_data)
     driver.tenant_id = current_user.tenant_id
+    driver.branch_id = current_user.branch_id
     if data.password:
         driver.password_hash = hash_password(data.password)
     db.add(driver)
+    db.flush()  # IDを確定
+
+    # ログイン用Userも自動作成（パスワード/ログインID未設定=ログイン不可）
+    user = User(
+        name=driver.name,
+        role="driver",
+        tenant_id=current_user.tenant_id,
+        branch_id=current_user.branch_id,
+        driver_id=driver.id,
+        password_hash="",  # 空=ログイン不可、後からユーザー管理で設定
+    )
+    db.add(user)
     db.commit()
     db.refresh(driver)
     return {"id": driver.id, "name": driver.name}
@@ -115,6 +129,11 @@ def update_driver(driver_id: int, data: DriverUpdate, db: Session = Depends(get_
         setattr(driver, key, value)
     if password:
         driver.password_hash = hash_password(password)
+    # 紐付いたUserの名前も同期
+    if "name" in update_data:
+        linked_user = db.query(User).filter(User.driver_id == driver_id).first()
+        if linked_user:
+            linked_user.name = update_data["name"]
     db.commit()
     db.refresh(driver)
     return {"ok": True}
