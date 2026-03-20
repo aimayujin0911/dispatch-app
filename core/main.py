@@ -156,6 +156,18 @@ def seed_on_startup():
                 existing_op.password_hash = hash_password("Ligo0106")
                 db.commit()
                 logger.info(f"Updated existing user to operator: {op_email}")
+        # パフォーマンス: 複合インデックス追加（既存DBに対応）
+        perf_indexes = [
+            "CREATE INDEX IF NOT EXISTS ix_dispatches_tenant_date ON dispatches(tenant_id, date)",
+            "CREATE INDEX IF NOT EXISTS ix_shipments_tenant_status ON shipments(tenant_id, status)",
+            "CREATE INDEX IF NOT EXISTS ix_shipments_tenant_delivery ON shipments(tenant_id, delivery_date)",
+        ]
+        for idx_sql in perf_indexes:
+            try:
+                db.execute(text(idx_sql))
+                db.commit()
+            except Exception:
+                db.rollback()
         # デモデータのtenant_idが空のレコードを "demo" に修正
         demo_tables = ["drivers", "vehicles", "shipments", "clients", "dispatches"]
         for tbl in demo_tables:

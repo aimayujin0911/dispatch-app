@@ -84,9 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         toggleSidebar();
     });
 
-    // ユーザー情報読み込み
-    await loadUserInfo();
-
+    // ユーザー情報とダッシュボードを並列読み込み
+    loadUserInfo();
     loadDashboard();
 });
 
@@ -986,6 +985,7 @@ async function onGanttDragEnd(e) {
             const thisDispatch = allDispatches.find(x => x.id === id);
             if (thisDispatch && thisDispatch.shipment_id) {
                 const allShipments = await cachedApiGet('/shipments');
+                const shipment = allShipments.find(s => s.id === thisDispatch.shipment_id);
                 if (shipment && shipment.pickup_time && shipment.delivery_time) {
                     if (!await showConfirm(`この案件には元々の指定時間（${shipment.pickup_time}〜${shipment.delivery_time}）がありますが変更しますか？`)) {
                         loadDispatchCalendar();
@@ -994,25 +994,47 @@ async function onGanttDragEnd(e) {
                 }
             }
         }
+
+        // オプティミスティック更新: DOM直接操作で即座に反映
+        if (bar) {
+            if (timeChanged) {
+                const totalMin = HOUR_COUNT * 60;
+                const newL = ((timeToMinutes(newStart) - HOUR_START * 60) / totalMin) * 100;
+                const newW = ((timeToMinutes(newEnd) - timeToMinutes(newStart)) / totalMin) * 100;
+                bar.style.left = newL + '%';
+                bar.style.width = Math.max(newW, 0.5) + '%';
+            }
+            if (vehicleChanged) {
+                const newTimeline = document.querySelector(`.gantt-timeline[data-vehicle-id="${targetVehicleId}"]`);
+                if (newTimeline) newTimeline.appendChild(bar);
+            }
+        }
+
+        // バックグラウンドでAPI送信 → 完了後にデータ同期
         const update = {};
         if (vehicleChanged) update.vehicle_id = targetVehicleId;
         if (timeChanged) { update.start_time = newStart; update.end_time = newEnd; }
-        try {
-            const resp = await fetch(API + `/dispatches/${id}`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify(update)
-            });
+        fetch(API + `/dispatches/${id}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify(update)
+        }).then(resp => {
             if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                alert('配車の更新に失敗しました: ' + (err.detail || resp.statusText));
+                resp.json().catch(() => ({})).then(err => {
+                    alert('配車の更新に失敗しました: ' + (err.detail || resp.statusText));
+                    loadDispatchCalendar(); // エラー時はフルリロードで復元
+                });
+                return;
             }
-        } catch (e) {
+            // 成功: キャッシュを更新して静かに同期
+            invalidateCache('/dispatches');
+            invalidateCache('_lastDispatches');
+            // キャッシュのみ更新（DOMは既に正しい位置）、5秒後にバックグラウンド同期
+            setTimeout(() => loadDispatchCalendar(), 5000);
+        }).catch(e => {
             alert('配車の更新に失敗しました: ' + e.message);
-        }
-        invalidateCache('/dispatches');
-        invalidateCache('_lastDispatches');
-        loadDispatchCalendar();
+            loadDispatchCalendar();
+        });
     }
 }
 

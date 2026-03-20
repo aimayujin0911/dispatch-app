@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Text, Boolean, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -386,6 +386,10 @@ class Shipment(Base):
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
+    __table_args__ = (
+        Index('ix_shipments_tenant_status', 'tenant_id', 'status'),
+    )
+
     dispatches = relationship("Dispatch", back_populates="shipment")
 
 
@@ -405,6 +409,10 @@ class Dispatch(Base):
     status = Column(String(20), default="予定")
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
+
+    __table_args__ = (
+        Index('ix_dispatches_tenant_date', 'tenant_id', 'date'),
+    )
 
     vehicle = relationship("Vehicle", back_populates="dispatches")
     driver = relationship("Driver", back_populates="dispatches")
