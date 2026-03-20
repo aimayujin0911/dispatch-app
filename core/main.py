@@ -29,10 +29,10 @@ def seed_on_startup():
     """DBが空の場合テストデータ投入、既存DBにはカラム追加"""
     import logging
     logger = logging.getLogger("startup")
-    from database import SessionLocal, DB_PATH
+    from database import SessionLocal, DATABASE_URL
     from models import Vehicle
     from sqlalchemy import text
-    logger.info(f"DB path: {DB_PATH}")
+    logger.info(f"DB URL: {DATABASE_URL[:30]}...")
     db = SessionLocal()
     try:
         count = db.query(Vehicle).count()
