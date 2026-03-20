@@ -27,6 +27,9 @@
         .hero h1 .accent { color: #ea580c; }
         .hero .subtitle { font-size: 1.15rem; color: #475569; margin-bottom: 12px; }
         .hero .hero-badge { display: inline-block; background: #ea580c; color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; }
+        .hero-price { display: inline-flex; align-items: baseline; gap: 4px; background: linear-gradient(135deg, #ea580c, #c2410c); color: #fff; padding: 10px 24px; border-radius: 12px; margin-top: 16px; margin-bottom: 8px; }
+        .hero-price .price-main { font-size: 2.4rem; font-weight: 900; letter-spacing: -1px; }
+        .hero-price .price-unit { font-size: 1rem; font-weight: 600; }
         .hero-cta { display: flex; gap: 16px; margin-top: 32px; align-items: center; }
         .hero-cta .sub-text { font-size: 0.85rem; color: #64748b; }
         .hero-img { position: relative; }
@@ -130,6 +133,7 @@
         <div class="nav-links">
             <a href="#features">機能</a>
             <a href="#customize">カスタマイズ</a>
+            <a href="#pricing">料金</a>
             <a href="#flow">導入の流れ</a>
             <a href="#contact" class="btn-cta">お問い合わせ</a>
             <a href="/login" style="background:#0f172a;color:#fff;padding:8px 18px;border-radius:8px;font-size:0.85rem;font-weight:600;text-decoration:none">ログイン</a>
@@ -151,9 +155,16 @@
                     御社の業務フローに合わせて、徹底的にカスタマイズ。<br>
                     「一番使いやすい形」になるまで伴走します。
                 </p>
+                <div class="hero-price">
+                    <span style="font-size:0.85rem;font-weight:600;margin-right:4px">初期費用0円</span>
+                    <span style="font-size:1.1rem;opacity:0.7">｜</span>
+                    <span style="font-size:0.85rem;font-weight:500;margin-right:2px">月額</span>
+                    <span class="price-main">5万円</span>
+                    <span class="price-unit">〜</span>
+                </div>
                 <div class="hero-cta">
                     <a href="#contact" class="btn-cta btn-cta-large">無料相談する →</a>
-                    <span class="sub-text">初期費用0円・月々5万円〜・最短2週間で導入</span>
+                    <span class="sub-text">最短2週間で導入・カスタマイズ込み</span>
                 </div>
             </div>
             <div class="hero-img">
@@ -371,10 +382,42 @@
         </div>
     </section>
 
+    <!-- 料金 -->
+    <section style="background:#fff;padding:80px 40px;text-align:center" id="pricing">
+        <div class="section-inner">
+            <div class="section-label">Pricing</div>
+            <div class="section-title">シンプルな料金体系</div>
+            <p class="section-desc" style="margin:0 auto 40px">複雑な料金プランはありません。必要な機能はすべて含まれています。</p>
+            <div class="fade-in" style="max-width:520px;margin:0 auto;background:linear-gradient(160deg,#fff7ed,#ffedd5);border:2px solid #fb923c;border-radius:24px;padding:48px 40px;position:relative;overflow:hidden">
+                <div style="position:absolute;top:0;right:0;background:#ea580c;color:#fff;padding:6px 24px 6px 20px;font-size:0.8rem;font-weight:700;border-radius:0 0 0 16px">おすすめ</div>
+                <div style="font-size:0.95rem;font-weight:600;color:#475569;margin-bottom:8px">月額プラン</div>
+                <div style="display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:4px">
+                    <span style="font-size:1.1rem;color:#64748b;text-decoration:line-through;margin-right:8px">初期費用0円</span>
+                </div>
+                <div style="display:flex;align-items:baseline;justify-content:center;gap:2px;margin-bottom:16px">
+                    <span style="font-size:1.2rem;font-weight:600;color:#475569">月額</span>
+                    <span style="font-size:4rem;font-weight:900;color:#ea580c;letter-spacing:-2px;line-height:1">5</span>
+                    <span style="font-size:1.8rem;font-weight:800;color:#ea580c">万円</span>
+                    <span style="font-size:1.1rem;color:#64748b;margin-left:2px">〜（税別）</span>
+                </div>
+                <div style="font-size:0.85rem;color:#64748b;margin-bottom:24px">カスタマイズ・サポート・改善対応すべて込み</div>
+                <div style="display:grid;gap:10px;text-align:left;max-width:320px;margin:0 auto 28px">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> 御社専用カスタマイズ</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> 全機能利用可能</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> ドライバーアプリ無制限</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> 月次改善ミーティング</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> 電話・チャットサポート</div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem"><span style="color:#22c55e;font-weight:700">✓</span> データ移行サポート</div>
+                </div>
+                <a href="#contact" class="btn-cta btn-cta-large" style="width:100%;text-align:center">まずは無料相談 →</a>
+            </div>
+        </div>
+    </section>
+
     <!-- CTA -->
     <section class="final-cta" id="contact">
-        <h2>まずは無料でご相談ください。</h2>
-        <p>御社の配車業務をお聞きした上で、最適なシステム構成をご提案します。</p>
+        <h2>初期費用0円・月額5万円〜で始められます。</h2>
+        <p>御社の配車業務をお聞きした上で、最適なシステム構成をご提案します。まずはお気軽にご相談ください。</p>
         <div style="max-width:500px;margin:32px auto 0;background:#fff;border-radius:16px;padding:32px;text-align:left;">
             <form id="contact-form" onsubmit="return submitContact(event)">
                 <div style="margin-bottom:16px">
