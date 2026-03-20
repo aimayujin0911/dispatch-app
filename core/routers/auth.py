@@ -71,6 +71,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+    tenants: List[str] = []  # アクセス可能テナント一覧
 
 
 # ── ヘルパー ──────────────────────────────────────────────
