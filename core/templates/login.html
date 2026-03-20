@@ -377,9 +377,11 @@
                 var user = JSON.parse(localStorage.getItem('user') || '{}');
                 var tid = user.tenant_id || '';
                 var host = location.hostname;
-                if (tid && tid !== 'demo' && host === 'unsoubako.com') {
+                // ルートドメインにいる場合はサブドメインへリダイレクト
+                if (tid && host === 'unsoubako.com') {
                     window.location.href = 'https://' + tid + '.unsoubako.com/';
                 } else {
+                    // サブドメイン上 or ローカル開発 → メインアプリへ
                     window.location.href = '/';
                 }
             }
@@ -387,6 +389,10 @@
             function handleAuthSuccess(data) {
                 if (data.access_token) {
                     localStorage.setItem('access_token', data.access_token);
+                }
+                // ユーザー情報をlocalStorageに保存
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
                 }
 
                 // If multiple branches are available, show selection modal
@@ -492,15 +498,7 @@
 
             // ---- Redirect if already logged in ----
             if (localStorage.getItem('access_token')) {
-                const user = JSON.parse(localStorage.getItem('user') || '{}');
-                const tid = user.tenant_id || '';
-                const host = location.hostname;
-                // テナントIDがあり、まだルートドメインにいる場合はサブドメインへリダイレクト
-                if (tid && tid !== 'demo' && host === 'unsoubako.com') {
-                    window.location.href = 'https://' + tid + '.unsoubako.com/';
-                } else {
-                    window.location.href = '/';
-                }
+                redirectToTenant();
             }
         })();
     </script>
