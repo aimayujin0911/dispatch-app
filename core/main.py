@@ -125,6 +125,7 @@ def seed_on_startup():
             ("dispatches", "partner_id", "INTEGER"),
             # ドライバーログイン対応
             ("users", "login_id", "VARCHAR(50)"),
+            ("users", "driver_id", "INTEGER"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -207,6 +208,8 @@ def seed_on_startup():
             if created:
                 db.commit()
                 logger.info(f"Created User records for {created} orphan drivers")
+            else:
+                logger.info(f"Driver-User sync: no orphan drivers found (linked={len(linked)}, total={len(orphans)})")
         except Exception as e:
             db.rollback()
             logger.error(f"Driver-User sync failed: {e}")
