@@ -102,8 +102,29 @@
                 <div class="label">ユーザー管理</div>
                 <div class="desc">ユーザー・権限・拠点管理</div>
             </a>
+            <a class="app-card" href="/m/attendance" style="border:2px dashed #ea580c;">
+                <div class="icon">📱</div>
+                <div class="label">ドライバーアプリ</div>
+                <div class="desc">勤怠打刻・日報入力</div>
+            </a>
+        </div>
+        <div style="margin-top:16px;padding:12px 16px;background:#fff7ed;border-radius:8px;font-size:0.82rem;color:#9a3412;">
+            💡 <strong>ドライバーアプリURL:</strong>
+            <span id="driver-app-url" style="user-select:all;font-family:monospace;margin-left:4px"></span>
+            <button onclick="copyDriverUrl()" style="margin-left:8px;padding:2px 10px;font-size:0.78rem;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer">コピー</button>
         </div>
     </div>
+<script>
+    const driverUrl = location.origin + '/m/attendance';
+    document.getElementById('driver-app-url').textContent = driverUrl;
+    function copyDriverUrl() {
+        navigator.clipboard.writeText(driverUrl).then(() => {
+            const btn = event.target;
+            btn.textContent = '✅ コピー済み';
+            setTimeout(() => { btn.textContent = 'コピー'; }, 2000);
+        });
+    }
+</script>
 <!-- フィードバックモーダル -->
 <div id="feedbackOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
