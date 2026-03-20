@@ -186,6 +186,26 @@ def seed_on_startup():
             db.commit()
         except Exception:
             db.rollback()
+        # 既存ドライバーに対応するUserが無ければ自動作成（Driver⇔User統合）
+        from models import Driver
+        orphan_drivers = db.query(Driver).filter(
+            ~Driver.id.in_(
+                db.query(User.driver_id).filter(User.driver_id != None)
+            )
+        ).all()
+        if orphan_drivers:
+            for drv in orphan_drivers:
+                u = User(
+                    name=drv.name,
+                    role="driver",
+                    tenant_id=drv.tenant_id or "demo",
+                    branch_id=drv.branch_id,
+                    driver_id=drv.id,
+                    password_hash="",  # ログイン不可（ユーザー管理で後から設定）
+                )
+                db.add(u)
+            db.commit()
+            logger.info(f"Created User records for {len(orphan_drivers)} orphan drivers")
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")

@@ -16,7 +16,7 @@ from models import User
 # ---------------------------------------------------------------------------
 SECRET_KEY = os.environ.get("JWT_SECRET", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE = 60  # minutes
+ACCESS_TOKEN_EXPIRE = 60 * 24 * 30  # 30日間（ログアウトしない限りセッション維持）
 
 
 # ---------------------------------------------------------------------------

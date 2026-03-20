@@ -173,6 +173,8 @@ def list_users(
     q = db.query(User)
     if current_user.tenant_id:
         q = q.filter(User.tenant_id == current_user.tenant_id)
+    # 運営管理者（operator）はテナントユーザーに見せない
+    q = q.filter(User.role != "operator")
     users = q.order_by(User.id).all()
     result = []
     for u in users:

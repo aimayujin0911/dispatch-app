@@ -115,6 +115,19 @@ def seed():
     db.add_all(drivers)
     db.flush()
 
+    # ドライバーに対応するUserレコードも作成（ユーザー管理で表示されるように）
+    for drv in drivers:
+        driver_user = User(
+            name=drv.name,
+            role="driver",
+            tenant_id="demo",
+            branch_id=branch_honsha.id,
+            driver_id=drv.id,
+            password_hash="",  # ログイン不可（ユーザー管理画面で後から設定）
+        )
+        db.add(driver_user)
+    db.flush()
+
     # 荷主企業（請求先情報付き）
     clients = [
         Client(name="ABC物流", address="東京都大田区南蒲田1-1-1", phone="03-1234-5678", fax="03-1234-5679",
@@ -715,6 +728,19 @@ def seed_transia():
         Driver(name="小林 三郎", phone="090-0003-0003", license_type="中型", status="待機中", tenant_id="transia"),
     ]
     db.add_all(t_drivers)
+    db.flush()
+
+    # トランシアドライバーに対応するUserレコード
+    for drv in t_drivers:
+        drv_user = User(
+            name=drv.name,
+            role="driver",
+            tenant_id="transia",
+            branch_id=t_branch.id,
+            driver_id=drv.id,
+            password_hash="",
+        )
+        db.add(drv_user)
     db.flush()
 
     # トランシア荷主
