@@ -187,44 +187,37 @@ def seed_on_startup():
             db.commit()
         except Exception:
             db.rollback()
+        # usersテーブルのemail NOT NULL制約を解除（モデルはnullable=Trueだが古いDBはNOT NULL）
+        try:
+            db.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+            db.commit()
+            print("[DB fix] users.email NOT NULL constraint dropped", flush=True)
+        except Exception:
+            db.rollback()
         # 既存ドライバーに対応するUserが無ければ自動作成（Driver⇔User統合）
         try:
-            # driver_idカラム存在確認
-            cols = [r[0] for r in db.execute(text(
-                "SELECT column_name FROM information_schema.columns WHERE table_name='users'"
-            )).fetchall()]
-            print(f"[Driver-User sync] users columns: {cols}", flush=True)
-            if 'driver_id' not in cols:
-                print("[Driver-User sync] SKIP: driver_id column not found in users table", flush=True)
-            else:
-                linked = set(
-                    r[0] for r in db.execute(text(
-                        "SELECT driver_id FROM users WHERE driver_id IS NOT NULL"
-                    )).fetchall()
-                )
-                orphans = db.execute(text(
-                    "SELECT id, name, tenant_id FROM drivers"
+            linked = set(
+                r[0] for r in db.execute(text(
+                    "SELECT driver_id FROM users WHERE driver_id IS NOT NULL"
                 )).fetchall()
-                print(f"[Driver-User sync] linked={len(linked)}, total_drivers={len(orphans)}", flush=True)
-                created = 0
-                for did, dname, dtenant in orphans:
-                    if did not in linked:
-                        db.execute(text(
-                            "INSERT INTO users (name, role, tenant_id, driver_id, password_hash, is_active, login_id) "
-                            "VALUES (:name, 'driver', :tid, :did, '', true, :lid)"
-                        ), {"name": dname, "tid": dtenant or "demo", "did": did, "lid": f"driver_{did}"})
-                        created += 1
-                        print(f"[Driver-User sync] Created user for driver {did}: {dname}", flush=True)
-                if created:
-                    db.commit()
-                    print(f"[Driver-User sync] SUCCESS: Created {created} users", flush=True)
-                else:
-                    print(f"[Driver-User sync] No orphan drivers found", flush=True)
+            )
+            orphans = db.execute(text(
+                "SELECT id, name, tenant_id FROM drivers"
+            )).fetchall()
+            created = 0
+            for did, dname, dtenant in orphans:
+                if did not in linked:
+                    db.execute(text(
+                        "INSERT INTO users (name, role, tenant_id, driver_id, password_hash, is_active, login_id) "
+                        "VALUES (:name, 'driver', :tid, :did, '', true, :lid)"
+                    ), {"name": dname, "tid": dtenant or "demo", "did": did, "lid": f"driver_{did}"})
+                    created += 1
+            if created:
+                db.commit()
+                logger.info(f"Created User records for {created} orphan drivers")
         except Exception as e:
             db.rollback()
-            import traceback
-            print(f"[Driver-User sync] FAILED: {e}", flush=True)
-            print(traceback.format_exc(), flush=True)
+            logger.error(f"Driver-User sync failed: {e}")
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")
