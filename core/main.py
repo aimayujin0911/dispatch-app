@@ -210,9 +210,9 @@ def seed_on_startup():
                 for did, dname, dtenant in orphans:
                     if did not in linked:
                         db.execute(text(
-                            "INSERT INTO users (name, email, login_id, role, tenant_id, driver_id, password_hash, is_active) "
-                            "VALUES (:name, NULL, NULL, 'driver', :tid, :did, '', true)"
-                        ), {"name": dname, "tid": dtenant or "demo", "did": did})
+                            "INSERT INTO users (name, role, tenant_id, driver_id, password_hash, is_active, login_id) "
+                            "VALUES (:name, 'driver', :tid, :did, '', true, :lid)"
+                        ), {"name": dname, "tid": dtenant or "demo", "did": did, "lid": f"driver_{did}"})
                         created += 1
                         print(f"[Driver-User sync] Created user for driver {did}: {dname}", flush=True)
                 if created:
