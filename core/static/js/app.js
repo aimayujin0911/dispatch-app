@@ -1000,7 +1000,7 @@ async function onGanttDragEnd(e) {
         try {
             const resp = await fetch(API + `/dispatches/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify(update)
             });
             if (!resp.ok) {
