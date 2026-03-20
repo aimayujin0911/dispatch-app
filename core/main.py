@@ -173,6 +173,9 @@ async def landing_page(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     host = request.headers.get("host", "")
+    # ?app=1 パラメータがあれば認証済みユーザーとしてアプリ表示
+    if request.query_params.get("app") == "1":
+        return templates.TemplateResponse("index.html", {"request": request})
     # サブドメインがある場合はメインアプリ表示
     # 例: demo.unsoubako.com → アプリ、unsoubako.com → LP
     # テスト環境: dispatch-app-dev.onrender.com → LP（サブドメインなし）

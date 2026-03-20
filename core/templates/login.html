@@ -387,8 +387,8 @@
                     var url = 'https://' + tid + '.unsoubako.com/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
                     window.location.href = url;
                 } else {
-                    // 正しいサブドメイン上 or ローカル開発 → メインアプリへ
-                    window.location.href = '/';
+                    // テスト環境(onrender.com) or ローカル開発 → ?app=1でアプリ表示
+                    window.location.href = '/?app=1';
                 }
             }
 
