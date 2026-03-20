@@ -82,7 +82,7 @@
 </head>
 <body>
 <nav class="topnav">
-    <a href="/">🚛 配車管理</a>
+    <a href="/?app=1">🚛 配車管理</a>
     <a href="/app/billing">💰 請求</a>
     <a href="/app/attendance">⏰ 勤怠</a>
     <a href="/app/accounting">📒 会計</a>
@@ -198,7 +198,7 @@
     const token = localStorage.getItem('access_token');
     if (!token) { location.href = '/login'; return; }
     const user = JSON.parse(localStorage.getItem('user_info') || '{}');
-    if (user.role === 'dispatcher') { alert('このページにはアクセス権限がありません'); location.href = '/'; return; }
+    if (user.role === 'dispatcher') { alert('このページにはアクセス権限がありません'); location.href = '/?app=1'; return; }
 })();
 
 // ---- Helpers ----
