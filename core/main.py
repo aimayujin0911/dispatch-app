@@ -123,6 +123,8 @@ def seed_on_startup():
             ("shipments", "unit_quantity", "REAL DEFAULT 0"),
             # 配車の協力会社対応
             ("dispatches", "partner_id", "INTEGER"),
+            # ドライバーログイン対応
+            ("users", "login_id", "VARCHAR(50)"),
         ]
         for table, col, coltype in migrate_cols:
             try:

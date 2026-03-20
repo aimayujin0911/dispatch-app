@@ -24,10 +24,11 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(100), unique=True, nullable=True, index=True)
+    login_id = Column(String(50), unique=True, nullable=True, index=True)  # ドライバー用ログインID（メール不要）
     password_hash = Column(String(200), nullable=False)
     name = Column(String(50), nullable=False)
-    role = Column(String(20), default="dispatcher")  # admin(管理者)/manager(拠点管理者)/dispatcher(拠点配車担当)
+    role = Column(String(20), default="dispatcher")  # admin/manager/dispatcher/driver
     tenant_id = Column(String(50), default="")
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)

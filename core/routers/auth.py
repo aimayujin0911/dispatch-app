@@ -13,16 +13,19 @@ router = APIRouter()
 # ── Pydantic スキーマ ──────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    email: str
+    email: Optional[str] = None
+    login_id: Optional[str] = None
     password: str
 
 
 class CreateUserRequest(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
+    login_id: Optional[str] = None
     password: str
-    role: str = "dispatcher"  # admin/manager/dispatcher
+    role: str = "dispatcher"  # admin/manager/dispatcher/driver
     branch_id: Optional[int] = None
+    driver_id: Optional[int] = None
 
 
 class SwitchBranchRequest(BaseModel):
@@ -46,11 +49,13 @@ class BranchOut(BaseModel):
 class UserOut(BaseModel):
     id: int
     name: str
-    email: str
+    email: Optional[str] = ""
+    login_id: Optional[str] = ""
     role: str
     tenant_id: Optional[str] = ""
     branch_id: Optional[int] = None
     branch_name: Optional[str] = None
+    driver_id: Optional[int] = None
 
 
 class MeResponse(UserOut):
@@ -72,11 +77,13 @@ def _build_user_out(user: User) -> dict:
     return {
         "id": user.id,
         "name": user.name,
-        "email": user.email,
+        "email": user.email or "",
+        "login_id": user.login_id or "",
         "role": user.role,
         "tenant_id": user.tenant_id or "",
         "branch_id": user.branch_id,
         "branch_name": user.branch.name if user.branch else None,
+        "driver_id": user.driver_id,
     }
 
 
@@ -84,9 +91,10 @@ def _login_response(user: User) -> dict:
     """ログイン / 登録後の共通レスポンスを生成"""
     token = create_access_token({
         "sub": str(user.id),
-        "email": user.email,
+        "email": user.email or "",
         "role": user.role,
         "branch_id": user.branch_id,
+        "driver_id": user.driver_id,
     })
     return {
         "access_token": token,
@@ -99,12 +107,21 @@ def _login_response(user: User) -> dict:
 
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    """ログイン"""
-    user = db.query(User).filter(User.email == req.email, User.is_active == True).first()
+    """ログイン（email or login_id）"""
+    user = None
+    if req.email:
+        user = db.query(User).filter(User.email == req.email, User.is_active == True).first()
+    elif req.login_id:
+        user = db.query(User).filter(User.login_id == req.login_id, User.is_active == True).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="メールアドレスまたはログインIDを入力してください",
+        )
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="メールアドレスまたはパスワードが正しくありません",
+            detail="ログイン情報が正しくありません",
         )
     return _login_response(user)
 
@@ -123,10 +140,12 @@ def list_users(
         result.append({
             "id": u.id,
             "name": u.name,
-            "email": u.email,
+            "email": u.email or "",
+            "login_id": u.login_id or "",
             "role": u.role,
             "branch_id": u.branch_id,
             "branch_name": u.branch.name if u.branch else None,
+            "driver_id": u.driver_id,
             "is_active": u.is_active,
             "created_at": str(u.created_at) if u.created_at else None,
         })
@@ -142,30 +161,44 @@ def create_user(
     """ユーザー追加（管理者のみ）"""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="管理者権限が必要です")
-    existing = db.query(User).filter(User.email == req.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="このメールアドレスは既に登録されています")
-    if req.role not in ("admin", "manager", "dispatcher"):
-        raise HTTPException(status_code=400, detail="権限はadmin/manager/dispatcherのいずれかです")
+    if req.role not in ("admin", "manager", "dispatcher", "driver"):
+        raise HTTPException(status_code=400, detail="権限はadmin/manager/dispatcher/driverのいずれかです")
+    # email or login_id のどちらかは必須
+    if not req.email and not req.login_id:
+        raise HTTPException(status_code=400, detail="メールアドレスまたはログインIDのどちらかは必須です")
+    # 重複チェック
+    if req.email:
+        existing = db.query(User).filter(User.email == req.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="このメールアドレスは既に登録されています")
+    if req.login_id:
+        existing = db.query(User).filter(User.login_id == req.login_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="このログインIDは既に使用されています")
     user = User(
         name=req.name,
-        email=req.email,
+        email=req.email or None,
+        login_id=req.login_id or None,
         password_hash=hash_password(req.password),
         role=req.role,
         branch_id=req.branch_id,
+        driver_id=req.driver_id,
+        tenant_id=current_user.tenant_id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role, "branch_name": user.branch.name if user.branch else None}
+    return {"id": user.id, "name": user.name, "email": user.email or "", "login_id": user.login_id or "", "role": user.role, "branch_name": user.branch.name if user.branch else None}
 
 
 class UpdateUserRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+    login_id: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
     branch_id: Optional[int] = None
+    driver_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -183,10 +216,12 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
     if req.name is not None: user.name = req.name
-    if req.email is not None: user.email = req.email
+    if req.email is not None: user.email = req.email or None
+    if req.login_id is not None: user.login_id = req.login_id or None
     if req.password: user.password_hash = hash_password(req.password)
     if req.role is not None: user.role = req.role
     if req.branch_id is not None: user.branch_id = req.branch_id
+    if req.driver_id is not None: user.driver_id = req.driver_id
     if req.is_active is not None: user.is_active = req.is_active
     db.commit()
     return {"message": "更新しました"}

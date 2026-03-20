@@ -26,6 +26,7 @@
         .badge-blue { background: #dbeafe; color: #1d4ed8; }
         .badge-green { background: #dcfce7; color: #16a34a; }
         .badge-gray { background: #f1f5f9; color: #475569; }
+        .badge-orange { background: #fef3c7; color: #92400e; }
         .page-actions { display: flex; gap: 8px; margin-bottom: 16px; }
         /* モーダル */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
@@ -65,7 +66,7 @@
         <div class="card">
             <table>
                 <thead>
-                    <tr><th>名前</th><th>メール</th><th>権限</th><th>拠点</th><th>状態</th><th>操作</th></tr>
+                    <tr><th>名前</th><th>メール / ログインID</th><th>権限</th><th>拠点</th><th>状態</th><th>操作</th></tr>
                 </thead>
                 <tbody id="users-table"></tbody>
             </table>
@@ -96,22 +97,29 @@
     async function apiPut(url, data) { return (await fetch('/api' + url, { method: 'PUT', headers: _authH(), body: JSON.stringify(data) })).json(); }
     async function apiDelete(url) { return (await fetch('/api' + url, { method: 'DELETE', headers: _authH() })).json(); }
 
-    const roleLabels = { admin: '管理者', manager: '拠点管理者', dispatcher: '配車担当' };
+    const roleLabels = { admin: '管理者', manager: '拠点管理者', dispatcher: '配車担当', driver: 'ドライバー' };
+    let driversList = [];
 
     async function loadUsers() {
         const users = await apiGet('/auth/users');
         if (!Array.isArray(users)) return;
-        document.getElementById('users-table').innerHTML = users.map(u => `<tr>
+        // ドライバー一覧も取得
+        driversList = await apiGet('/drivers') || [];
+        document.getElementById('users-table').innerHTML = users.map(u => {
+            const loginInfo = u.email || (u.login_id ? `🆔 ${u.login_id}` : '-');
+            const roleBadge = u.role === 'admin' ? 'blue' : u.role === 'manager' ? 'green' : u.role === 'driver' ? 'orange' : 'gray';
+            return `<tr>
             <td><strong>${u.name}</strong></td>
-            <td>${u.email}</td>
-            <td><span class="badge badge-${u.role === 'admin' ? 'blue' : u.role === 'manager' ? 'green' : 'gray'}">${roleLabels[u.role] || u.role}</span></td>
+            <td>${loginInfo}</td>
+            <td><span class="badge badge-${roleBadge}">${roleLabels[u.role] || u.role}</span></td>
             <td>${u.branch_name || '-'}</td>
             <td>${u.is_active ? '✅ 有効' : '❌ 無効'}</td>
             <td>
                 <button class="btn btn-sm btn-edit" onclick="editUser(${u.id})">編集</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id},'${u.name}')">削除</button>
             </td>
-        </tr>`).join('');
+        </tr>`;
+        }).join('');
     }
 
     function showModal() { document.getElementById('modal-overlay').classList.add('active'); }
@@ -121,16 +129,16 @@
         const isEdit = !!user;
         const branches = await apiGet('/auth/branches');
         document.getElementById('modal-title').textContent = isEdit ? 'ユーザー編集' : 'ユーザー追加';
+        const isDriver = user?.role === 'driver';
         document.getElementById('modal-body').innerHTML = `
             <div class="form-group"><label>名前</label><input type="text" id="f-u-name" value="${user?.name || ''}"></div>
-            <div class="form-group"><label>メールアドレス</label><input type="email" id="f-u-email" value="${user?.email || ''}"></div>
-            <div class="form-group"><label>パスワード${isEdit ? '（変更する場合のみ）' : ''}</label><input type="password" id="f-u-password" placeholder="${isEdit ? '空欄なら変更なし' : ''}"></div>
             <div class="form-row">
                 <div class="form-group"><label>権限</label>
-                    <select id="f-u-role">
+                    <select id="f-u-role" onchange="onRoleChange()">
                         <option value="admin" ${user?.role === 'admin' ? 'selected' : ''}>管理者</option>
                         <option value="manager" ${user?.role === 'manager' ? 'selected' : ''}>拠点管理者</option>
                         <option value="dispatcher" ${!user || user?.role === 'dispatcher' ? 'selected' : ''}>配車担当</option>
+                        <option value="driver" ${user?.role === 'driver' ? 'selected' : ''}>ドライバー</option>
                     </select>
                 </div>
                 <div class="form-group"><label>所属拠点</label>
@@ -140,6 +148,15 @@
                     </select>
                 </div>
             </div>
+            <div id="email-group" class="form-group" style="${isDriver ? 'display:none' : ''}"><label>メールアドレス</label><input type="email" id="f-u-email" value="${user?.email || ''}"></div>
+            <div id="loginid-group" class="form-group" style="${isDriver ? '' : 'display:none'}"><label>ログインID <span style="font-size:0.75rem;color:#64748b">（ドライバー用）</span></label><input type="text" id="f-u-loginid" value="${user?.login_id || ''}" placeholder="例: driver01"></div>
+            <div class="form-group"><label>パスワード${isEdit ? '（変更する場合のみ）' : ''}</label><input type="password" id="f-u-password" placeholder="${isEdit ? '空欄なら変更なし' : ''}"></div>
+            <div id="driver-link-group" class="form-group" style="${isDriver ? '' : 'display:none'}"><label>紐付けドライバー</label>
+                <select id="f-u-driver">
+                    <option value="">-- 選択してください --</option>
+                    ${driversList.map(d => `<option value="${d.id}" ${user?.driver_id === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+                </select>
+            </div>
             ${isEdit ? `<div class="form-group"><label>状態</label><select id="f-u-active"><option value="true" ${user?.is_active !== false ? 'selected' : ''}>有効</option><option value="false" ${user?.is_active === false ? 'selected' : ''}>無効</option></select></div>` : ''}
             <div class="form-actions">
                 <button class="btn" onclick="closeModal()">キャンセル</button>
@@ -148,19 +165,37 @@
         showModal();
     }
 
+    function onRoleChange() {
+        const role = document.getElementById('f-u-role').value;
+        const isDriver = role === 'driver';
+        document.getElementById('email-group').style.display = isDriver ? 'none' : '';
+        document.getElementById('loginid-group').style.display = isDriver ? '' : 'none';
+        document.getElementById('driver-link-group').style.display = isDriver ? '' : 'none';
+    }
+
     async function saveUser(id) {
+        const role = document.getElementById('f-u-role').value;
+        const isDriver = role === 'driver';
         const data = {
             name: document.getElementById('f-u-name').value,
-            email: document.getElementById('f-u-email').value,
-            role: document.getElementById('f-u-role').value,
+            role: role,
             branch_id: parseInt(document.getElementById('f-u-branch').value) || null,
         };
+        if (isDriver) {
+            data.login_id = document.getElementById('f-u-loginid').value;
+            data.driver_id = parseInt(document.getElementById('f-u-driver').value) || null;
+            if (!data.login_id) return alert('ログインIDを入力してください');
+            if (!data.driver_id) return alert('紐付けドライバーを選択してください');
+        } else {
+            data.email = document.getElementById('f-u-email').value;
+            if (!data.email) return alert('メールアドレスを入力してください');
+        }
         const pw = document.getElementById('f-u-password').value;
         if (pw) data.password = pw;
         else if (!id) return alert('パスワードを入力してください');
         const activeEl = document.getElementById('f-u-active');
         if (activeEl) data.is_active = activeEl.value === 'true';
-        if (!data.name || !data.email) return alert('名前とメールは必須です');
+        if (!data.name) return alert('名前を入力してください');
         if (id) {
             await apiPut(`/auth/users/${id}`, data);
         } else {

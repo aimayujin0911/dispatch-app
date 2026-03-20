@@ -223,11 +223,23 @@
     <div class="container">
         <div id="msg" class="msg"></div>
 
-        <div class="card">
-            <h2>ドライバー選択</h2>
-            <select class="driver-select" id="driver-select" onchange="onDriverChange()">
-                <option value="">-- 選択してください --</option>
-            </select>
+        <!-- ログインフォーム -->
+        <div id="login-card" class="card">
+            <h2>🔐 ドライバーログイン</h2>
+            <div class="form-row">
+                <label>ログインID</label>
+                <input type="text" id="login-id" placeholder="ログインIDを入力" autocomplete="username">
+            </div>
+            <div class="form-row">
+                <label>パスワード</label>
+                <input type="password" id="login-password" placeholder="パスワードを入力" autocomplete="current-password">
+            </div>
+            <button class="save-btn" onclick="driverLogin()" id="btn-login">ログイン</button>
+            <div id="driver-name-display" style="display:none;text-align:center;margin-top:12px;">
+                <span style="font-size:0.9rem;color:var(--text-light)">ログイン中: </span>
+                <strong id="logged-in-name"></strong>
+                <button onclick="driverLogout()" style="margin-left:12px;padding:4px 12px;font-size:0.8rem;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer">ログアウト</button>
+            </div>
         </div>
 
         <div id="main-content" style="display:none">
@@ -498,6 +510,76 @@
         let vehicles = [];
         let selectedAlcohol = '';
         let selectedWeather = '';
+        let driverToken = localStorage.getItem('driver_token') || '';
+        let driverUser = JSON.parse(localStorage.getItem('driver_user') || 'null');
+
+        function _driverAuthH() {
+            return { 'Authorization': 'Bearer ' + driverToken, 'Content-Type': 'application/json' };
+        }
+
+        async function driverLogin() {
+            const loginId = document.getElementById('login-id').value.trim();
+            const password = document.getElementById('login-password').value;
+            if (!loginId || !password) { showMsg('ログインIDとパスワードを入力してください', 'error'); return; }
+            const btn = document.getElementById('btn-login');
+            btn.disabled = true; btn.textContent = 'ログイン中...';
+            try {
+                const res = await fetch(API + '/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login_id: loginId, password: password })
+                });
+                const data = await res.json();
+                if (!res.ok) { showMsg(data.detail || 'ログインに失敗しました', 'error'); return; }
+                if (!data.user.driver_id) { showMsg('このアカウントはドライバーとして登録されていません', 'error'); return; }
+                driverToken = data.access_token;
+                driverUser = data.user;
+                localStorage.setItem('driver_token', driverToken);
+                localStorage.setItem('driver_user', JSON.stringify(driverUser));
+                onLoginSuccess();
+            } catch(e) {
+                showMsg('通信エラー: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'ログイン';
+            }
+        }
+
+        function driverLogout() {
+            driverToken = '';
+            driverUser = null;
+            currentDriverId = null;
+            localStorage.removeItem('driver_token');
+            localStorage.removeItem('driver_user');
+            document.getElementById('login-card').querySelector('h2').textContent = '🔐 ドライバーログイン';
+            document.getElementById('login-id').style.display = '';
+            document.getElementById('login-password').style.display = '';
+            document.getElementById('login-id').parentElement.style.display = '';
+            document.getElementById('login-password').parentElement.style.display = '';
+            document.getElementById('btn-login').style.display = '';
+            document.getElementById('driver-name-display').style.display = 'none';
+            document.getElementById('main-content').style.display = 'none';
+            showMsg('ログアウトしました', 'success');
+        }
+
+        function onLoginSuccess() {
+            currentDriverId = driverUser.driver_id;
+            // ログインフォームをログイン済み表示に切替
+            document.getElementById('login-id').parentElement.style.display = 'none';
+            document.getElementById('login-password').parentElement.style.display = 'none';
+            document.getElementById('btn-login').style.display = 'none';
+            document.getElementById('driver-name-display').style.display = 'block';
+            document.getElementById('logged-in-name').textContent = driverUser.name;
+            document.getElementById('login-card').querySelector('h2').textContent = '✅ ログイン済み';
+            document.getElementById('main-content').style.display = 'block';
+            loadTodayRecord();
+            loadHistory();
+            loadVehicles();
+        }
+
+        // パスワード入力でEnterキー対応
+        document.getElementById('login-password').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') driverLogin();
+        });
 
         // --- 時計 ---
         function updateClock() {
@@ -559,23 +641,10 @@
             btn.classList.add('selected');
         }
 
-        // --- ドライバー・車両読み込み ---
-        async function loadDrivers() {
-            const res = await fetch(API + '/drivers');
-            const drivers = await res.json();
-            const sel = document.getElementById('driver-select');
-            drivers.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d.id;
-                opt.textContent = d.name;
-                sel.appendChild(opt);
-            });
-            const saved = localStorage.getItem('attendance_driver_id');
-            if (saved) { sel.value = saved; onDriverChange(); }
-        }
-
+        // --- 車両読み込み ---
         async function loadVehicles() {
-            const res = await fetch(API + '/vehicles');
+            const res = await fetch(API + '/vehicles', { headers: _driverAuthH() });
+            if (res.status === 401) { driverLogout(); return; }
             vehicles = await res.json();
             const sel = document.getElementById('rpt-vehicle');
             sel.innerHTML = '<option value="">-- 選択 --</option>';
@@ -587,23 +656,10 @@
             });
         }
 
-        async function onDriverChange() {
-            const driverId = parseInt(document.getElementById('driver-select').value);
-            if (!driverId) {
-                document.getElementById('main-content').style.display = 'none';
-                return;
-            }
-            currentDriverId = driverId;
-            localStorage.setItem('attendance_driver_id', driverId);
-            document.getElementById('main-content').style.display = 'block';
-            await loadTodayRecord();
-            await loadHistory();
-        }
-
         // --- 打刻系 ---
         async function loadTodayRecord() {
             const today = fmt(new Date());
-            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`);
+            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`, { headers: _driverAuthH() });
             const records = await res.json();
             todayRecord = records.find(r => r.date === today);
 
@@ -651,7 +707,7 @@
             try {
                 const res = await fetch(API + '/attendance', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: _driverAuthH(),
                     body: JSON.stringify({
                         driver_id: currentDriverId,
                         date: fmt(now),
@@ -677,7 +733,7 @@
             try {
                 const res = await fetch(API + `/attendance/${todayRecord.id}`, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: _driverAuthH(),
                     body: JSON.stringify({ clock_out: time })
                 });
                 if (!res.ok) throw new Error('API error');
@@ -794,7 +850,7 @@
 
         // --- 履歴 ---
         async function loadHistory() {
-            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`);
+            const res = await fetch(`${API}/attendance?driver_id=${currentDriverId}`, { headers: _driverAuthH() });
             const records = await res.json();
             const today = fmt(new Date());
 
@@ -871,7 +927,7 @@
                 updateData[activityTypes[type].field] = totalMin;
                 fetch(`${API}/attendance/${todayRecord.id}`, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: _driverAuthH(),
                     body: JSON.stringify(updateData)
                 });
 
@@ -930,8 +986,16 @@
         }
 
         // --- 初期化 ---
-        loadDrivers();
-        loadVehicles();
+        // 保存済みトークンがあれば自動ログイン
+        if (driverToken && driverUser && driverUser.driver_id) {
+            // トークンの有効性を確認
+            fetch(API + '/auth/me', { headers: _driverAuthH() })
+                .then(res => {
+                    if (res.ok) { onLoginSuccess(); }
+                    else { driverLogout(); }
+                })
+                .catch(() => { driverLogout(); });
+        }
     </script>
 </body>
 </html>
