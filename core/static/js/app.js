@@ -997,7 +997,9 @@ async function onGanttDragEnd(e) {
                 const allShipments = await cachedApiGet('/shipments');
                 const shipment = allShipments.find(s => s.id === thisDispatch.shipment_id);
                 if (shipment && shipment.pickup_time && shipment.delivery_time) {
-                    if (!await showConfirm(`この案件には元々の指定時間（${shipment.pickup_time}〜${shipment.delivery_time}）がありますが変更しますか？`)) {
+                    // 指定時間に戻す場合は警告不要
+                    const backToPreset = newStart === shipment.pickup_time && newEnd === shipment.delivery_time;
+                    if (!backToPreset && !await showConfirm(`この案件には元々の指定時間（${shipment.pickup_time}〜${shipment.delivery_time}）がありますが変更しますか？`)) {
                         loadDispatchCalendar();
                         return;
                     }
