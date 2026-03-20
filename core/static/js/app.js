@@ -340,6 +340,21 @@ async function deleteUser(id, name) {
     loadUsers();
 }
 
+// ===== データキャッシュ =====
+const _cache = {};
+const CACHE_TTL = 30000; // 30秒
+
+function cachedApiGet(url) {
+    const entry = _cache[url];
+    if (entry && Date.now() - entry.ts < CACHE_TTL) return Promise.resolve(entry.data);
+    return apiGet(url).then(data => { _cache[url] = { data, ts: Date.now() }; return data; });
+}
+
+function invalidateCache(prefix) {
+    if (!prefix) { Object.keys(_cache).forEach(k => delete _cache[k]); return; }
+    Object.keys(_cache).forEach(k => { if (k.startsWith(prefix)) delete _cache[k]; });
+}
+
 // ===== API ヘルパー =====
 async function apiGet(url) {
     const resp = await fetch(API + url, { headers: authHeaders() });
@@ -349,16 +364,19 @@ async function apiGet(url) {
 async function apiPost(url, data) {
     const resp = await fetch(API + url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
     if (resp.status === 401) { logout(); return {}; }
+    invalidateCache(); // 書き込み後はキャッシュクリア
     return resp.json();
 }
 async function apiPut(url, data) {
     const resp = await fetch(API + url, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) });
     if (resp.status === 401) { logout(); return {}; }
+    invalidateCache();
     return resp.json();
 }
 async function apiDelete(url) {
     const resp = await fetch(API + url, { method: 'DELETE', headers: authHeaders() });
     if (resp.status === 401) { logout(); return {}; }
+    invalidateCache();
     return resp.json();
 }
 
@@ -418,10 +436,15 @@ async function loadDispatchCalendar() {
 
     const [dispatches, vehicles, shipments, partners] = await Promise.all([
         apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
-        apiGet('/vehicles'),
-        apiGet('/shipments'),
-        apiGet('/partners'),
+        cachedApiGet('/vehicles'),
+        cachedApiGet('/shipments'),
+        cachedApiGet('/partners'),
     ]);
+    // キャッシュ更新（配車は日付依存なので都度更新）
+    _cache['/vehicles'] = { data: vehicles, ts: Date.now() };
+    _cache['/shipments'] = { data: shipments, ts: Date.now() };
+    _cache['/partners'] = { data: partners, ts: Date.now() };
+    _cache['_lastDispatches'] = { data: dispatches, ts: Date.now() };
 
     const days = [];
     const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
@@ -948,12 +971,14 @@ async function onGanttDragEnd(e) {
     // 未配車パネルにドロップ → 配車を削除して案件を未配車に戻す
     if (droppedOnUnassigned) {
         if (!await showConfirm('この配車を取り消して未配車に戻しますか？')) return;
-        const dispatches = await apiGet('/dispatches');
-        const d = dispatches.find(x => x.id === id);
+        const cachedDispatches = _cache['_lastDispatches']?.data || await apiGet('/dispatches');
+        const d = cachedDispatches.find(x => x.id === id);
         if (d && d.shipment_id) {
             await apiPut(`/shipments/${d.shipment_id}`, { status: '未配車' });
         }
         await apiDelete(`/dispatches/${id}`);
+        invalidateCache('/shipments');
+        invalidateCache('/dispatches');
         loadDispatchCalendar();
         return;
     }
@@ -964,11 +989,10 @@ async function onGanttDragEnd(e) {
     if (vehicleChanged || timeChanged) {
         // Requirement 4: 案件に元々時間が設定されている場合のみ警告
         if (timeChanged) {
-            const allDispatches = await apiGet('/dispatches');
+            const allDispatches = _cache['_lastDispatches']?.data || await cachedApiGet('/dispatches');
             const thisDispatch = allDispatches.find(x => x.id === id);
             if (thisDispatch && thisDispatch.shipment_id) {
-                const allShipments = await apiGet('/shipments');
-                const shipment = allShipments.find(s => s.id === thisDispatch.shipment_id);
+                const allShipments = await cachedApiGet('/shipments');
                 if (shipment && shipment.pickup_time && shipment.delivery_time) {
                     if (!await showConfirm(`この案件には元々の指定時間（${shipment.pickup_time}〜${shipment.delivery_time}）がありますが変更しますか？`)) {
                         loadDispatchCalendar();
@@ -993,6 +1017,8 @@ async function onGanttDragEnd(e) {
         } catch (e) {
             alert('配車の更新に失敗しました: ' + e.message);
         }
+        invalidateCache('/dispatches');
+        invalidateCache('_lastDispatches');
         loadDispatchCalendar();
     }
 }
@@ -1082,8 +1108,13 @@ async function onShipmentDragEnd(e) {
 
     if (!targetVehicleId) return;
 
-    // 案件の指定時間を取得
-    const allShipments = await apiGet('/shipments');
+    // 案件・ドライバー・協力会社・配車を並列取得（キャッシュ利用）
+    const [allShipments, drivers, partners, existingDispatches] = await Promise.all([
+        cachedApiGet('/shipments'),
+        cachedApiGet('/drivers'),
+        cachedApiGet('/partners'),
+        apiGet(`/dispatches?target_date=${dayStr}`),
+    ]);
     const shipment = allShipments.find(s => s.id === shipmentId);
     const hasPresetTimes = shipment && shipment.pickup_time && shipment.delivery_time;
 
@@ -1097,14 +1128,7 @@ async function onShipmentDragEnd(e) {
         const endMin = timeToMinutes(dropTime) + 60;
         endTime = minutesToTime(Math.min(endMin, HOUR_END * 60));
     }
-
-    // ドライバー＋協力会社選択モーダル
-    const drivers = await apiGet('/drivers');
-    const partners = await apiGet('/partners');
     const availableDrivers = drivers.filter(d => d.status !== '非番');
-
-    // 同日の配車を取得（ドライバー重複チェック + 自動選択用）
-    const existingDispatches = await apiGet(`/dispatches?target_date=${dayStr}`);
 
     // 同日に別車両で配車されているドライバーに⚠マーク
     const busyDriverMap = {};
@@ -1445,7 +1469,7 @@ function calcDuration(start, end) {
 async function openQuickDispatchModal(date, startTime, endTime, preselectedVehicleId, preselectedShipmentId, preselectedPartnerId) {
     if (justDragged) { justDragged = false; return; }
     const [vehicles, drivers, shipments, clients, partners, dayDispatches] = await Promise.all([
-        apiGet('/vehicles'), apiGet('/drivers'), apiGet('/shipments'), apiGet('/clients'), apiGet('/partners'),
+        cachedApiGet('/vehicles'), cachedApiGet('/drivers'), cachedApiGet('/shipments'), cachedApiGet('/clients'), cachedApiGet('/partners'),
         apiGet(`/dispatches?target_date=${date}`)
     ]);
     const availableVehicles = vehicles.filter(v => v.status !== '整備中');
@@ -1557,7 +1581,7 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
 async function filterDriversByTime() {
     const startTime = document.getElementById('f-qd-start').value;
     if (!startTime) return;
-    const drivers = await apiGet('/drivers');
+    const drivers = await cachedApiGet('/drivers');
     const sel = document.getElementById('f-qd-driver');
     const currentVal = sel.value;
     const onDuty = drivers.filter(d => d.status !== '非番' && startTime >= (d.work_start || '08:00') && startTime < (d.work_end || '17:00'));
