@@ -378,16 +378,31 @@
                 var tid = user.tenant_id || '';
                 var token = localStorage.getItem('access_token') || '';
                 var host = location.hostname;
-                // 本番: hakoprofor.jp → テナントサブドメインへリダイレクト
-                if (tid && host === 'hakoprofor.jp') {
-                    var url = 'https://' + tid + '.hakoprofor.jp/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
-                    window.location.href = url;
-                } else if (tid && host !== tid + '.hakoprofor.jp' && host.endsWith('.hakoprofor.jp')) {
-                    // 別テナントのサブドメインにいる場合
-                    var url = 'https://' + tid + '.hakoprofor.jp/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
-                    window.location.href = url;
+                // テナントサブドメインへリダイレクトする対象ドメイン一覧
+                var tenantDomains = ['hakoprofor.jp', 'unsoubako.com'];
+                var matchedDomain = '';
+                for (var i = 0; i < tenantDomains.length; i++) {
+                    if (host === tenantDomains[i] || host === 'www.' + tenantDomains[i]) {
+                        matchedDomain = tenantDomains[i];
+                        break;
+                    }
+                    if (host.endsWith('.' + tenantDomains[i])) {
+                        matchedDomain = tenantDomains[i];
+                        break;
+                    }
+                }
+                if (tid && matchedDomain) {
+                    var currentSubdomain = host.replace('.' + matchedDomain, '');
+                    if (host === matchedDomain || host === 'www.' + matchedDomain || currentSubdomain !== tid) {
+                        // ルートドメインまたは別テナントのサブドメイン → 正しいテナントへリダイレクト
+                        var url = 'https://' + tid + '.' + matchedDomain + '/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
+                        window.location.href = url;
+                    } else {
+                        // 既に正しいテナントサブドメインにいる
+                        window.location.href = '/?app=1';
+                    }
                 } else {
-                    // テスト環境(onrender.com/unsoubako.com) or ローカル開発 → ?app=1でアプリ表示
+                    // ローカル開発 or onrender.com → ?app=1でアプリ表示
                     window.location.href = '/?app=1';
                 }
             }
