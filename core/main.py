@@ -172,9 +172,8 @@ async def landing_page(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    # ルートドメイン（unsoubako.com）の場合はLPを表示
     host = request.headers.get("host", "")
-    # サブドメインなし（ルートドメイン or www）の場合はLP
+    # ルートドメイン or www → LP表示
     if host in ("unsoubako.com", "www.unsoubako.com"):
         return templates.TemplateResponse("lp.html", {"request": request})
     return templates.TemplateResponse("index.html", {"request": request})

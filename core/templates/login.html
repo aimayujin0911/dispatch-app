@@ -376,12 +376,18 @@
             function redirectToTenant() {
                 var user = JSON.parse(localStorage.getItem('user') || '{}');
                 var tid = user.tenant_id || '';
+                var token = localStorage.getItem('access_token') || '';
                 var host = location.hostname;
-                // ルートドメインにいる場合はサブドメインへリダイレクト
+                // ルートドメインにいる場合はサブドメインへリダイレクト（トークンをURLで引き渡し）
                 if (tid && host === 'unsoubako.com') {
-                    window.location.href = 'https://' + tid + '.unsoubako.com/';
+                    var url = 'https://' + tid + '.unsoubako.com/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
+                    window.location.href = url;
+                } else if (tid && host !== tid + '.unsoubako.com' && host.endsWith('.unsoubako.com')) {
+                    // 別テナントのサブドメインにいる場合
+                    var url = 'https://' + tid + '.unsoubako.com/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
+                    window.location.href = url;
                 } else {
-                    // サブドメイン上 or ローカル開発 → メインアプリへ
+                    // 正しいサブドメイン上 or ローカル開発 → メインアプリへ
                     window.location.href = '/';
                 }
             }

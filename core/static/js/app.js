@@ -11,6 +11,18 @@ let shipmentDragState = null;
 
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', async () => {
+    // URLパラメータからトークン受け取り（サブドメインリダイレクト時）
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.get('auth_token')) {
+        localStorage.setItem('access_token', urlParams.get('auth_token'));
+        try {
+            const authUser = JSON.parse(decodeURIComponent(urlParams.get('auth_user') || '{}'));
+            if (authUser.id) localStorage.setItem('user', JSON.stringify(authUser));
+        } catch(e) {}
+        // URLからパラメータを消す
+        history.replaceState(null, '', '/');
+    }
+
     // 認証チェック
     if (!checkAuth()) return;
 
