@@ -432,7 +432,8 @@
                 }
 
                 // 複数テナントにアクセス可能 or オペレーター → テナント選択
-                if (data.tenants && data.tenants.length > 1) {
+                var isOperator = data.user && data.user.role === 'operator';
+                if (data.tenants && (data.tenants.length > 1 || isOperator) && data.tenants.length >= 1) {
                     showTenantModalWithList(data.tenants);
                     return;
                 }
