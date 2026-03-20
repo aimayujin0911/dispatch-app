@@ -88,11 +88,10 @@
     <script>
     // 認証
     const token = localStorage.getItem('access_token');
-    if (!token) location.href = '/login';
-    const _u = JSON.parse(localStorage.getItem('user') || '{}');
-    if (_u.role === 'driver') { location.href = '/m/attendance'; return; }
+    if (!token) { location.href = '/login'; }
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.role !== 'admin') { alert('管理者のみアクセスできます'); location.href = '/'; }
+    if (user.role === 'driver') { location.href = '/m/attendance'; }
+    else if (user.role !== 'admin' && user.role !== 'operator') { alert('管理者のみアクセスできます'); location.href = '/'; }
 
     function _authH() { return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }; }
     async function apiGet(url) { return (await fetch('/api' + url, { headers: _authH() })).json(); }
