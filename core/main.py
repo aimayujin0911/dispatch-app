@@ -188,23 +188,21 @@ def seed_on_startup():
             db.rollback()
         # 既存ドライバーに対応するUserが無ければ自動作成（Driver⇔User統合）
         try:
-            from models import Driver
-            linked_driver_ids = set(
-                r[0] for r in db.query(User.driver_id).filter(User.driver_id != None).all()
+            linked = set(
+                r[0] for r in db.execute(text(
+                    "SELECT driver_id FROM users WHERE driver_id IS NOT NULL"
+                )).fetchall()
             )
-            all_drivers = db.query(Driver).all()
+            orphans = db.execute(text(
+                "SELECT id, name, tenant_id FROM drivers"
+            )).fetchall()
             created = 0
-            for drv in all_drivers:
-                if drv.id not in linked_driver_ids:
-                    u = User(
-                        name=drv.name,
-                        role="driver",
-                        tenant_id=drv.tenant_id or "demo",
-                        branch_id=None,  # 外部キー制約回避
-                        driver_id=drv.id,
-                        password_hash="",
-                    )
-                    db.add(u)
+            for did, dname, dtenant in orphans:
+                if did not in linked:
+                    db.execute(text(
+                        "INSERT INTO users (name, role, tenant_id, driver_id, password_hash, is_active) "
+                        "VALUES (:name, 'driver', :tid, :did, '', true)"
+                    ), {"name": dname, "tid": dtenant or "demo", "did": did})
                     created += 1
             if created:
                 db.commit()
