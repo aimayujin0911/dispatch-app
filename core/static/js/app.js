@@ -171,14 +171,7 @@ async function loadUserInfo() {
         const userEl = document.getElementById('currentUser');
         if (userEl) {
             let html = '';
-            // テナント切替ドロップダウン（複数テナント or オペレーター）
-            if (user.can_switch_tenant && user.accessible_tenants && user.accessible_tenants.length > 1) {
-                html += `<select onchange="switchTenant(this.value)" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer">`;
-                user.accessible_tenants.forEach(t => {
-                    html += `<option value="${t}" ${t === user.tenant_id ? 'selected' : ''} style="color:#000">${t}</option>`;
-                });
-                html += `</select> `;
-            }
+            // テナント切替はtenant-switcher.jsに統一
             // 管理者: 拠点切替ドロップダウン
             if (user.can_switch_branch && user.branches && user.branches.length > 1) {
                 html += `<select onchange="switchBranch(this.value)" style="font-size:0.75rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer">`;
