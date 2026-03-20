@@ -21,7 +21,7 @@
         if (!nav) return;
 
         var select = document.createElement('select');
-        select.style.cssText = 'font-size:0.8rem;padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;margin-right:8px';
+        select.style.cssText = 'font-size:0.8rem;padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;margin-left:auto;margin-right:8px';
 
         user.accessible_tenants.forEach(function(t) {
             var opt = document.createElement('option');
@@ -63,8 +63,21 @@
             });
         });
 
-        // navの最初の要素の前に挿入
-        nav.insertBefore(select, nav.firstChild);
+        // navの右側（フィードバック・ログアウトボタンの前）に挿入
+        var autoMarginEl = null;
+        var children = nav.children;
+        for (var i = 0; i < children.length; i++) {
+            if (children[i].style.marginLeft === 'auto') {
+                autoMarginEl = children[i];
+                children[i].style.marginLeft = '';
+                break;
+            }
+        }
+        if (autoMarginEl) {
+            nav.insertBefore(select, autoMarginEl);
+        } else {
+            nav.appendChild(select);
+        }
     })
     .catch(function() { /* 認証エラー等は無視 */ });
 })();

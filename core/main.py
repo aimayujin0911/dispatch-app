@@ -157,7 +157,7 @@ def seed_on_startup():
                 db.commit()
                 logger.info(f"Updated existing user to operator: {op_email}")
         # デモデータのtenant_idが空のレコードを "demo" に修正
-        demo_tables = ["drivers", "vehicles", "shipments", "clients"]
+        demo_tables = ["drivers", "vehicles", "shipments", "clients", "dispatches"]
         for tbl in demo_tables:
             try:
                 db.execute(text(
