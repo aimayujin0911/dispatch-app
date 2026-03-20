@@ -8,7 +8,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #334155; }
-        .topnav { background: #3b82f6; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
+        .topnav { background: #ea580c; color: #fff; display: flex; align-items: center; padding: 0 1rem; height: 56px; gap: 0; }
         .topnav a { color: rgba(255,255,255,.75); text-decoration: none; padding: .75rem 1rem; font-size: .9rem; white-space: nowrap; }
         .topnav a:hover { color: #fff; background: rgba(255,255,255,.1); }
         .topnav a.active { color: #fff; background: rgba(255,255,255,.2); font-weight: 600; }
@@ -27,7 +27,7 @@
         th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; }
         tr:hover { background: #f8fafc; }
         .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem .9rem; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; font-weight: 500; }
-        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-primary { background: #ea580c; color: #fff; }
         .btn-success { background: #22c55e; color: #fff; }
         .btn-warning { background: #f59e0b; color: #fff; }
         .btn-danger { background: #ef4444; color: #fff; }
@@ -58,9 +58,9 @@
         /* Fatigue scale */
         .fatigue-scale { display: flex; gap: .5rem; align-items: center; padding-top: .3rem; }
         .fatigue-scale label { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-size: .78rem; font-weight: 400; cursor: pointer; padding: .3rem .5rem; border-radius: 6px; border: 1px solid #e2e8f0; transition: all .15s; }
-        .fatigue-scale label:hover { border-color: #3b82f6; }
-        .fatigue-scale input[type="radio"]:checked + span { color: #3b82f6; font-weight: 600; }
-        .fatigue-scale label:has(input:checked) { border-color: #3b82f6; background: #eff6ff; }
+        .fatigue-scale label:hover { border-color: #ea580c; }
+        .fatigue-scale input[type="radio"]:checked + span { color: #ea580c; font-weight: 600; }
+        .fatigue-scale label:has(input:checked) { border-color: #ea580c; background: #fff7ed; }
 
         /* Alcohol result indicator */
         .alcohol-result { display: inline-flex; align-items: center; gap: .5rem; margin-top: .3rem; font-size: .85rem; font-weight: 600; }
@@ -71,8 +71,8 @@
         /* Driver list */
         .driver-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
         .driver-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: .75rem; display: flex; align-items: center; gap: .75rem; cursor: pointer; transition: all .15s; }
-        .driver-card:hover { border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
-        .driver-card.selected { border-color: #3b82f6; background: #eff6ff; }
+        .driver-card:hover { border-color: #ea580c; box-shadow: 0 2px 8px rgba(234,88,12,.15); }
+        .driver-card.selected { border-color: #ea580c; background: #fff7ed; }
         .driver-avatar { width: 40px; height: 40px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
         .driver-info { flex: 1; min-width: 0; }
         .driver-info .name { font-weight: 600; font-size: .9rem; }

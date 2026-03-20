@@ -5,15 +5,16 @@
 }
 
 :root {
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
+    --primary: #ea580c;
+    --primary-dark: #c2410c;
+    --primary-light: #fed7aa;
     --sidebar-bg: #1e293b;
     --sidebar-hover: #334155;
-    --bg: #f1f5f9;
+    --bg: #fafaf9;
     --card-bg: #ffffff;
     --text: #1e293b;
     --text-light: #64748b;
-    --border: #e2e8f0;
+    --border: #e7e5e4;
     --green: #22c55e;
     --orange: #f59e0b;
     --red: #ef4444;
