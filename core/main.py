@@ -214,10 +214,12 @@ def seed_on_startup():
                     created += 1
             if created:
                 db.commit()
-                logger.info(f"Created User records for {created} orphan drivers")
+                print(f"[Driver-User sync] Created {created} users", flush=True)
+            else:
+                print(f"[Driver-User sync] No orphans (linked={len(linked)}, drivers={len(orphans)})", flush=True)
         except Exception as e:
             db.rollback()
-            logger.error(f"Driver-User sync failed: {e}")
+            print(f"[Driver-User sync] FAILED: {e}", flush=True)
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")
