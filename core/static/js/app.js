@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 認証チェック
     if (!checkAuth()) return;
+    document.body.style.visibility = 'visible';
 
     const today = new Date();
     const dateEl = document.getElementById('currentDate');
