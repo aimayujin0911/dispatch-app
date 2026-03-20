@@ -378,16 +378,16 @@
                 var tid = user.tenant_id || '';
                 var token = localStorage.getItem('access_token') || '';
                 var host = location.hostname;
-                // ルートドメインにいる場合はサブドメインへリダイレクト（トークンをURLで引き渡し）
-                if (tid && host === 'unsoubako.com') {
-                    var url = 'https://' + tid + '.unsoubako.com/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
+                // 本番: hakoprofor.jp → テナントサブドメインへリダイレクト
+                if (tid && host === 'hakoprofor.jp') {
+                    var url = 'https://' + tid + '.hakoprofor.jp/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
                     window.location.href = url;
-                } else if (tid && host !== tid + '.unsoubako.com' && host.endsWith('.unsoubako.com')) {
+                } else if (tid && host !== tid + '.hakoprofor.jp' && host.endsWith('.hakoprofor.jp')) {
                     // 別テナントのサブドメインにいる場合
-                    var url = 'https://' + tid + '.unsoubako.com/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
+                    var url = 'https://' + tid + '.hakoprofor.jp/?auth_token=' + encodeURIComponent(token) + '&auth_user=' + encodeURIComponent(JSON.stringify(user));
                     window.location.href = url;
                 } else {
-                    // テスト環境(onrender.com) or ローカル開発 → ?app=1でアプリ表示
+                    // テスト環境(onrender.com/unsoubako.com) or ローカル開発 → ?app=1でアプリ表示
                     window.location.href = '/?app=1';
                 }
             }

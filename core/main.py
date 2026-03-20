@@ -177,9 +177,9 @@ async def index(request: Request):
     if request.query_params.get("app") == "1":
         return templates.TemplateResponse("index.html", {"request": request})
     # サブドメインがある場合はメインアプリ表示
-    # 例: demo.unsoubako.com → アプリ、unsoubako.com → LP
-    # テスト環境: dispatch-app-dev.onrender.com → LP（サブドメインなし）
-    lp_hosts = ("unsoubako.com", "www.unsoubako.com", "dispatch-app-dev.onrender.com")
+    # 例: demo.hakoprofor.jp → アプリ、hakoprofor.jp → LP
+    # テスト環境: unsoubako.com → LP、hakopro-dev の onrender.com → LP
+    lp_hosts = ("hakoprofor.jp", "www.hakoprofor.jp", "unsoubako.com", "www.unsoubako.com", "hakopro-dev.onrender.com")
     if host in lp_hosts:
         return templates.TemplateResponse("lp.html", {"request": request})
     return templates.TemplateResponse("index.html", {"request": request})
