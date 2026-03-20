@@ -364,6 +364,30 @@ body {
     font-weight: 600;
     white-space: nowrap;
 }
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 22px;
+}
+.data-table th.sortable:hover {
+    background: rgba(255,255,255,0.1);
+}
+.data-table th.sortable::after {
+    content: '⇅';
+    position: absolute;
+    right: 6px;
+    opacity: 0.4;
+    font-size: 0.75rem;
+}
+.data-table th.sortable.sort-asc::after {
+    content: '▲';
+    opacity: 0.9;
+}
+.data-table th.sortable.sort-desc::after {
+    content: '▼';
+    opacity: 0.9;
+}
 
 .data-table td {
     padding: 12px 16px;

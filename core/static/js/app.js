@@ -9,6 +9,50 @@ let resizeState = null;
 let justDragged = false;
 let shipmentDragState = null;
 
+// ===== テーブルソート =====
+const _tableData = {};  // テーブルID → {data, renderFn, sortKey, sortDir}
+
+function setupTableSort(tableId, data, renderFn) {
+    _tableData[tableId] = { data: data, renderFn: renderFn, sortKey: null, sortDir: 'asc' };
+    // thead のクリックイベント設定
+    const tbody = document.getElementById(tableId);
+    if (!tbody) return;
+    const thead = tbody.closest('table')?.querySelector('thead');
+    if (!thead || thead.dataset.sortBound) return;
+    thead.dataset.sortBound = '1';
+    thead.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            const isNum = th.dataset.type === 'number';
+            const td = _tableData[tableId];
+            if (!td) return;
+            // 同じキーなら方向反転、違うキーならasc
+            if (td.sortKey === key) {
+                td.sortDir = td.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                td.sortKey = key;
+                td.sortDir = 'asc';
+            }
+            // ソート
+            td.data.sort((a, b) => {
+                let va = a[key], vb = b[key];
+                if (va == null) va = '';
+                if (vb == null) vb = '';
+                if (isNum) { va = Number(va) || 0; vb = Number(vb) || 0; }
+                else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+                if (va < vb) return td.sortDir === 'asc' ? -1 : 1;
+                if (va > vb) return td.sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+            // ヘッダーUI更新
+            thead.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            th.classList.add(td.sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+            // 再描画
+            td.renderFn(td.data);
+        });
+    });
+}
+
 // ===== 初期化 =====
 document.addEventListener('DOMContentLoaded', async () => {
     // URLパラメータからトークン受け取り（サブドメインリダイレクト時）
@@ -323,13 +367,13 @@ async function loadDashboard() {
     const data = await apiGet('/dashboard');
     document.getElementById('stat-today-dispatches').textContent = data.today_dispatches;
     document.getElementById('stat-unassigned').textContent = data.unassigned_shipments;
-    document.getElementById('stat-vehicles-active').innerHTML = `${data.vehicles.active}<small>/${data.vehicles.total}</small>`;
+    const normalVehicles = data.vehicles.total - (data.vehicles.maintenance || 0);
+    document.getElementById('stat-vehicles-active').innerHTML = `${normalVehicles}<small>/${data.vehicles.total}</small>`;
     document.getElementById('stat-monthly-revenue').textContent = `¥${data.monthly_revenue.toLocaleString()}`;
 
     const vTotal = data.vehicles.total || 1;
-    const normalCount = (data.vehicles.active || 0) + (data.vehicles.empty || 0);
     document.getElementById('vehicle-status-bars').innerHTML = `
-        ${statusBar('通常', normalCount, vTotal, 'blue')}
+        ${statusBar('通常', normalVehicles, vTotal, 'blue')}
         ${statusBar('整備中', data.vehicles.maintenance, vTotal, 'orange')}`;
 
     const dTotal = data.drivers.total || 1;
@@ -1897,33 +1941,31 @@ async function deleteDispatch(id) {
 // ===== 車両管理 =====
 async function loadVehicles() {
     const vehicles = await apiGet('/vehicles');
-    const today = fmt(new Date());
-    document.getElementById('vehicles-table').innerHTML = vehicles.map(v => {
-        // 車検期限アラート
-        let inspBadge = '-';
-        if (v.inspection_expiry) {
-            const daysLeft = Math.ceil((new Date(v.inspection_expiry) - new Date()) / 86400000);
-            if (daysLeft < 0) {
-                inspBadge = `<span class="badge badge-red">期限切れ</span>`;
-            } else if (daysLeft <= 30) {
-                inspBadge = `<span class="badge badge-orange">${v.inspection_expiry} (残${daysLeft}日)</span>`;
-            } else {
-                inspBadge = `${v.inspection_expiry}`;
+    function renderVehicles(list) {
+        document.getElementById('vehicles-table').innerHTML = list.map(v => {
+            let inspBadge = '-';
+            if (v.inspection_expiry) {
+                const daysLeft = Math.ceil((new Date(v.inspection_expiry) - new Date()) / 86400000);
+                if (daysLeft < 0) inspBadge = `<span class="badge badge-red">期限切れ</span>`;
+                else if (daysLeft <= 30) inspBadge = `<span class="badge badge-orange">${v.inspection_expiry} (残${daysLeft}日)</span>`;
+                else inspBadge = `${v.inspection_expiry}`;
             }
-        }
-        return `<tr>
-            <td><strong><a href="#" onclick="event.preventDefault();editVehicle(${v.id})" class="link-cell">${v.number}</a></strong></td>
-            <td style="font-size:0.8rem;font-family:monospace">${v.chassis_number || '-'}</td>
-            <td>${v.type}</td>
-            <td>${v.capacity.toLocaleString()}</td>
-            <td>${statusBadge(v.status)}</td>
-            <td>${inspBadge}</td>
-            <td>
-                <button class="btn btn-sm btn-edit" onclick="editVehicle(${v.id})">編集</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteVehicle(${v.id})">削除</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
+            return `<tr>
+                <td><strong><a href="#" onclick="event.preventDefault();editVehicle(${v.id})" class="link-cell">${v.number}</a></strong></td>
+                <td style="font-size:0.8rem;font-family:monospace">${v.chassis_number || '-'}</td>
+                <td>${v.type}</td>
+                <td>${v.capacity.toLocaleString()}</td>
+                <td>${statusBadge(v.status)}</td>
+                <td>${inspBadge}</td>
+                <td>
+                    <button class="btn btn-sm btn-edit" onclick="editVehicle(${v.id})">編集</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteVehicle(${v.id})">削除</button>
+                </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
+    }
+    renderVehicles(vehicles);
+    setupTableSort('vehicles-table', vehicles, renderVehicles);
 }
 
 function openVehicleModal(vehicle = null) {
@@ -2046,31 +2088,35 @@ async function loadDrivers() {
     });
     document.getElementById('driver-work-hours').innerHTML = alertHtml;
 
-    document.getElementById('drivers-table').innerHTML = drivers.map(d => {
-        const monthMins = driverHours[d.id] || 0;
-        const monthH = Math.floor(monthMins / 60);
-        const monthM = monthMins % 60;
-        const yearMins = driverYearHours[d.id] || 0;
-        const yearH = Math.round(yearMins / 60);
-        const pct = Math.round(yearMins / yearLimit * 100);
-        const barColor = pct >= 95 ? 'red' : pct >= 80 ? 'orange' : 'blue';
-        return `<tr>
-            <td><a href="#" onclick="event.preventDefault();editDriver(${d.id})" style="color:#2563eb;font-weight:600;text-decoration:none">${d.name}</a></td>
-            <td>${d.phone || '-'}</td>
-            <td>${d.license_type}</td>
-            <td>${statusBadge(d.status)}</td>
-            <td>
-                <div style="font-size:0.8rem">${monthH}h${monthM > 0 ? String(monthM).padStart(2,'0') + 'm' : ''}/月</div>
-                <div class="mini-bar"><div class="mini-bar-fill ${barColor}" style="width:${Math.min(pct, 100)}%"></div></div>
-                <div style="font-size:0.7rem;color:var(--text-light)">年間 ${yearH}h/960h</div>
-            </td>
-            <td>${d.notes || '-'}</td>
-            <td>
-                <button class="btn btn-sm btn-edit" onclick="editDriver(${d.id})">編集</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteDriver(${d.id})">削除</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">ドライバーが登録されていません</td></tr>';
+    function renderDrivers(list) {
+        document.getElementById('drivers-table').innerHTML = list.map(d => {
+            const monthMins = driverHours[d.id] || 0;
+            const monthH = Math.floor(monthMins / 60);
+            const monthM = monthMins % 60;
+            const yearMins = driverYearHours[d.id] || 0;
+            const yearH = Math.round(yearMins / 60);
+            const pct = Math.round(yearMins / yearLimit * 100);
+            const barColor = pct >= 95 ? 'red' : pct >= 80 ? 'orange' : 'blue';
+            return `<tr>
+                <td><a href="#" onclick="event.preventDefault();editDriver(${d.id})" style="color:#2563eb;font-weight:600;text-decoration:none">${d.name}</a></td>
+                <td>${d.phone || '-'}</td>
+                <td>${d.license_type}</td>
+                <td>${statusBadge(d.status)}</td>
+                <td>
+                    <div style="font-size:0.8rem">${monthH}h${monthM > 0 ? String(monthM).padStart(2,'0') + 'm' : ''}/月</div>
+                    <div class="mini-bar"><div class="mini-bar-fill ${barColor}" style="width:${Math.min(pct, 100)}%"></div></div>
+                    <div style="font-size:0.7rem;color:var(--text-light)">年間 ${yearH}h/960h</div>
+                </td>
+                <td>${d.notes || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-edit" onclick="editDriver(${d.id})">編集</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDriver(${d.id})">削除</button>
+                </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">ドライバーが登録されていません</td></tr>';
+    }
+    renderDrivers(drivers);
+    setupTableSort('drivers-table', drivers, renderDrivers);
 }
 
 function openDriverModal(driver = null) {
@@ -2179,22 +2225,26 @@ async function deleteDriver(id) {
 // ===== 案件管理 =====
 async function loadShipments() {
     const shipments = await apiGet('/shipments');
-    document.getElementById('shipments-table').innerHTML = shipments.map(s => {
-        const freqLabel = s.frequency_type === '単発' ? '単発' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
-        return `<tr>
-            <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
-            <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
-            <td>${s.cargo_description || '-'} <span style="font-size:0.7rem;padding:1px 4px;border-radius:3px;background:${s.transport_type === '冷凍' ? '#dbeafe' : s.transport_type === '冷蔵' ? '#e0f2fe' : s.transport_type === 'チルド' ? '#fef3c7' : s.transport_type === '危険物' ? '#fee2e2' : '#f1f5f9'};color:${s.transport_type === '危険物' ? '#dc2626' : '#334155'}">${s.transport_type || 'ドライ'}</span></td>
-            <td>${s.pickup_address} → ${s.delivery_address}</td>
-            <td>${s.pickup_date}</td>
-            <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
-            <td>¥${s.price.toLocaleString()} ${s.unit_price_type && s.unit_price_type !== '個建' ? `<span style="font-size:0.65rem;color:#64748b">(${s.unit_price_type})</span>` : ''}</td>
-            <td style="white-space:nowrap">${freqLabel}</td>
-            <td style="white-space:nowrap">
-                <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
+    function renderShipments(list) {
+        document.getElementById('shipments-table').innerHTML = list.map(s => {
+            const freqLabel = s.frequency_type === '単発' ? '単発' : s.frequency_type === '毎日' ? '🔁毎日' : `🔁${s.frequency_days}`;
+            return `<tr>
+                <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
+                <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
+                <td>${s.cargo_description || '-'} <span style="font-size:0.7rem;padding:1px 4px;border-radius:3px;background:${s.transport_type === '冷凍' ? '#dbeafe' : s.transport_type === '冷蔵' ? '#e0f2fe' : s.transport_type === 'チルド' ? '#fef3c7' : s.transport_type === '危険物' ? '#fee2e2' : '#f1f5f9'};color:${s.transport_type === '危険物' ? '#dc2626' : '#334155'}">${s.transport_type || 'ドライ'}</span></td>
+                <td>${s.pickup_address} → ${s.delivery_address}</td>
+                <td>${s.pickup_date}</td>
+                <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
+                <td>¥${s.price.toLocaleString()} ${s.unit_price_type && s.unit_price_type !== '個建' ? `<span style="font-size:0.65rem;color:#64748b">(${s.unit_price_type})</span>` : ''}</td>
+                <td style="white-space:nowrap">${freqLabel}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-sm btn-edit" onclick="editShipment(${s.id})">編集</button>
+                </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:40px">案件が登録されていません</td></tr>';
+    }
+    renderShipments(shipments);
+    setupTableSort('shipments-table', shipments, renderShipments);
 }
 
 async function openShipmentModal(shipment = null) {
@@ -2465,21 +2515,25 @@ async function deleteShipment(id) {
 // ===== 荷主管理 =====
 async function loadClients() {
     const clients = await apiGet('/clients');
-    document.getElementById('clients-table').innerHTML = clients.map(c => `
-        <tr>
-            <td><a href="#" onclick="event.preventDefault();openClientDetailModal(${c.id})" style="color:#2563eb;font-weight:600">${c.name}</a></td>
-            <td>${c.address || '-'}</td>
-            <td>${c.phone || '-'}</td>
-            <td>${c.contact_person || '-'}</td>
-            <td>${c.billing_email || '-'}</td>
-            <td>${c.payment_terms || '-'}</td>
-            <td>
-                <button class="btn btn-sm" onclick="openClientDetailModal(${c.id})" title="詳細">📋</button>
-                <button class="btn btn-sm btn-edit" onclick="editClient(${c.id})">編集</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteClient(${c.id})">削除</button>
-            </td>
-        </tr>
-    `).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">荷主企業が登録されていません</td></tr>';
+    function renderClients(list) {
+        document.getElementById('clients-table').innerHTML = list.map(c => `
+            <tr>
+                <td><a href="#" onclick="event.preventDefault();openClientDetailModal(${c.id})" style="color:#2563eb;font-weight:600">${c.name}</a></td>
+                <td>${c.address || '-'}</td>
+                <td>${c.phone || '-'}</td>
+                <td>${c.contact_person || '-'}</td>
+                <td>${c.billing_email || '-'}</td>
+                <td>${c.payment_terms || '-'}</td>
+                <td>
+                    <button class="btn btn-sm" onclick="openClientDetailModal(${c.id})" title="詳細">📋</button>
+                    <button class="btn btn-sm btn-edit" onclick="editClient(${c.id})">編集</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteClient(${c.id})">削除</button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">荷主企業が登録されていません</td></tr>';
+    }
+    renderClients(clients);
+    setupTableSort('clients-table', clients, renderClients);
 }
 
 function openClientModal(client = null) {
@@ -3186,41 +3240,49 @@ async function loadPartners() {
     const [partners, invoices] = await Promise.all([
         apiGet('/partners'), apiGet('/partner-invoices')
     ]);
-    document.getElementById('partners-table').innerHTML = partners.map(p => `<tr>
-        <td><strong>${p.name}</strong></td>
-        <td style="font-size:0.8rem">${p.address || '-'}</td>
-        <td style="font-size:0.8rem">${p.phone || '-'}${p.fax ? '<br>FAX:' + p.fax : ''}</td>
-        <td>${p.contact_person || '-'}</td>
-        <td style="font-size:0.8rem">${p.payment_terms || '-'}</td>
-        <td>
-            <button class="btn btn-sm btn-edit" onclick="editPartner(${p.id})">編集</button>
-            <button class="btn btn-sm btn-danger" onclick="deletePartner(${p.id})">削除</button>
-        </td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">協力会社が登録されていません</td></tr>';
-
-    document.getElementById('partner-invoices-table').innerHTML = invoices.map(inv => {
-        const sBadge = inv.status === '支払済' ? '<span class="badge badge-green">支払済</span>'
-            : inv.status === '確認済' ? '<span class="badge badge-blue">確認済</span>'
-            : inv.status === '差戻' ? '<span class="badge badge-red">差戻</span>'
-            : '<span class="badge badge-orange">未確認</span>';
-        return `<tr>
-            <td>${inv.invoice_number || '-'}</td>
-            <td><strong>${inv.partner_name}</strong></td>
-            <td>${inv.invoice_date || '-'}</td>
-            <td>${inv.due_date || '-'}</td>
-            <td><strong>¥${(inv.total_amount + inv.tax_amount).toLocaleString()}</strong></td>
-            <td>${sBadge}</td>
+    function renderPartners(list) {
+        document.getElementById('partners-table').innerHTML = list.map(p => `<tr>
+            <td><strong>${p.name}</strong></td>
+            <td style="font-size:0.8rem">${p.address || '-'}</td>
+            <td style="font-size:0.8rem">${p.phone || '-'}${p.fax ? '<br>FAX:' + p.fax : ''}</td>
+            <td>${p.contact_person || '-'}</td>
+            <td style="font-size:0.8rem">${p.payment_terms || '-'}</td>
             <td>
-                <select onchange="updatePartnerInvoiceStatus(${inv.id}, this.value)" style="font-size:0.8rem;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px">
-                    <option ${inv.status === '未確認' ? 'selected' : ''}>未確認</option>
-                    <option ${inv.status === '確認済' ? 'selected' : ''}>確認済</option>
-                    <option ${inv.status === '支払済' ? 'selected' : ''}>支払済</option>
-                    <option ${inv.status === '差戻' ? 'selected' : ''}>差戻</option>
-                </select>
-                <button class="btn btn-sm btn-danger" onclick="deletePartnerInvoice(${inv.id})">削除</button>
+                <button class="btn btn-sm btn-edit" onclick="editPartner(${p.id})">編集</button>
+                <button class="btn btn-sm btn-danger" onclick="deletePartner(${p.id})">削除</button>
             </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">請求書がありません</td></tr>';
+        </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px">協力会社が登録されていません</td></tr>';
+    }
+    renderPartners(partners);
+    setupTableSort('partners-table', partners, renderPartners);
+
+    function renderInvoices(list) {
+        document.getElementById('partner-invoices-table').innerHTML = list.map(inv => {
+            const sBadge = inv.status === '支払済' ? '<span class="badge badge-green">支払済</span>'
+                : inv.status === '確認済' ? '<span class="badge badge-blue">確認済</span>'
+                : inv.status === '差戻' ? '<span class="badge badge-red">差戻</span>'
+                : '<span class="badge badge-orange">未確認</span>';
+            return `<tr>
+                <td>${inv.invoice_number || '-'}</td>
+                <td><strong>${inv.partner_name}</strong></td>
+                <td>${inv.invoice_date || '-'}</td>
+                <td>${inv.due_date || '-'}</td>
+                <td><strong>¥${(inv.total_amount + inv.tax_amount).toLocaleString()}</strong></td>
+                <td>${sBadge}</td>
+                <td>
+                    <select onchange="updatePartnerInvoiceStatus(${inv.id}, this.value)" style="font-size:0.8rem;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px">
+                        <option ${inv.status === '未確認' ? 'selected' : ''}>未確認</option>
+                        <option ${inv.status === '確認済' ? 'selected' : ''}>確認済</option>
+                        <option ${inv.status === '支払済' ? 'selected' : ''}>支払済</option>
+                        <option ${inv.status === '差戻' ? 'selected' : ''}>差戻</option>
+                    </select>
+                    <button class="btn btn-sm btn-danger" onclick="deletePartnerInvoice(${inv.id})">削除</button>
+                </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">請求書がありません</td></tr>';
+    }
+    renderInvoices(invoices);
+    setupTableSort('partner-invoices-table', invoices, renderInvoices);
 }
 
 function openPartnerModal(partner = null) {

@@ -108,14 +108,14 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>案件名</th>
-                            <th>荷主</th>
-                            <th>荷物</th>
+                            <th class="sortable" data-sort="name">案件名</th>
+                            <th class="sortable" data-sort="client_name">荷主</th>
+                            <th class="sortable" data-sort="cargo_description">荷物</th>
                             <th>積卸地</th>
-                            <th>集荷日</th>
+                            <th class="sortable" data-sort="pickup_date">集荷日</th>
                             <th>時間指定</th>
-                            <th>運賃</th>
-                            <th>頻度</th>
+                            <th class="sortable" data-sort="price" data-type="number">運賃</th>
+                            <th class="sortable" data-sort="frequency_type">頻度</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -134,12 +134,12 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>企業名</th>
-                            <th>住所</th>
-                            <th>電話番号</th>
-                            <th>担当者</th>
-                            <th>請求先メール</th>
-                            <th>支払条件</th>
+                            <th class="sortable" data-sort="name">企業名</th>
+                            <th class="sortable" data-sort="address">住所</th>
+                            <th class="sortable" data-sort="phone">電話番号</th>
+                            <th class="sortable" data-sort="contact_person">担当者</th>
+                            <th class="sortable" data-sort="billing_email">請求先メール</th>
+                            <th class="sortable" data-sort="payment_terms">支払条件</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -158,11 +158,11 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>会社名</th>
-                            <th>住所</th>
-                            <th>電話/FAX</th>
-                            <th>担当者</th>
-                            <th>支払条件</th>
+                            <th class="sortable" data-sort="name">会社名</th>
+                            <th class="sortable" data-sort="address">住所</th>
+                            <th class="sortable" data-sort="phone">電話/FAX</th>
+                            <th class="sortable" data-sort="contact_person">担当者</th>
+                            <th class="sortable" data-sort="payment_terms">支払条件</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -180,12 +180,12 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>請求番号</th>
-                                <th>協力会社</th>
-                                <th>請求日</th>
-                                <th>支払期日</th>
-                                <th>金額(税込)</th>
-                                <th>ステータス</th>
+                                <th class="sortable" data-sort="invoice_number">請求番号</th>
+                                <th class="sortable" data-sort="partner_name">協力会社</th>
+                                <th class="sortable" data-sort="invoice_date">請求日</th>
+                                <th class="sortable" data-sort="due_date">支払期日</th>
+                                <th class="sortable" data-sort="total_amount" data-type="number">金額(税込)</th>
+                                <th class="sortable" data-sort="status">ステータス</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -205,12 +205,12 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>車両番号</th>
-                            <th>車台番号</th>
-                            <th>車種</th>
-                            <th>積載量(kg)</th>
-                            <th>ステータス</th>
-                            <th>車検期限</th>
+                            <th class="sortable" data-sort="number">車両番号</th>
+                            <th class="sortable" data-sort="chassis_number">車台番号</th>
+                            <th class="sortable" data-sort="type">車種</th>
+                            <th class="sortable" data-sort="capacity" data-type="number">積載量(kg)</th>
+                            <th class="sortable" data-sort="status">ステータス</th>
+                            <th class="sortable" data-sort="inspection_expiry">車検期限</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -230,10 +230,10 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>名前</th>
-                            <th>電話番号</th>
-                            <th>免許種別</th>
-                            <th>ステータス</th>
+                            <th class="sortable" data-sort="name">名前</th>
+                            <th class="sortable" data-sort="phone">電話番号</th>
+                            <th class="sortable" data-sort="license_type">免許種別</th>
+                            <th class="sortable" data-sort="status">ステータス</th>
                             <th>月間稼働</th>
                             <th>備考</th>
                             <th>操作</th>

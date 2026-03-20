@@ -140,7 +140,7 @@ def _login_response(user: User, db=None, active_tenant: str = "") -> dict:
 
 # ── エンドポイント ────────────────────────────────────────
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     """ログイン（email or login_id）"""
     user = None
