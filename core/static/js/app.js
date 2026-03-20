@@ -159,7 +159,7 @@ function applyRoleAccess(user) {
     }
     if (user.role === 'dispatcher') {
         // 配車担当: サブアプリリンクを非表示
-        document.querySelectorAll('.nav-item[onclick*="app/top"]').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.nav-item[onclick*="app/billing"]').forEach(el => el.style.display = 'none');
         const subHeader = document.querySelector('.sub-app-header');
         if (subHeader) subHeader.style.display = 'none';
     }

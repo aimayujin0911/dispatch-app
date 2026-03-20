@@ -188,11 +188,6 @@ async def index(request: Request):
 
 
 # サブアプリ（別ページ）
-@app.get("/app/top", response_class=HTMLResponse)
-async def app_top(request: Request):
-    return templates.TemplateResponse("app_top.html", {"request": request})
-
-
 @app.get("/app/billing", response_class=HTMLResponse)
 async def billing_app(request: Request):
     return templates.TemplateResponse("app_billing.html", {"request": request})
