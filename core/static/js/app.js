@@ -502,6 +502,7 @@ async function loadDispatchCalendar() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
                 <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
                 <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" title="未配車案件を自動で配車" style="background:#ea580c;color:#fff;font-weight:600">⚡ 自動配車</button>
+                ${_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr ? `<button class="btn btn-sm" onclick="undoAutoDispatch()" title="直前の自動配車を取り消し" style="background:#64748b;color:#fff">↩ 元に戻す (${_lastAutoDispatchIds.length}件)</button>` : ''}
                 <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
                     ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
                 </select>
@@ -1315,6 +1316,34 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
 }
 
 // ===== 自動配車 =====
+let _lastAutoDispatchIds = []; // 直前の自動配車で作成された配車ID
+let _lastAutoDispatchDay = '';
+
+async function undoAutoDispatch() {
+    if (_lastAutoDispatchIds.length === 0) return alert('取り消す自動配車がありません');
+    if (!await showConfirm(`直前の自動配車（${_lastAutoDispatchIds.length}件）を取り消しますか？\n案件は未配車に戻ります。`)) return;
+    let ok = 0, ng = 0;
+    for (const id of _lastAutoDispatchIds) {
+        try {
+            // 配車に紐づく案件を未配車に戻す
+            const dispatches = await cachedApiGet('/dispatches');
+            const d = dispatches.find(x => x.id === id);
+            if (d && d.shipment_id) {
+                await apiPut(`/shipments/${d.shipment_id}`, { status: '未配車' });
+            }
+            await apiDelete(`/dispatches/${id}`);
+            ok++;
+        } catch (e) { ng++; }
+    }
+    _lastAutoDispatchIds = [];
+    _lastAutoDispatchDay = '';
+    invalidateCache('/shipments');
+    invalidateCache('/dispatches');
+    invalidateCache('_lastDispatches');
+    loadDispatchCalendar();
+    alert(`自動配車を取り消しました\n✅ 取消: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}`);
+}
+
 async function autoDispatch(dayStr) {
     const [shipments, drivers, vehicles, existingDispatches] = await Promise.all([
         cachedApiGet('/shipments'),
@@ -1532,9 +1561,10 @@ async function autoDispatch(dayStr) {
         document.getElementById('btn-auto-dispatch-confirm').disabled = true;
         document.getElementById('btn-auto-dispatch-confirm').textContent = '配車中...';
         let ok = 0, ng = 0;
+        const createdIds = [];
         for (const a of assignments) {
             try {
-                await apiPost('/dispatches', {
+                const result = await apiPost('/dispatches', {
                     shipment_id: a.shipment.id,
                     vehicle_id: a.vehicle.id,
                     driver_id: a.driver.id,
@@ -1542,15 +1572,18 @@ async function autoDispatch(dayStr) {
                     start_time: a.startTime,
                     end_time: a.endTime,
                 });
+                if (result && result.id) createdIds.push(result.id);
                 ok++;
             } catch (e) { ng++; }
         }
+        _lastAutoDispatchIds = createdIds;
+        _lastAutoDispatchDay = dayStr;
         closeModal();
         invalidateCache('/shipments');
         invalidateCache('/dispatches');
         invalidateCache('_lastDispatches');
         loadDispatchCalendar();
-        alert(`自動配車完了！\n✅ 成功: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}`);
+        alert(`自動配車完了！\n✅ 成功: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}\n\n※「↩ 元に戻す」ボタンで取り消せます`);
     };
 }
 
