@@ -208,9 +208,9 @@ def seed_on_startup():
             for did, dname, dtenant in orphans:
                 if did not in linked:
                     db.execute(text(
-                        "INSERT INTO users (name, role, tenant_id, driver_id, password_hash, is_active, login_id) "
-                        "VALUES (:name, 'driver', :tid, :did, '', true, :lid)"
-                    ), {"name": dname, "tid": dtenant or "demo", "did": did, "lid": f"driver_{did}"})
+                        "INSERT INTO users (name, email, role, tenant_id, driver_id, password_hash, is_active, login_id) "
+                        "VALUES (:name, :email, 'driver', :tid, :did, '', true, :lid)"
+                    ), {"name": dname, "email": f"driver_{did}@{dtenant or 'demo'}.local", "tid": dtenant or "demo", "did": did, "lid": f"driver_{did}"})
                     created += 1
             if created:
                 db.commit()

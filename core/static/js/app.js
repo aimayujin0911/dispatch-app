@@ -501,6 +501,7 @@ async function loadDispatchCalendar() {
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
                 <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
+                <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" title="未配車案件を自動で配車" style="background:#ea580c;color:#fff;font-weight:600">⚡ 自動配車</button>
                 <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
                     ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
                 </select>
@@ -989,6 +990,30 @@ async function onGanttDragEnd(e) {
     const timeChanged = newStart !== origStart || newEnd !== origEnd;
 
     if (vehicleChanged || timeChanged) {
+        // 勤務時間外チェック（車両変更時）
+        if (vehicleChanged) {
+            const allDispatches2 = _cache['_lastDispatches']?.data || await cachedApiGet('/dispatches');
+            const thisDisp = allDispatches2.find(x => x.id === id);
+            const targetDispatches = allDispatches2.filter(x => x.vehicle_id === targetVehicleId);
+            const targetDriverId = targetDispatches.length > 0 ? targetDispatches[0].driver_id : null;
+            if (targetDriverId) {
+                const allDrivers = await cachedApiGet('/drivers');
+                const driver = allDrivers.find(d => d.id === targetDriverId);
+                if (driver) {
+                    const ws = driver.work_start || '08:00';
+                    const we = driver.work_end || '17:00';
+                    const barStart = timeChanged ? newStart : origStart;
+                    const barEnd = timeChanged ? newEnd : origEnd;
+                    if (barStart < ws || barEnd > we) {
+                        if (!await showConfirm(`⚠ ${driver.name}の勤務時間は${ws}〜${we}ですが、この案件（${barStart}〜${barEnd}）は時間外にかかります。割り当てますか？`)) {
+                            loadDispatchCalendar();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
         // Requirement 4: 案件に元々時間が設定されている場合のみ警告
         if (timeChanged) {
             const allDispatches = _cache['_lastDispatches']?.data || await cachedApiGet('/dispatches');
@@ -1193,14 +1218,19 @@ async function onShipmentDragEnd(e) {
         <div class="form-row">
             <div class="form-group">
                 <label>ドライバー（自社）</label>
-                <select id="f-sd-driver" onchange="document.getElementById('f-sd-partner').value=''">
+                <select id="f-sd-driver" onchange="document.getElementById('f-sd-partner').value=''; checkDriverWorkTime(this, '${startTime}', '${endTime}')">
                     <option value="">-- 選択 --</option>
                     ${availableDrivers.map(d => {
                         const busy = busyDriverMap[d.id];
+                        const ws = d.work_start || '08:00';
+                        const we = d.work_end || '17:00';
+                        const outOfHours = startTime < ws || endTime > we;
                         const warn = busy ? `⚠ [${busy.join(',')}] ` : '';
-                        return `<option value="${d.id}" ${d.id == autoDriverId ? 'selected' : ''}>${warn}${d.name} (${d.license_type}) ${d.work_start || '08:00'}〜${d.work_end || '17:00'}</option>`;
+                        const offWarn = outOfHours ? '🕐時間外 ' : '';
+                        return `<option value="${d.id}" ${d.id == autoDriverId ? 'selected' : ''} data-ws="${ws}" data-we="${we}">${offWarn}${warn}${d.name} (${d.license_type}) ${ws}〜${we}</option>`;
                     }).join('')}
                 </select>
+                <div id="driver-work-warn"></div>
             </div>
             <div class="form-group">
                 <label>または 協力会社</label>
@@ -1225,6 +1255,23 @@ async function onShipmentDragEnd(e) {
             <button class="btn btn-primary" onclick="confirmShipmentDrop(${targetVehicleId}, ${shipmentId}, '${dayStr}')">配車する</button>
         </div>`;
     showModal();
+    // 自動選択されたドライバーの勤務時間外チェック
+    const driverSel = document.getElementById('f-sd-driver');
+    if (driverSel && driverSel.value) checkDriverWorkTime(driverSel, startTime, endTime);
+}
+
+function checkDriverWorkTime(sel, startTime, endTime) {
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+    const ws = opt.dataset.ws;
+    const we = opt.dataset.we;
+    if (ws && we && (startTime < ws || endTime > we)) {
+        const warnDiv = document.getElementById('driver-work-warn');
+        if (warnDiv) warnDiv.innerHTML = `<div style="padding:6px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:0.8rem;color:#991b1b;margin-top:4px">⚠ このドライバーの勤務時間（${ws}〜${we}）外です</div>`;
+    } else {
+        const warnDiv = document.getElementById('driver-work-warn');
+        if (warnDiv) warnDiv.innerHTML = '';
+    }
 }
 
 async function warnTimeChange(el, presetStart, presetEnd) {
@@ -1265,6 +1312,246 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
     await apiPost('/dispatches', postData);
     closeModal();
     loadDispatchCalendar();
+}
+
+// ===== 自動配車 =====
+async function autoDispatch(dayStr) {
+    const [shipments, drivers, vehicles, existingDispatches] = await Promise.all([
+        cachedApiGet('/shipments'),
+        cachedApiGet('/drivers'),
+        cachedApiGet('/vehicles'),
+        apiGet(`/dispatches?target_date=${dayStr}`),
+    ]);
+
+    // 未配車案件（その日に該当するもの）
+    const unassigned = shipments.filter(s => s.status === '未配車' && isShipmentForDate(s, dayStr));
+    if (unassigned.length === 0) return alert('未配車の案件がありません');
+
+    // 稼働中の車両（整備中除外）
+    const activeVehicles = vehicles.filter(v => v.status !== '整備中');
+    // 非番でないドライバー
+    const activeDrivers = drivers.filter(d => d.status !== '非番');
+
+    // 車両ごとの既存配車スロットを構築
+    const vehicleSlots = {};
+    activeVehicles.forEach(v => { vehicleSlots[v.id] = []; });
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && vehicleSlots[d.vehicle_id]) {
+            vehicleSlots[d.vehicle_id].push({ start: d.start_time, end: d.end_time, weight: d.shipment_weight || 0 });
+        }
+    });
+
+    // ドライバーごとの既存配車
+    const driverSlots = {};
+    activeDrivers.forEach(d => { driverSlots[d.id] = []; });
+    existingDispatches.forEach(d => {
+        if (d.driver_id && driverSlots[d.driver_id]) {
+            driverSlots[d.driver_id].push({ start: d.start_time, end: d.end_time, vehicleId: d.vehicle_id });
+        }
+    });
+
+    // 車両⇔ドライバーマッピング（既存配車から推定、原則固定）
+    const vehicleDriverMap = {};
+    const driverVehicleMap = {};
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && d.driver_id) {
+            if (!vehicleDriverMap[d.vehicle_id]) vehicleDriverMap[d.vehicle_id] = d.driver_id;
+            if (!driverVehicleMap[d.driver_id]) driverVehicleMap[d.driver_id] = d.vehicle_id;
+        }
+    });
+
+    // 時間重複チェック
+    function hasTimeConflict(slots, start, end) {
+        return slots.some(s => start < s.end && end > s.start);
+    }
+
+    // 免許で運転可能かチェック（車両総重量ベース: capacity(積載t)から推定）
+    function canDrive(licenseType, vehicleCapacity) {
+        const cap = vehicleCapacity || 0;
+        const license = (licenseType || '普通').trim();
+        if (license.includes('大型')) return true;
+        if (license.includes('中型') && !license.includes('準')) return cap <= 6.5;
+        if (license.includes('準中型')) return cap <= 4.5;
+        // 普通免許
+        return cap <= 2;
+    }
+
+    // 地理的近さスコア（住所の先頭一致で判定）
+    function geoScore(addr1, addr2) {
+        if (!addr1 || !addr2) return 0;
+        const a = addr1.replace(/\s/g, ''), b = addr2.replace(/\s/g, '');
+        // 都道府県+市区町村が一致 → 高スコア
+        let score = 0;
+        for (let i = 0; i < Math.min(a.length, b.length, 10); i++) {
+            if (a[i] === b[i]) score++; else break;
+        }
+        return score;
+    }
+
+    // 車両ごとの最後の降ろし地を取得
+    const vehicleLastDelivery = {};
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && d.delivery_address) {
+            const existing = vehicleLastDelivery[d.vehicle_id];
+            if (!existing || d.end_time > existing.end_time) {
+                vehicleLastDelivery[d.vehicle_id] = { address: d.delivery_address, end_time: d.end_time };
+            }
+        }
+    });
+
+    const assignments = [];
+    const failed = [];
+
+    // 案件を時間順にソート（指定時間あり優先）
+    unassigned.sort((a, b) => {
+        const aTime = a.pickup_time || '99:99';
+        const bTime = b.pickup_time || '99:99';
+        return aTime.localeCompare(bTime);
+    });
+
+    for (const s of unassigned) {
+        const startTime = s.pickup_time || '08:00';
+        const endTime = s.delivery_time || (minutesToTime(Math.min(timeToMinutes(startTime) + 60, HOUR_END * 60)));
+        const weight = s.weight || 0;
+        let assigned = false;
+
+        // 各車両をスコアリングして最適順に試す
+        const candidates = [];
+        for (const v of activeVehicles) {
+            // 積載量チェック（kg → t変換）
+            const capacityKg = (v.capacity || 0) * 1000;
+            if (capacityKg > 0 && weight > capacityKg) continue;
+            // 時間重複チェック
+            if (hasTimeConflict(vehicleSlots[v.id], startTime, endTime)) continue;
+
+            // スコア計算: 降ろし地→積み地の近さ
+            let score = 0;
+            const lastDel = vehicleLastDelivery[v.id];
+            if (lastDel && s.pickup_address) {
+                score = geoScore(lastDel.address, s.pickup_address) * 10;
+                // 時間的に連続してる（前の降ろしが今の積みより前）ならボーナス
+                if (lastDel.end_time <= startTime) score += 5;
+            }
+            // 既にこの車両にドライバーが乗ってればボーナス（車両の稼働率UP）
+            if (vehicleDriverMap[v.id]) score += 3;
+            candidates.push({ vehicle: v, score });
+        }
+
+        // スコア高い順にソート
+        candidates.sort((a, b) => b.score - a.score);
+
+        for (const { vehicle: v } of candidates) {
+            // ドライバーを探す（この車両に既に配車されてるドライバー優先）
+            let bestDriver = null;
+            const existingDriverId = vehicleDriverMap[v.id];
+
+            if (existingDriverId) {
+                const d = activeDrivers.find(dr => dr.id === existingDriverId);
+                if (d && canDrive(d.license_type, v.capacity)) {
+                    const ws = d.work_start || '08:00';
+                    const we = d.work_end || '17:00';
+                    if (startTime >= ws && endTime <= we && !hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) {
+                        bestDriver = d;
+                    }
+                }
+            }
+
+            // 既存ドライバーが無理なら空いてるドライバーを探す（車両固定＋免許チェック）
+            if (!bestDriver) {
+                for (const d of activeDrivers) {
+                    if (!canDrive(d.license_type, v.capacity)) continue;
+                    const ws = d.work_start || '08:00';
+                    const we = d.work_end || '17:00';
+                    if (startTime < ws || endTime > we) continue;
+                    if (hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) continue;
+                    // ドライバーが既に別車両に固定されている場合はスキップ
+                    if (driverVehicleMap[d.id] && driverVehicleMap[d.id] !== v.id) continue;
+                    const driverVehicles = new Set((driverSlots[d.id] || []).map(sl => sl.vehicleId));
+                    if (driverVehicles.size > 0 && !driverVehicles.has(v.id)) continue;
+                    bestDriver = d;
+                    break;
+                }
+            }
+
+            if (!bestDriver) continue;
+
+            assignments.push({
+                shipment: s, vehicle: v, driver: bestDriver,
+                startTime, endTime,
+            });
+
+            // スロットを更新
+            vehicleSlots[v.id].push({ start: startTime, end: endTime, weight });
+            if (!driverSlots[bestDriver.id]) driverSlots[bestDriver.id] = [];
+            driverSlots[bestDriver.id].push({ start: startTime, end: endTime, vehicleId: v.id });
+            if (!vehicleDriverMap[v.id]) vehicleDriverMap[v.id] = bestDriver.id;
+            // 降ろし地マップも更新
+            if (s.delivery_address) {
+                vehicleLastDelivery[v.id] = { address: s.delivery_address, end_time: endTime };
+            }
+            assigned = true;
+            break;
+        }
+        if (!assigned) failed.push(s);
+    }
+
+    if (assignments.length === 0) return alert('自動配車できる案件がありませんでした。\n（車両・ドライバーの空きや勤務時間が合わない可能性があります）');
+
+    // プレビュー表示
+    let previewHtml = `<div style="max-height:400px;overflow-y:auto">`;
+    previewHtml += `<div style="margin-bottom:8px;font-size:0.85rem;color:#059669;font-weight:600">✅ 配車可能: ${assignments.length}件</div>`;
+    previewHtml += `<table style="width:100%;font-size:0.8rem;border-collapse:collapse">
+        <thead><tr style="background:#f1f5f9"><th style="padding:4px 6px;text-align:left">案件</th><th style="padding:4px 6px">ルート</th><th style="padding:4px 6px">時間</th><th style="padding:4px 6px">車両</th><th style="padding:4px 6px">ドライバー</th></tr></thead><tbody>`;
+    assignments.forEach(a => {
+        const pickup = a.shipment.pickup_address ? a.shipment.pickup_address.split(/[都道府県市区町村郡]/).slice(-1)[0]?.substring(0,6) || a.shipment.pickup_address.substring(0,8) : '-';
+        const delivery = a.shipment.delivery_address ? a.shipment.delivery_address.split(/[都道府県市区町村郡]/).slice(-1)[0]?.substring(0,6) || a.shipment.delivery_address.substring(0,8) : '-';
+        previewHtml += `<tr style="border-bottom:1px solid #e5e7eb">
+            <td style="padding:4px 6px">${a.shipment.client_name} ${a.shipment.cargo_description || ''}</td>
+            <td style="padding:4px 6px;text-align:center;font-size:0.72rem">${pickup}→${delivery}</td>
+            <td style="padding:4px 6px;text-align:center">${a.startTime}〜${a.endTime}</td>
+            <td style="padding:4px 6px;text-align:center">${a.vehicle.number}</td>
+            <td style="padding:4px 6px;text-align:center">${a.driver.name}</td>
+        </tr>`;
+    });
+    previewHtml += `</tbody></table>`;
+    if (failed.length > 0) {
+        previewHtml += `<div style="margin-top:12px;font-size:0.85rem;color:#f59e0b;font-weight:600">📋 未割当: ${failed.length}件（協力会社等で対応）</div>`;
+        previewHtml += `<div style="font-size:0.78rem;color:#64748b">${failed.map(s => s.client_name + ' ' + (s.cargo_description || '')).join('、')}</div>`;
+    }
+    previewHtml += `</div>`;
+
+    document.getElementById('modal-title').textContent = '⚡ 自動配車プレビュー';
+    document.getElementById('modal-body').innerHTML = previewHtml + `
+        <div class="form-actions" style="margin-top:16px">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn btn-primary" id="btn-auto-dispatch-confirm">この内容で配車する (${assignments.length}件)</button>
+        </div>`;
+    showModal();
+
+    document.getElementById('btn-auto-dispatch-confirm').onclick = async () => {
+        document.getElementById('btn-auto-dispatch-confirm').disabled = true;
+        document.getElementById('btn-auto-dispatch-confirm').textContent = '配車中...';
+        let ok = 0, ng = 0;
+        for (const a of assignments) {
+            try {
+                await apiPost('/dispatches', {
+                    shipment_id: a.shipment.id,
+                    vehicle_id: a.vehicle.id,
+                    driver_id: a.driver.id,
+                    date: dayStr,
+                    start_time: a.startTime,
+                    end_time: a.endTime,
+                });
+                ok++;
+            } catch (e) { ng++; }
+        }
+        closeModal();
+        invalidateCache('/shipments');
+        invalidateCache('/dispatches');
+        invalidateCache('_lastDispatches');
+        loadDispatchCalendar();
+        alert(`自動配車完了！\n✅ 成功: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}`);
+    };
 }
 
 async function createTransportRequestFromShipmentAndShow(shipmentId, partnerId) {

@@ -116,9 +116,10 @@ def seed():
     db.flush()
 
     # ドライバーに対応するUserレコードも作成（ユーザー管理で表示されるように）
-    for drv in drivers:
+    for i, drv in enumerate(drivers):
         driver_user = User(
             name=drv.name,
+            email=f"driver{i+1}@demo.local",
             role="driver",
             tenant_id="demo",
             branch_id=branch_honsha.id,
@@ -731,9 +732,10 @@ def seed_transia():
     db.flush()
 
     # トランシアドライバーに対応するUserレコード
-    for drv in t_drivers:
+    for i, drv in enumerate(t_drivers):
         drv_user = User(
             name=drv.name,
+            email=f"driver{i+1}@transia.local",
             role="driver",
             tenant_id="transia",
             branch_id=t_branch.id,
