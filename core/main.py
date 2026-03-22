@@ -35,7 +35,8 @@ def seed_on_startup():
     logger.info(f"DB URL: {DATABASE_URL[:30]}...")
     db = SessionLocal()
     try:
-        count = db.query(Vehicle).count()
+        # マイグレーション前にモデルクエリすると新カラムでエラーになるため生SQL使用
+        count = db.execute(text("SELECT count(*) FROM vehicles")).scalar()
         logger.info(f"Vehicle count: {count}")
         if count == 0:
             logger.info("No vehicles found, running seed...")
