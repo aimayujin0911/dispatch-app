@@ -661,7 +661,7 @@ async function loadDispatchCalendar() {
     });
     const panel = document.getElementById('unassigned-panel');
     if (unassigned.length > 0) {
-        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件)</h3>
+        panel.innerHTML = `<h3 style="margin-bottom:12px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件) <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3>
             <div class="unassigned-list">
                 ${unassigned.map(s => {
                     const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
@@ -687,7 +687,7 @@ async function loadDispatchCalendar() {
                 }).join('')}
             </div>`;
     } else {
-        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件 - ${activeDayStr}</h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
+        panel.innerHTML = `<h3 style="margin-bottom:8px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
     }
 }
 
@@ -1442,6 +1442,212 @@ async function undoAutoDispatch() {
     invalidateCache('_lastDispatches');
     loadDispatchCalendar();
     alert(`自動配車を取り消しました\n✅ 取消: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}`);
+}
+
+// ===== 配車表からの簡易案件追加 =====
+async function openQuickShipmentModal(dayStr) {
+    const clients = await cachedApiGet('/clients');
+    document.getElementById('modal-title').textContent = '📦 案件追加（配車表）';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="form-group">
+            <label>荷主</label>
+            <select id="qs-client">
+                <option value="">-- 選択 --</option>
+                ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>荷物内容</label><input type="text" id="qs-cargo" placeholder="例: 鋼材"></div>
+            <div class="form-group"><label>重量(kg)</label><input type="number" id="qs-weight" value="0"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>積地</label><input type="text" id="qs-pickup" placeholder="例: 東京都江東区"></div>
+            <div class="form-group"><label>卸地</label><input type="text" id="qs-delivery" placeholder="例: 埼玉県さいたま市"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>集荷時間</label><input type="time" id="qs-pickup-time"></div>
+            <div class="form-group"><label>配達時間</label><input type="time" id="qs-delivery-time"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>運賃(円)</label><input type="number" id="qs-price" value="0"></div>
+            <div class="form-group"><label>輸送タイプ</label>
+                <select id="qs-transport">${['ドライ','冷蔵','冷凍','チルド','危険物'].map(t => `<option>${t}</option>`).join('')}</select>
+            </div>
+        </div>
+        <div id="qs-feasibility" style="margin-top:12px;padding:10px;border-radius:8px;background:#f0fdf4;display:none"></div>
+        <div class="form-actions" style="margin-top:16px">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            <button class="btn" onclick="checkQuickShipmentFeasibility('${dayStr}')" style="background:#3b82f6;color:#fff">🔍 配車可能チェック</button>
+            <button class="btn btn-primary" onclick="saveQuickShipment('${dayStr}')">追加</button>
+        </div>`;
+    showModal();
+}
+
+async function checkQuickShipmentFeasibility(dayStr) {
+    const weight = parseInt(document.getElementById('qs-weight').value) || 0;
+    const pickupTime = document.getElementById('qs-pickup-time').value || '08:00';
+    const deliveryTime = document.getElementById('qs-delivery-time').value || (minutesToTime(Math.min(timeToMinutes(pickupTime) + 60, 22 * 60)));
+    const pickupAddr = document.getElementById('qs-pickup').value;
+    const deliveryAddr = document.getElementById('qs-delivery').value;
+
+    const [drivers, vehicles, dispatches] = await Promise.all([
+        cachedApiGet('/drivers'),
+        cachedApiGet('/vehicles'),
+        apiGet(`/dispatches?target_date=${dayStr}`),
+    ]);
+
+    const activeVehicles = vehicles.filter(v => v.status !== '整備中');
+    const activeDrivers = drivers.filter(d => d.status !== '非番');
+    const panel = document.getElementById('qs-feasibility');
+    panel.style.display = 'block';
+
+    // 現状で配車可能か判定
+    const result = findAvailableSlot(activeVehicles, activeDrivers, dispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr);
+
+    if (result.available) {
+        panel.style.background = '#f0fdf4';
+        panel.innerHTML = `<div style="color:#16a34a;font-weight:700">✅ 配車可能</div>
+            <div style="font-size:0.85rem;margin-top:4px">
+                🚚 ${result.vehicle.number}（${result.vehicle.vehicle_type} ${result.vehicle.capacity}t）<br>
+                👤 ${result.driver.name}（${result.driver.work_start || '08:00'}〜${result.driver.work_end || '17:00'}）
+            </div>`;
+    } else {
+        // リセット判定: 協力会社案件以外を除外して再チェック
+        const partnerDispatches = dispatches.filter(d => d.is_partner_dispatch);
+        const resetResult = findAvailableSlot(activeVehicles, activeDrivers, partnerDispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr);
+
+        if (resetResult.available) {
+            // リセットで影響を受ける配車数を算出
+            const nonPartnerCount = dispatches.filter(d => !d.is_partner_dispatch).length;
+            panel.style.background = '#fefce8';
+            panel.innerHTML = `<div style="color:#ca8a04;font-weight:700">⚠️ 現状では配車不可</div>
+                <div style="font-size:0.85rem;margin-top:4px;color:#854d0e">
+                    理由: ${result.reason}<br><br>
+                    💡 <strong>協力会社案件を除く配車（${nonPartnerCount}件）をリセットすれば配車可能</strong><br>
+                    🚚 ${resetResult.vehicle.number}（${resetResult.vehicle.vehicle_type} ${resetResult.vehicle.capacity}t）<br>
+                    👤 ${resetResult.driver.name}
+                </div>`;
+        } else {
+            panel.style.background = '#fef2f2';
+            panel.innerHTML = `<div style="color:#dc2626;font-weight:700">❌ 配車不可</div>
+                <div style="font-size:0.85rem;margin-top:4px;color:#991b1b">
+                    ${result.reason}<br>
+                    リセットしても配車可能な車両・ドライバーがありません。<br>
+                    協力会社への依頼を検討してください。
+                </div>`;
+        }
+    }
+}
+
+function findAvailableSlot(vehicles, drivers, existingDispatches, weight, startTime, endTime, pickupAddr, deliveryAddr) {
+    // 車両ごとの既存スロット
+    const vehicleSlots = {};
+    vehicles.forEach(v => { vehicleSlots[v.id] = []; });
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && vehicleSlots[d.vehicle_id]) {
+            vehicleSlots[d.vehicle_id].push({ start: d.start_time, end: d.end_time });
+        }
+    });
+
+    // ドライバーごとの既存スロット
+    const driverSlots = {};
+    drivers.forEach(d => { driverSlots[d.id] = []; });
+    existingDispatches.forEach(d => {
+        if (d.driver_id && driverSlots[d.driver_id]) {
+            driverSlots[d.driver_id].push({ start: d.start_time, end: d.end_time, vehicleId: d.vehicle_id });
+        }
+    });
+
+    // 車両⇔ドライバーマッピング
+    const vehicleDriverMap = {};
+    const driverVehicleMap = {};
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && d.driver_id) {
+            if (!vehicleDriverMap[d.vehicle_id]) vehicleDriverMap[d.vehicle_id] = d.driver_id;
+            if (!driverVehicleMap[d.driver_id]) driverVehicleMap[d.driver_id] = d.vehicle_id;
+        }
+    });
+
+    function hasTimeConflict(slots, s, e) { return slots.some(sl => s < sl.end && e > sl.start); }
+
+    let noCapacity = 0, noTime = 0, noDriver = 0;
+
+    for (const v of vehicles) {
+        const capacityKg = (v.capacity || 0) * 1000;
+        if (capacityKg > 0 && weight > capacityKg) { noCapacity++; continue; }
+        if (hasTimeConflict(vehicleSlots[v.id] || [], startTime, endTime)) { noTime++; continue; }
+
+        // ドライバー探索
+        const existingDriverId = vehicleDriverMap[v.id];
+        let bestDriver = null;
+
+        if (existingDriverId) {
+            const d = drivers.find(dr => dr.id === existingDriverId);
+            if (d) {
+                const ws = d.work_start || '08:00', we = d.work_end || '17:00';
+                if (startTime >= ws && endTime <= we && !hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) {
+                    bestDriver = d;
+                }
+            }
+        }
+        if (!bestDriver) {
+            for (const d of drivers) {
+                const ws = d.work_start || '08:00', we = d.work_end || '17:00';
+                if (startTime < ws || endTime > we) continue;
+                if (hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) continue;
+                if (driverVehicleMap[d.id] && driverVehicleMap[d.id] !== v.id) continue;
+                bestDriver = d;
+                break;
+            }
+        }
+        if (!bestDriver) { noDriver++; continue; }
+
+        return { available: true, vehicle: v, driver: bestDriver };
+    }
+
+    // 理由を構築
+    const reasons = [];
+    if (noCapacity > 0) reasons.push(`積載量不足: ${noCapacity}台`);
+    if (noTime > 0) reasons.push(`時間帯重複: ${noTime}台`);
+    if (noDriver > 0) reasons.push(`対応可能ドライバーなし: ${noDriver}台`);
+    return { available: false, reason: reasons.join('、') || '利用可能な車両がありません' };
+}
+
+async function saveQuickShipment(dayStr) {
+    const client = document.getElementById('qs-client').value;
+    const cargo = document.getElementById('qs-cargo').value;
+    const weight = parseInt(document.getElementById('qs-weight').value) || 0;
+    const pickup = document.getElementById('qs-pickup').value;
+    const delivery = document.getElementById('qs-delivery').value;
+    const pickupTime = document.getElementById('qs-pickup-time').value;
+    const deliveryTime = document.getElementById('qs-delivery-time').value;
+    const price = parseInt(document.getElementById('qs-price').value) || 0;
+    const transport = document.getElementById('qs-transport').value;
+
+    if (!client) return alert('荷主を選択してください');
+
+    try {
+        await apiPost('/shipments', {
+            client_name: client,
+            cargo_description: cargo,
+            weight: weight,
+            pickup_address: pickup,
+            delivery_address: delivery,
+            pickup_date: dayStr,
+            delivery_date: dayStr,
+            pickup_time: pickupTime,
+            delivery_time: deliveryTime,
+            price: price,
+            transport_type: transport,
+            status: '未配車',
+            frequency_type: '単発',
+        });
+        closeModal();
+        invalidateCache('/shipments');
+        loadDispatchCalendar();
+    } catch (e) {
+        alert('案件追加に失敗しました: ' + e.message);
+    }
 }
 
 async function autoDispatch(dayStr) {
