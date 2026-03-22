@@ -1567,7 +1567,7 @@ async function openQuickShipmentModal(dayStr) {
 async function checkQuickShipmentFeasibility(dayStr) {
     const weight = parseInt(document.getElementById('qs-weight').value) || 0;
     const pickupTime = document.getElementById('qs-pickup-time').value || '08:00';
-    const deliveryTime = document.getElementById('qs-delivery-time').value || (minutesToTime(Math.min(timeToMinutes(pickupTime) + 60, 22 * 60)));
+    const deliveryTime = document.getElementById('qs-delivery-time').value || (minutesToTime(Math.min(timeToMinutes(pickupTime) + 240, 22 * 60)));
     const pickupAddr = document.getElementById('qs-pickup').value;
     const deliveryAddr = document.getElementById('qs-delivery').value;
 
@@ -1878,7 +1878,7 @@ async function autoDispatch(dayStr) {
 
     for (const s of unassigned) {
         const startTime = s.pickup_time || '08:00';
-        const endTime = s.delivery_time || (minutesToTime(Math.min(timeToMinutes(startTime) + 60, HOUR_END * 60)));
+        const endTime = s.delivery_time || (minutesToTime(Math.min(timeToMinutes(startTime) + 240, HOUR_END * 60)));
         const weight = s.weight || 0;
         let assigned = false;
 
