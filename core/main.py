@@ -126,6 +126,11 @@ def seed_on_startup():
             # ドライバーログイン対応
             ("users", "login_id", "VARCHAR(50)"),
             ("users", "driver_id", "INTEGER"),
+            # 車両: 温度帯・パワーゲート
+            ("vehicles", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
+            ("vehicles", "has_power_gate", "BOOLEAN DEFAULT false"),
+            # 案件: 温度帯
+            ("shipments", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
         ]
         for table, col, coltype in migrate_cols:
             try:

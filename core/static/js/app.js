@@ -742,7 +742,9 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
 
         html += `<div class="cal-vehicle-label">`;
         html += `<div class="cal-vehicle-name">${v.number}</div>`;
-        html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type} ${v.capacity ? v.capacity + 't' : ''}</div>`;
+        const tempBadge = v.temperature_zone && v.temperature_zone !== '常温' ? `<span style="font-size:0.6rem;color:#0891b2;font-weight:600">❄${v.temperature_zone}</span>` : '';
+        const pgBadge = v.has_power_gate ? '<span style="font-size:0.6rem;color:#7c3aed">PG</span>' : '';
+        html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type} ${v.capacity ? v.capacity + 't' : ''} ${tempBadge} ${pgBadge}</div>`;
         html += `</div>`;
 
         const timelineClick = `openQuickDispatchModal('${dayStr}', '08:00', '17:00', ${v.id})`;
@@ -2692,10 +2694,13 @@ async function loadVehicles() {
                 else if (daysLeft <= 30) inspBadge = `<span class="badge badge-orange">${v.inspection_expiry} (残${daysLeft}日)</span>`;
                 else inspBadge = `${v.inspection_expiry}`;
             }
+            const tz = v.temperature_zone && v.temperature_zone !== '常温' ? `<span style="color:#0891b2;font-size:0.8rem">❄${v.temperature_zone}</span>` : '<span style="color:#94a3b8;font-size:0.8rem">常温</span>';
+            const pg = v.has_power_gate ? '<span style="color:#7c3aed;font-size:0.75rem;font-weight:600">PG</span>' : '';
             return `<tr>
                 <td><strong><a href="#" onclick="event.preventDefault();editVehicle(${v.id})" class="link-cell">${v.number}</a></strong></td>
                 <td style="font-size:0.8rem;font-family:monospace">${v.chassis_number || '-'}</td>
                 <td>${v.type}</td>
+                <td>${tz} ${pg}</td>
                 <td>${v.capacity.toLocaleString()}</td>
                 <td>${statusBadge(v.status)}</td>
                 <td>${inspBadge}</td>
@@ -2704,7 +2709,7 @@ async function loadVehicles() {
                     <button class="btn btn-sm btn-danger" onclick="deleteVehicle(${v.id})">削除</button>
                 </td>
             </tr>`;
-        }).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
+        }).join('') || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px">車両が登録されていません</td></tr>';
     }
     renderVehicles(vehicles);
     setupTableSort('vehicles-table', vehicles, renderVehicles);
@@ -2728,21 +2733,35 @@ function openVehicleModal(vehicle = null) {
             <div class="form-group">
                 <label>車種</label>
                 <select id="f-v-type">
-                    ${['ウイング車', '平ボディ', '冷凍車', '冷蔵車', 'バン', 'トレーラー', 'ダンプ', 'タンクローリー', '軽バン', 'その他'].map(t =>
+                    ${['ウイング車', '平ボディ', 'バン', 'トレーラー', 'ユニック車', 'ダンプ', 'タンクローリー', '軽貨物', 'その他'].map(t =>
                         `<option ${vehicle?.type === t ? 'selected' : ''}>${t}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group">
-                <label>積載量(kg)</label>
+                <label>積載量(t)</label>
                 <input type="number" id="f-v-capacity" value="${vehicle?.capacity || 4}" step="0.1">
             </div>
         </div>
-        <div class="form-group">
-            <label>ステータス</label>
-            <select id="f-v-status">
-                ${['通常', '整備中'].map(s =>
-                    `<option ${vehicle?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-            </select>
+        <div class="form-row">
+            <div class="form-group">
+                <label>温度帯</label>
+                <select id="f-v-temp-zone">
+                    ${['常温', '冷蔵', '冷凍', '冷蔵冷凍兼用'].map(t =>
+                        `<option ${vehicle?.temperature_zone === t ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:end;gap:8px;padding-bottom:6px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+                    <input type="checkbox" id="f-v-power-gate" ${vehicle?.has_power_gate ? 'checked' : ''}> パワーゲート
+                </label>
+            </div>
+            <div class="form-group">
+                <label>ステータス</label>
+                <select id="f-v-status">
+                    ${['通常', '整備中'].map(s =>
+                        `<option ${vehicle?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -2770,6 +2789,8 @@ async function saveVehicle(id) {
         number: document.getElementById('f-v-number').value,
         chassis_number: document.getElementById('f-v-chassis').value,
         type: document.getElementById('f-v-type').value,
+        temperature_zone: document.getElementById('f-v-temp-zone').value,
+        has_power_gate: document.getElementById('f-v-power-gate').checked,
         capacity: parseFloat(document.getElementById('f-v-capacity').value),
         status: document.getElementById('f-v-status').value,
         first_registration: document.getElementById('f-v-first-reg').value,

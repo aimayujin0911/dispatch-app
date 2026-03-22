@@ -76,27 +76,27 @@ def seed():
     # 車両
     vehicles = [
         # ウイング車（大型・中型）
-        Vehicle(number="品川 100 あ 1234", chassis_number="ABC-1234567", type="ウイング車", capacity=10, status="通常", first_registration="2020-04", inspection_expiry="2026-04-15"),
-        Vehicle(number="品川 100 さ 3333", chassis_number="STU-1112233", type="ウイング車", capacity=13, status="通常", first_registration="2021-10", inspection_expiry="2026-10-20"),
-        Vehicle(number="千葉 500 お 7890", chassis_number="MNO-5678901", type="ウイング車", capacity=10, status="整備中", notes="タイヤ交換中", first_registration="2018-06", inspection_expiry="2026-03-25"),
-        # 冷蔵・冷凍車
-        Vehicle(number="品川 200 い 5678", chassis_number="DEF-2345678", type="冷蔵車", capacity=4, status="通常", first_registration="2021-07", inspection_expiry="2026-07-20"),
-        Vehicle(number="横浜 200 な 7777", chassis_number="WXY-4445566", type="冷凍車", capacity=10, status="通常", first_registration="2022-05", inspection_expiry="2027-05-10", notes="-25℃対応"),
+        Vehicle(number="品川 100 あ 1234", chassis_number="ABC-1234567", type="ウイング車", capacity=10, status="通常", temperature_zone="常温", has_power_gate=True, first_registration="2020-04", inspection_expiry="2026-04-15"),
+        Vehicle(number="品川 100 さ 3333", chassis_number="STU-1112233", type="ウイング車", capacity=13, status="通常", temperature_zone="常温", has_power_gate=True, first_registration="2021-10", inspection_expiry="2026-10-20"),
+        Vehicle(number="千葉 500 お 7890", chassis_number="MNO-5678901", type="ウイング車", capacity=10, status="整備中", temperature_zone="常温", has_power_gate=True, notes="タイヤ交換中", first_registration="2018-06", inspection_expiry="2026-03-25"),
+        # バン（冷蔵・冷凍対応）
+        Vehicle(number="品川 200 い 5678", chassis_number="DEF-2345678", type="バン", capacity=4, status="通常", temperature_zone="冷蔵", has_power_gate=True, first_registration="2021-07", inspection_expiry="2026-07-20"),
+        Vehicle(number="横浜 200 な 7777", chassis_number="WXY-4445566", type="ウイング車", capacity=10, status="通常", temperature_zone="冷凍", has_power_gate=True, first_registration="2022-05", inspection_expiry="2027-05-10", notes="-25℃対応"),
         # 平ボディ
-        Vehicle(number="横浜 300 う 9012", chassis_number="GHI-3456789", type="平ボディ", capacity=2, status="通常", first_registration="2019-11", inspection_expiry="2026-05-10"),
-        Vehicle(number="大宮 300 た 4444", chassis_number="VWX-3334455", type="平ボディ", capacity=4, status="通常", first_registration="2020-08", inspection_expiry="2026-08-30"),
+        Vehicle(number="横浜 300 う 9012", chassis_number="GHI-3456789", type="平ボディ", capacity=2, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2019-11", inspection_expiry="2026-05-10"),
+        Vehicle(number="大宮 300 た 4444", chassis_number="VWX-3334455", type="平ボディ", capacity=4, status="通常", temperature_zone="常温", has_power_gate=True, first_registration="2020-08", inspection_expiry="2026-08-30"),
         # トレーラー
-        Vehicle(number="大宮 400 え 3456", chassis_number="JKL-4567890", type="トレーラー", capacity=20, status="通常", first_registration="2022-01", inspection_expiry="2026-09-30"),
-        Vehicle(number="川崎 400 ち 8888", chassis_number="ZAB-7778899", type="トレーラー", capacity=24, status="通常", first_registration="2023-06", inspection_expiry="2027-06-15"),
+        Vehicle(number="大宮 400 え 3456", chassis_number="JKL-4567890", type="トレーラー", capacity=20, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2022-01", inspection_expiry="2026-09-30"),
+        Vehicle(number="川崎 400 ち 8888", chassis_number="ZAB-7778899", type="トレーラー", capacity=24, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2023-06", inspection_expiry="2027-06-15"),
         # バン
-        Vehicle(number="品川 600 か 1111", chassis_number="PQR-6789012", type="バン", capacity=4, status="通常", first_registration="2023-03", inspection_expiry="2027-03-15"),
-        Vehicle(number="足立 600 つ 5555", chassis_number="CDE-5556677", type="バン", capacity=2, status="通常", first_registration="2024-01", inspection_expiry="2028-01-20"),
+        Vehicle(number="品川 600 か 1111", chassis_number="PQR-6789012", type="バン", capacity=4, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2023-03", inspection_expiry="2027-03-15"),
+        Vehicle(number="足立 600 つ 5555", chassis_number="CDE-5556677", type="バン", capacity=2, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2024-01", inspection_expiry="2028-01-20"),
         # ユニック車（クレーン付き）
-        Vehicle(number="品川 800 に 2222", chassis_number="FGH-8889900", type="ユニック車", capacity=4, status="通常", first_registration="2019-03", inspection_expiry="2026-03-10", notes="2.9tクレーン付"),
+        Vehicle(number="品川 800 に 2222", chassis_number="FGH-8889900", type="ユニック車", capacity=4, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2019-03", inspection_expiry="2026-03-10", notes="2.9tクレーン付"),
         # 軽貨物
-        Vehicle(number="品川 480 は 9999", chassis_number="IJK-9990011", type="軽貨物", capacity=0.35, status="通常", first_registration="2024-06", inspection_expiry="2028-06-01"),
-        # 整備中追加
-        Vehicle(number="横浜 100 ま 6666", chassis_number="LMN-6667788", type="冷蔵車", capacity=4, status="整備中", notes="冷凍機修理中", first_registration="2020-02", inspection_expiry="2026-06-15"),
+        Vehicle(number="品川 480 は 9999", chassis_number="IJK-9990011", type="軽貨物", capacity=0.35, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2024-06", inspection_expiry="2028-06-01"),
+        # 整備中（冷蔵冷凍兼用）
+        Vehicle(number="横浜 100 ま 6666", chassis_number="LMN-6667788", type="バン", capacity=4, status="整備中", temperature_zone="冷蔵冷凍兼用", has_power_gate=True, notes="冷凍機修理中", first_registration="2020-02", inspection_expiry="2026-06-15"),
     ]
     db.add_all(vehicles)
     db.flush()
@@ -202,7 +202,7 @@ def seed():
                  pickup_address="埼玉県さいたま市大宮区", delivery_address="千葉県千葉市美浜区",
                  pickup_date=today, pickup_time="08:00", delivery_date=today, delivery_time="16:00",
                  price=120000, status="運行中",
-                 transport_type="冷蔵", unit_price_type="kg単価", unit_price=15, unit_quantity=8000,
+                 transport_type="ドライ", temperature_zone="冷蔵", unit_price_type="kg単価", unit_price=15, unit_quantity=8000,
                  waiting_time=10, loading_time=45, unloading_time=30,
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="山本建材輸送", client_name="山本建設", cargo_description="建材", weight=5000,
@@ -222,7 +222,7 @@ def seed():
                  pickup_address="千葉県船橋市", delivery_address="東京都新宿区",
                  pickup_date=today + timedelta(days=2), pickup_time="07:00", delivery_date=today + timedelta(days=2), delivery_time="11:00",
                  price=65000, status="未配車",
-                 transport_type="チルド", unit_price_type="ケース単価", unit_price=32.5, unit_quantity=2000,
+                 transport_type="ドライ", temperature_zone="チルド", unit_price_type="ケース単価", unit_price=32.5, unit_quantity=2000,
                  waiting_time=5, loading_time=20, unloading_time=15,
                  frequency_type="毎日", frequency_days=""),
         # 完了済み(売上データ用)
@@ -247,14 +247,14 @@ def seed():
         Shipment(name="湘南医薬品配送", client_name="湘南物流", cargo_description="医薬品", weight=500,
                  pickup_address="東京都中央区", delivery_address="神奈川県藤沢市",
                  pickup_date=today - timedelta(days=4), delivery_date=today - timedelta(days=4), price=98000, status="完了",
-                 transport_type="冷蔵", unit_price_type="個建", unit_price=98000, unit_quantity=1,
+                 transport_type="ドライ", temperature_zone="冷蔵", unit_price_type="個建", unit_price=98000, unit_quantity=1,
                  invoice_status="入金済", invoice_date=today - timedelta(days=2),
                  frequency_type="毎日", frequency_days=""),
         # 追加案件データ
         Shipment(name="ABC定温輸送", client_name="ABC物流", cargo_description="冷凍食品", weight=4000,
                  pickup_address="東京都大田区平和島", delivery_address="埼玉県川越市",
                  pickup_date=today + timedelta(days=1), pickup_time="05:00", delivery_date=today + timedelta(days=1), delivery_time="10:00",
-                 price=78000, status="未配車",
+                 price=78000, status="未配車", temperature_zone="冷凍",
                  waiting_time=10, loading_time=25, unloading_time=20,
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         Shipment(name="XYZ青果便", client_name="XYZ商事", cargo_description="青果物", weight=3000,
@@ -278,7 +278,7 @@ def seed():
         Shipment(name="太陽食品チルド便", client_name="太陽食品", cargo_description="乳製品(チルド)", weight=2500,
                  pickup_address="千葉県船橋市", delivery_address="東京都世田谷区",
                  pickup_date=today, pickup_time="06:00", delivery_date=today, delivery_time="09:00",
-                 price=45000, status="未配車",
+                 price=45000, status="未配車", temperature_zone="チルド",
                  waiting_time=5, loading_time=15, unloading_time=10,
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="関東文具配送", client_name="関東運輸", cargo_description="文具・事務用品", weight=1800,
@@ -311,7 +311,7 @@ def seed():
         Shipment(name="XYZ冷凍水産便", client_name="XYZ商事", cargo_description="冷凍水産物", weight=5000,
                  pickup_address="千葉県銚子市", delivery_address="東京都築地",
                  pickup_date=today + timedelta(days=1), pickup_time="03:00", delivery_date=today + timedelta(days=1), delivery_time="07:00",
-                 time_note="深夜発・早朝着", price=95000, status="未配車",
+                 time_note="深夜発・早朝着", price=95000, status="未配車", temperature_zone="冷凍",
                  waiting_time=10, loading_time=30, unloading_time=20,
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         # ===== 追加案件（バリエーション豊富に） =====
@@ -325,7 +325,7 @@ def seed():
         Shipment(name="太陽食品冷凍便", client_name="太陽食品", cargo_description="冷凍食品", weight=4500,
                  pickup_address="千葉県船橋市", delivery_address="埼玉県さいたま市浦和区",
                  pickup_date=today, pickup_time="05:00", delivery_date=today, delivery_time="09:00",
-                 price=58000, status="未配車",
+                 price=58000, status="未配車", temperature_zone="冷凍",
                  waiting_time=5, loading_time=25, unloading_time=20,
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="関東運輸ルート便A", client_name="関東運輸", cargo_description="日用品", weight=3000,
@@ -369,7 +369,7 @@ def seed():
         Shipment(name="XYZ商事冷蔵花卉", client_name="XYZ商事", cargo_description="切花(冷蔵)", weight=1500,
                  pickup_address="千葉県南房総市", delivery_address="東京都大田区",
                  pickup_date=today + timedelta(days=2), pickup_time="04:00", delivery_date=today + timedelta(days=2), delivery_time="08:00",
-                 time_note="冷蔵車必須・5℃管理", price=75000, status="未配車",
+                 time_note="冷蔵車必須・5℃管理", price=75000, status="未配車", temperature_zone="冷蔵",
                  waiting_time=5, loading_time=20, unloading_time=15,
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         Shipment(name="ABC物流展示会搬入", client_name="ABC物流", cargo_description="展示ブース資材", weight=3500,
@@ -415,7 +415,7 @@ def seed():
                  frequency_type="曜日指定", frequency_days="月,水,金"),
         Shipment(name="XYZ商事冷蔵(先週)", client_name="XYZ商事", cargo_description="食品(冷蔵)", weight=7500,
                  pickup_address="埼玉県さいたま市大宮区", delivery_address="千葉県千葉市美浜区",
-                 pickup_date=today - timedelta(days=5), delivery_date=today - timedelta(days=5), price=118000, status="完了",
+                 pickup_date=today - timedelta(days=5), delivery_date=today - timedelta(days=5), price=118000, status="完了", temperature_zone="冷蔵",
                  invoice_status="入金済", invoice_date=today - timedelta(days=3),
                  frequency_type="毎日", frequency_days=""),
         Shipment(name="太陽食品配送(先週)", client_name="太陽食品", cargo_description="飲料", weight=5800,
@@ -714,10 +714,10 @@ def seed_transia():
 
     # トランシア車両
     t_vehicles = [
-        Vehicle(number="春日部 100 あ 0001", chassis_number="TRA-001", type="ウイング車", capacity=10, status="通常", tenant_id="transia"),
-        Vehicle(number="春日部 200 い 0002", chassis_number="TRA-002", type="冷蔵車", capacity=4, status="通常", tenant_id="transia"),
-        Vehicle(number="春日部 300 う 0003", chassis_number="TRA-003", type="平ボディ", capacity=2, status="通常", tenant_id="transia"),
-        Vehicle(number="春日部 400 え 0004", chassis_number="TRA-004", type="トレーラー", capacity=20, status="通常", tenant_id="transia"),
+        Vehicle(number="春日部 100 あ 0001", chassis_number="TRA-001", type="ウイング車", capacity=10, status="通常", temperature_zone="常温", has_power_gate=True, tenant_id="transia"),
+        Vehicle(number="春日部 200 い 0002", chassis_number="TRA-002", type="バン", capacity=4, status="通常", temperature_zone="冷蔵", has_power_gate=True, tenant_id="transia"),
+        Vehicle(number="春日部 300 う 0003", chassis_number="TRA-003", type="平ボディ", capacity=2, status="通常", temperature_zone="常温", has_power_gate=False, tenant_id="transia"),
+        Vehicle(number="春日部 400 え 0004", chassis_number="TRA-004", type="トレーラー", capacity=20, status="通常", temperature_zone="常温", has_power_gate=False, tenant_id="transia"),
     ]
     db.add_all(t_vehicles)
     db.flush()
@@ -764,12 +764,12 @@ def seed_transia():
         Shipment(name="久喜倉庫冷蔵便", client_name="久喜倉庫", cargo_description="食品(冷蔵)", weight=2500,
                  pickup_address="埼玉県久喜市", delivery_address="東京都板橋区",
                  pickup_date=today, pickup_time="06:00", delivery_date=today, delivery_time="10:00",
-                 price=48000, status="未配車", frequency_type="毎日", frequency_days="",
+                 price=48000, status="未配車", temperature_zone="冷蔵", frequency_type="毎日", frequency_days="",
                  tenant_id="transia"),
         Shipment(name="杉戸食品配送", client_name="杉戸食品", cargo_description="冷凍食品", weight=4000,
                  pickup_address="埼玉県北葛飾郡杉戸町", delivery_address="埼玉県さいたま市大宮区",
                  pickup_date=today + timedelta(days=1), pickup_time="08:00", delivery_date=today + timedelta(days=1), delivery_time="12:00",
-                 price=42000, status="未配車", frequency_type="曜日指定", frequency_days="火,木",
+                 price=42000, status="未配車", temperature_zone="冷凍", frequency_type="曜日指定", frequency_days="火,木",
                  tenant_id="transia"),
     ]
     db.add_all(t_shipments)

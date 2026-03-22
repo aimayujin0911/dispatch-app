@@ -316,7 +316,9 @@ class Vehicle(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     number = Column(String(20), nullable=False)
     chassis_number = Column(String(30), default="")
-    type = Column(String(50), nullable=False)
+    type = Column(String(50), nullable=False)  # ウイング車/平ボディ/バン/ユニック車/トレーラー
+    temperature_zone = Column(String(20), default="常温")  # 常温/冷蔵/冷凍/冷蔵冷凍兼用
+    has_power_gate = Column(Boolean, default=False)  # パワーゲート有無
     capacity = Column(Float, nullable=False)
     status = Column(String(20), default="空車")
     first_registration = Column(String(10), default="")
@@ -370,7 +372,8 @@ class Shipment(Base):
     time_note = Column(String(100), default="")
     price = Column(Integer, default=0)
     # 輸送タイプ・請求単価
-    transport_type = Column(String(20), default="ドライ")  # ドライ/冷蔵/冷凍/チルド/危険物
+    transport_type = Column(String(20), default="ドライ")  # ドライ/危険物
+    temperature_zone = Column(String(20), default="常温")  # 常温/冷蔵/冷凍/チルド
     unit_price_type = Column(String(20), default="個建")  # 個建/kg単価/ケース単価/車建/才建
     unit_price = Column(Float, default=0)  # 単価
     unit_quantity = Column(Float, default=0)  # 数量
