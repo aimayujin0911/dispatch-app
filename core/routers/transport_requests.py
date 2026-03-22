@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 class TRCreate(BaseModel):
-    partner_id: int
+    partner_id: Optional[int] = None
     shipment_id: Optional[int] = None
     request_date: Optional[date] = None
     pickup_date: Optional[date] = None

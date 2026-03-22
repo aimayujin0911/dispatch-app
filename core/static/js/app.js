@@ -4635,7 +4635,7 @@ async function handleTransportRequest(dispatchId) {
     const shipments = d.shipment_id ? await apiGet('/shipments') : [];
     const s = d.shipment_id ? shipments.find(x => x.id === d.shipment_id) : null;
     const trData = {
-        partner_id: d.partner_id || (partner ? partner.id : 0),
+        partner_id: d.partner_id || (partner ? partner.id : null),
         shipment_id: d.shipment_id || null,
         request_date: new Date().toISOString().split('T')[0],
         pickup_date: d.date,
@@ -4674,10 +4674,16 @@ async function handleTransportRequest(dispatchId) {
         showModal();
     } else {
         // 協力会社が未設定 - 直接PDFで出力
-        closeModal();
-        const result = await apiPost('/transport-requests', trData);
-        if (result.id) {
-            setTimeout(() => printTransportRequest(result.id), 300);
+        try {
+            const result = await apiPost('/transport-requests', trData);
+            closeModal();
+            if (result && result.id) {
+                setTimeout(() => printTransportRequest(result.id), 300);
+            } else {
+                alert('輸送依頼書の作成に失敗しました');
+            }
+        } catch (e) {
+            alert('輸送依頼書の作成に失敗しました: ' + e.message);
         }
     }
 }
