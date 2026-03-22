@@ -1551,8 +1551,8 @@ async function openQuickShipmentModal(dayStr) {
         </div>
         <div class="form-row">
             <div class="form-group"><label>運賃(円)</label><input type="number" id="qs-price" value="0"></div>
-            <div class="form-group"><label>輸送タイプ</label>
-                <select id="qs-transport">${['ドライ','冷蔵','冷凍','チルド','危険物'].map(t => `<option>${t}</option>`).join('')}</select>
+            <div class="form-group"><label>温度帯</label>
+                <select id="qs-temp-zone">${['常温','冷蔵','冷凍','チルド'].map(t => `<option>${t}</option>`).join('')}</select>
             </div>
         </div>
         <div id="qs-feasibility" style="margin-top:12px;padding:10px;border-radius:8px;background:#f0fdf4;display:none"></div>
@@ -1582,8 +1582,10 @@ async function checkQuickShipmentFeasibility(dayStr) {
     const panel = document.getElementById('qs-feasibility');
     panel.style.display = 'block';
 
+    const tempZone = document.getElementById('qs-temp-zone').value;
+
     // 現状で配車可能か判定
-    const result = findAvailableSlot(activeVehicles, activeDrivers, dispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr);
+    const result = findAvailableSlot(activeVehicles, activeDrivers, dispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr, tempZone);
 
     if (result.available) {
         panel.style.background = '#f0fdf4';
@@ -1595,7 +1597,7 @@ async function checkQuickShipmentFeasibility(dayStr) {
     } else {
         // リセット判定: 協力会社案件以外を除外して再チェック
         const partnerDispatches = dispatches.filter(d => d.is_partner_dispatch);
-        const resetResult = findAvailableSlot(activeVehicles, activeDrivers, partnerDispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr);
+        const resetResult = findAvailableSlot(activeVehicles, activeDrivers, partnerDispatches, weight, pickupTime, deliveryTime, pickupAddr, deliveryAddr, tempZone);
 
         if (resetResult.available) {
             // リセットで影響を受ける配車数を算出
@@ -1620,7 +1622,7 @@ async function checkQuickShipmentFeasibility(dayStr) {
     }
 }
 
-function findAvailableSlot(vehicles, drivers, existingDispatches, weight, startTime, endTime, pickupAddr, deliveryAddr) {
+function findAvailableSlot(vehicles, drivers, existingDispatches, weight, startTime, endTime, pickupAddr, deliveryAddr, tempZone) {
     // 車両ごとの既存スロット
     const vehicleSlots = {};
     vehicles.forEach(v => { vehicleSlots[v.id] = []; });
@@ -1651,9 +1653,16 @@ function findAvailableSlot(vehicles, drivers, existingDispatches, weight, startT
 
     function hasTimeConflict(slots, s, e) { return slots.some(sl => s < sl.end && e > sl.start); }
 
-    let noCapacity = 0, noTime = 0, noDriver = 0;
+    let noCapacity = 0, noTime = 0, noDriver = 0, noTempZone = 0;
 
     for (const v of vehicles) {
+        // 温度帯チェック
+        const sTz = tempZone || '常温';
+        const vTz = v.temperature_zone || '常温';
+        if (sTz !== '常温') {
+            const ok = vTz === sTz || vTz === '冷蔵冷凍兼用' || (sTz === 'チルド' && (vTz === '冷蔵' || vTz === '冷凍'));
+            if (!ok) { noTempZone++; continue; }
+        }
         const capacityKg = (v.capacity || 0) * 1000;
         if (capacityKg > 0 && weight > capacityKg) { noCapacity++; continue; }
         if (hasTimeConflict(vehicleSlots[v.id] || [], startTime, endTime)) { noTime++; continue; }
@@ -1688,6 +1697,7 @@ function findAvailableSlot(vehicles, drivers, existingDispatches, weight, startT
 
     // 理由を構築
     const reasons = [];
+    if (noTempZone > 0) reasons.push(`温度帯不適合: ${noTempZone}台`);
     if (noCapacity > 0) reasons.push(`積載量不足: ${noCapacity}台`);
     if (noTime > 0) reasons.push(`時間帯重複: ${noTime}台`);
     if (noDriver > 0) reasons.push(`対応可能ドライバーなし: ${noDriver}台`);
@@ -1703,7 +1713,7 @@ async function saveQuickShipment(dayStr) {
     const pickupTime = document.getElementById('qs-pickup-time').value;
     const deliveryTime = document.getElementById('qs-delivery-time').value;
     const price = parseInt(document.getElementById('qs-price').value) || 0;
-    const transport = document.getElementById('qs-transport').value;
+    const tempZone = document.getElementById('qs-temp-zone').value;
 
     if (!client) return alert('荷主を選択してください');
 
@@ -1719,7 +1729,7 @@ async function saveQuickShipment(dayStr) {
             pickup_time: pickupTime,
             delivery_time: deliveryTime,
             price: price,
-            transport_type: transport,
+            temperature_zone: tempZone,
             status: '未配車',
             frequency_type: '単発',
         });
@@ -1875,6 +1885,18 @@ async function autoDispatch(dayStr) {
         // 各車両をスコアリングして最適順に試す
         const candidates = [];
         for (const v of activeVehicles) {
+            // 温度帯チェック: 案件の温度帯に車両が対応してるか
+            const shipTempZone = s.temperature_zone || '常温';
+            const vehTempZone = v.temperature_zone || '常温';
+            if (shipTempZone !== '常温') {
+                // 冷蔵案件 → 冷蔵/冷蔵冷凍兼用車両のみ
+                // 冷凍案件 → 冷凍/冷蔵冷凍兼用車両のみ
+                // チルド案件 → 冷蔵/冷凍/冷蔵冷凍兼用車両
+                const canHandle = vehTempZone === shipTempZone
+                    || vehTempZone === '冷蔵冷凍兼用'
+                    || (shipTempZone === 'チルド' && (vehTempZone === '冷蔵' || vehTempZone === '冷凍'));
+                if (!canHandle) continue;
+            }
             // 積載量チェック（kg → t変換）
             const capacityKg = (v.capacity || 0) * 1000;
             const currentLoad = (vehicleSlots[v.id] || []).reduce((sum, sl) => sum + (sl.weight || 0), 0);
@@ -2475,9 +2497,11 @@ async function showDispatchDetail(id) {
             <div><strong>ドライバー:</strong> ${d.driver_name}</div>
             <div><strong>荷主:</strong> ${d.client_name || '-'}</div>
             <div><strong>荷物:</strong> ${d.cargo_description || '-'}${d.weight > 0 ? ' (' + d.weight.toLocaleString() + 'kg)' : ''}</div>
+            <div><strong>温度帯:</strong> ${d.temperature_zone && d.temperature_zone !== '常温' ? '❄ ' + d.temperature_zone : '常温'}${d.transport_type === '危険物' ? ' ⚠️ 危険物' : ''}</div>
             <div><strong>積地:</strong> ${d.pickup_address || '-'}</div>
             <div><strong>卸地:</strong> ${d.delivery_address || '-'}</div>
             ${capInfo}${priceInfo}
+            <div style="font-size:0.82rem;color:#64748b"><strong>車両温度帯:</strong> ${d.vehicle_temp_zone && d.vehicle_temp_zone !== '常温' ? '❄ ' + d.vehicle_temp_zone : '常温'} ${d.vehicle_has_power_gate ? '| PG有' : ''}</div>
             <div><strong>ステータス:</strong> ${statusBadge(d.status)}</div>
             <div><strong>備考:</strong> ${d.notes || '-'}</div>
         </div>

@@ -24,6 +24,7 @@ class ShipmentCreate(BaseModel):
     time_note: str = ""
     price: int = 0
     transport_type: str = "ドライ"
+    temperature_zone: str = "常温"
     unit_price_type: str = "個建"
     unit_price: float = 0
     unit_quantity: float = 0
@@ -50,6 +51,7 @@ class ShipmentUpdate(BaseModel):
     time_note: Optional[str] = None
     price: Optional[int] = None
     transport_type: Optional[str] = None
+    temperature_zone: Optional[str] = None
     unit_price_type: Optional[str] = None
     unit_price: Optional[float] = None
     unit_quantity: Optional[float] = None

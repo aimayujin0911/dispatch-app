@@ -89,6 +89,8 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "vehicle_number": d.vehicle.number if d.vehicle else "",
             "vehicle_type": d.vehicle.type if d.vehicle else "",
             "vehicle_capacity": d.vehicle.capacity if d.vehicle else 0,
+            "vehicle_temp_zone": getattr(d.vehicle, 'temperature_zone', '常温') if d.vehicle else "常温",
+            "vehicle_has_power_gate": getattr(d.vehicle, 'has_power_gate', False) if d.vehicle else False,
             "driver_name": d.driver.name if d.driver else partner_name or "",
             "shipment_name": d.shipment.name if d.shipment else "",
             "client_name": d.shipment.client_name if d.shipment else "",
@@ -104,6 +106,8 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             "waiting_time": d.shipment.waiting_time if d.shipment else 0,
             "loading_time": d.shipment.loading_time if d.shipment else 0,
             "unloading_time": d.shipment.unloading_time if d.shipment else 0,
+            "transport_type": d.shipment.transport_type if d.shipment else "ドライ",
+            "temperature_zone": getattr(d.shipment, 'temperature_zone', '常温') if d.shipment else "常温",
         })
     return result
 
