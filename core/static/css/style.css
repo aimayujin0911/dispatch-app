@@ -755,6 +755,7 @@ body {
     transition: box-shadow 0.15s;
     z-index: 2;
     min-width: 20px;
+    overflow: hidden;
 }
 
 .gantt-bar:hover {

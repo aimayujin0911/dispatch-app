@@ -1425,17 +1425,19 @@ async function undoAutoDispatch() {
     if (_lastAutoDispatchIds.length === 0) return alert('取り消す自動配車がありません');
     if (!await showConfirm(`直前の自動配車（${_lastAutoDispatchIds.length}件）を取り消しますか？\n案件は未配車に戻ります。`)) return;
     let ok = 0, ng = 0;
+    // キャッシュを無効化して最新データを取得
+    invalidateCache('/dispatches');
+    invalidateCache('_lastDispatches');
+    const allDispatches = await apiGet('/dispatches');
     for (const id of _lastAutoDispatchIds) {
         try {
-            // 配車に紐づく案件を未配車に戻す
-            const dispatches = await cachedApiGet('/dispatches');
-            const d = dispatches.find(x => x.id === id);
+            const d = allDispatches.find(x => x.id === id);
             if (d && d.shipment_id) {
                 await apiPut(`/shipments/${d.shipment_id}`, { status: '未配車' });
             }
             await apiDelete(`/dispatches/${id}`);
             ok++;
-        } catch (e) { ng++; }
+        } catch (e) { console.error('Undo failed for dispatch', id, e); ng++; }
     }
     _lastAutoDispatchIds = [];
     _lastAutoDispatchDay = '';
