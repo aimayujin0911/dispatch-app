@@ -2509,8 +2509,8 @@ async function showDispatchDetail(id) {
             <button class="btn btn-danger" onclick="deleteDispatch(${d.id})">削除</button>
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
             <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="運行指示書">🖨 指示書</button>
-            <button class="btn btn-sm" onclick="createVehicleNotificationFromDispatch(${d.id})" title="車番連絡票">📋 車番連絡</button>
-            ${d.is_partner ? `<button class="btn btn-sm" onclick="handleTransportRequest(${d.id})" title="輸送依頼書">📄 依頼書</button>` : ''}
+            <button class="btn btn-sm" onclick="showDocSendOptions('vehicle-notification', ${d.id})" title="車番連絡票">📋 車番連絡</button>
+            ${d.is_partner ? `<button class="btn btn-sm" onclick="showDocSendOptions('transport-request', ${d.id})" title="輸送依頼書">📄 依頼書</button>` : ''}
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
     showModal();
@@ -4616,75 +4616,154 @@ async function saveVehicleNotification() {
     closeModal(); loadDocuments();
 }
 
-async function createVehicleNotificationFromDispatch(dispatchId) {
-    await apiPost(`/vehicle-notifications/from-dispatch/${dispatchId}`, {});
-    alert('車番連絡票を作成しました（書類管理ページで確認・印刷できます）');
-    closeModal();
-}
-
-// 案件から輸送依頼書を作成（案件一覧の📄ボタン）
-// 配車詳細から輸送依頼書 - 協力会社メール or PDF選択
-async function handleTransportRequest(dispatchId) {
+// ===== 書類送付方法選択（メール / PDF）=====
+async function showDocSendOptions(docType, dispatchId) {
     const dispatches = await apiGet('/dispatches');
     const d = dispatches.find(x => x.id === dispatchId);
     if (!d) return;
-    const partners = await apiGet('/partners');
-    const partner = d.partner_id ? partners.find(p => p.id === d.partner_id) : null;
 
-    // まず輸送依頼書を作成
     const shipments = d.shipment_id ? await apiGet('/shipments') : [];
     const s = d.shipment_id ? shipments.find(x => x.id === d.shipment_id) : null;
-    const trData = {
-        partner_id: d.partner_id || (partner ? partner.id : null),
-        shipment_id: d.shipment_id || null,
-        request_date: new Date().toISOString().split('T')[0],
-        pickup_date: d.date,
-        pickup_time: d.start_time || '',
-        delivery_date: d.end_date || d.date,
-        delivery_time: d.end_time || '',
-        pickup_address: d.pickup_address || (s ? s.pickup_address : ''),
-        delivery_address: d.delivery_address || (s ? s.delivery_address : ''),
-        cargo_description: d.cargo_description || (s ? s.cargo_description : ''),
-        cargo_weight: d.weight || (s ? s.weight : 0),
-        freight_amount: d.price || (s ? s.price : 0),
-        status: '下書き',
-    };
+    const clients = await cachedApiGet('/clients');
+    const partners = await apiGet('/partners');
+    const partner = d.partner_id ? partners.find(p => p.id === d.partner_id) : null;
+    const client = d.client_name ? clients.find(c => c.name === d.client_name) : null;
 
-    if (partner) {
-        // 協力会社が配車されている場合 - メール or PDF 選択
-        closeModal();
-        document.getElementById('modal-title').textContent = '輸送依頼書 送付方法';
-        document.getElementById('modal-body').innerHTML = `
-            <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
-                <div><strong>協力会社:</strong> ${partner.name}</div>
-                <div><strong>メール:</strong> ${partner.contact_person || '-'} &lt;${partner.fax || partner.phone || '未登録'}&gt;</div>
-                <div><strong>区間:</strong> ${trData.pickup_address} → ${trData.delivery_address}</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                <button class="btn btn-primary" style="padding:16px;font-size:1rem" onclick="sendTransportRequestByEmail(${JSON.stringify(trData).replace(/"/g, '&quot;')}, '${partner.name}')">
-                    📧 メール送付
-                </button>
-                <button class="btn btn-edit" style="padding:16px;font-size:1rem" onclick="sendTransportRequestAsPDF(${JSON.stringify(trData).replace(/"/g, '&quot;')})">
-                    📄 PDF表示
-                </button>
-            </div>
-            <div class="form-actions">
-                <button class="btn" onclick="closeModal()">キャンセル</button>
-            </div>`;
-        showModal();
-    } else {
-        // 協力会社が未設定 - 直接PDFで出力
+    // 送付先メールアドレスを特定（協力会社 → 荷主 の優先順）
+    let recipientName = '', recipientEmail = '';
+    if (docType === 'transport-request' && partner) {
+        recipientName = partner.name;
+        recipientEmail = partner.fax || ''; // faxフィールドにメール入ってる場合も
+    }
+    if (!recipientEmail && client) {
+        recipientName = client.name;
+        recipientEmail = client.billing_email || '';
+    }
+
+    const docLabel = docType === 'transport-request' ? '輸送依頼書' : '車番連絡票';
+    const routeInfo = `${d.pickup_address || (s ? s.pickup_address : '')} → ${d.delivery_address || (s ? s.delivery_address : '')}`;
+
+    closeModal();
+    document.getElementById('modal-title').textContent = `${docLabel} - 送付方法`;
+    document.getElementById('modal-body').innerHTML = `
+        <div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:0.85rem">
+            <div><strong>案件:</strong> ${d.client_name || '-'} / ${d.cargo_description || '-'}</div>
+            <div><strong>区間:</strong> ${routeInfo}</div>
+            <div><strong>日時:</strong> ${d.date} ${d.start_time}〜${d.end_time}</div>
+            ${recipientEmail ? `<div style="margin-top:6px"><strong>送付先:</strong> ${recipientName} &lt;${recipientEmail}&gt;</div>` : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <button class="btn btn-primary" style="padding:16px;font-size:1rem" onclick="docSendByEmail('${docType}', ${dispatchId})" ${!recipientEmail ? 'disabled title="送付先メールアドレスが未設定です"' : ''}>
+                📧 メール送付
+                ${recipientEmail ? `<div style="font-size:0.7rem;margin-top:4px;opacity:0.8">${recipientEmail}</div>` : '<div style="font-size:0.7rem;margin-top:4px;color:#ef4444">メール未設定</div>'}
+            </button>
+            <button class="btn btn-edit" style="padding:16px;font-size:1rem" onclick="docSendAsPDF('${docType}', ${dispatchId})">
+                📄 PDF生成
+                <div style="font-size:0.7rem;margin-top:4px;opacity:0.8">書類一覧に保存</div>
+            </button>
+        </div>
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+        </div>`;
+    showModal();
+}
+
+async function docSendAsPDF(docType, dispatchId) {
+    closeModal();
+    if (docType === 'transport-request') {
+        const dispatches = await apiGet('/dispatches');
+        const d = dispatches.find(x => x.id === dispatchId);
+        if (!d) return;
+        const shipments = d.shipment_id ? await apiGet('/shipments') : [];
+        const s = d.shipment_id ? shipments.find(x => x.id === d.shipment_id) : null;
+        const trData = {
+            partner_id: d.partner_id || null,
+            shipment_id: d.shipment_id || null,
+            request_date: new Date().toISOString().split('T')[0],
+            pickup_date: d.date, pickup_time: d.start_time || '',
+            delivery_date: d.end_date || d.date, delivery_time: d.end_time || '',
+            pickup_address: d.pickup_address || (s ? s.pickup_address : ''),
+            delivery_address: d.delivery_address || (s ? s.delivery_address : ''),
+            cargo_description: d.cargo_description || (s ? s.cargo_description : ''),
+            cargo_weight: d.weight || (s ? s.weight : 0),
+            freight_amount: d.price || (s ? s.price : 0),
+            status: '下書き',
+        };
         try {
             const result = await apiPost('/transport-requests', trData);
-            closeModal();
             if (result && result.id) {
-                setTimeout(() => printTransportRequest(result.id), 300);
-            } else {
-                alert('輸送依頼書の作成に失敗しました');
+                alert('輸送依頼書を書類一覧に生成しました（書類管理ページで確認・印刷できます）');
             }
-        } catch (e) {
-            alert('輸送依頼書の作成に失敗しました: ' + e.message);
+        } catch (e) { alert('輸送依頼書の作成に失敗しました: ' + e.message); }
+    } else {
+        try {
+            await apiPost(`/vehicle-notifications/from-dispatch/${dispatchId}`, {});
+            alert('車番連絡票を書類一覧に生成しました（書類管理ページで確認・印刷できます）');
+        } catch (e) { alert('車番連絡票の作成に失敗しました: ' + e.message); }
+    }
+}
+
+async function docSendByEmail(docType, dispatchId) {
+    const dispatches = await apiGet('/dispatches');
+    const d = dispatches.find(x => x.id === dispatchId);
+    if (!d) return;
+    const shipments = d.shipment_id ? await apiGet('/shipments') : [];
+    const s = d.shipment_id ? shipments.find(x => x.id === d.shipment_id) : null;
+    const clients = await cachedApiGet('/clients');
+    const partners = await apiGet('/partners');
+    const partner = d.partner_id ? partners.find(p => p.id === d.partner_id) : null;
+    const client = d.client_name ? clients.find(c => c.name === d.client_name) : null;
+
+    let recipientEmail = '';
+    if (docType === 'transport-request' && partner) recipientEmail = partner.fax || '';
+    if (!recipientEmail && client) recipientEmail = client.billing_email || '';
+    if (!recipientEmail) return alert('送付先のメールアドレスが設定されていません');
+
+    const docLabel = docType === 'transport-request' ? '輸送依頼書' : '車番連絡票';
+
+    // まず書類を生成
+    let docId = null;
+    if (docType === 'transport-request') {
+        const trData = {
+            partner_id: d.partner_id || null, shipment_id: d.shipment_id || null,
+            request_date: new Date().toISOString().split('T')[0],
+            pickup_date: d.date, pickup_time: d.start_time || '',
+            delivery_date: d.end_date || d.date, delivery_time: d.end_time || '',
+            pickup_address: d.pickup_address || (s ? s.pickup_address : ''),
+            delivery_address: d.delivery_address || (s ? s.delivery_address : ''),
+            cargo_description: d.cargo_description || (s ? s.cargo_description : ''),
+            cargo_weight: d.weight || (s ? s.weight : 0),
+            freight_amount: d.price || (s ? s.price : 0),
+            status: '送付済',
+        };
+        const result = await apiPost('/transport-requests', trData);
+        docId = result?.id;
+    } else {
+        const result = await apiPost(`/vehicle-notifications/from-dispatch/${dispatchId}`, {});
+        docId = result?.id;
+    }
+    if (!docId) return alert(`${docLabel}の作成に失敗しました`);
+
+    // メール送信
+    try {
+        const res = await fetch(`${API}/settings/send-doc-email`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                doc_type: docType,
+                doc_id: docId,
+                to_email: recipientEmail,
+            })
+        });
+        if (res.ok) {
+            closeModal();
+            alert(`${docLabel}を ${recipientEmail} にメール送付しました`);
+        } else {
+            const err = await res.json().catch(() => ({}));
+            alert(`メール送付に失敗しました: ${err.detail || res.statusText}`);
         }
+    } catch (e) {
+        alert(`メール送付に失敗しました: ${e.message}`);
     }
 }
 
