@@ -10,6 +10,86 @@ let justDragged = false;
 let shipmentDragState = null;
 let _bgSyncTimer = null; // D&D後のバックグラウンド同期タイマー
 
+// ===== ジオコーディング＆距離計算 =====
+const _geocodeCache = {}; // 住所 → {lat, lng}
+
+async function geocodeAddress(address) {
+    if (!address) return null;
+    // 短い住所は無視
+    if (address.length < 3) return null;
+    // キャッシュチェック
+    if (_geocodeCache[address]) return _geocodeCache[address];
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=jp&limit=1`, {
+            headers: { 'Accept-Language': 'ja' }
+        });
+        const data = await res.json();
+        if (data && data.length > 0) {
+            const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+            _geocodeCache[address] = result;
+            return result;
+        }
+    } catch (e) { console.warn('Geocode failed:', address, e); }
+    return null;
+}
+
+// Haversine公式で2点間の直線距離(km)
+function haversineDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 直線距離→推定移動時間(分) : 直線×1.4倍÷平均時速
+function estimateTravelMinutes(straightKm) {
+    const roadKm = straightKm * 1.4;
+    // 100km超は高速想定(60km/h)、それ以下は一般道(35km/h)の加重平均
+    const avgSpeed = roadKm > 100 ? 55 : roadKm > 50 ? 45 : 35;
+    return Math.ceil(roadKm / avgSpeed * 60);
+}
+
+// 2つの住所間の移動時間(分)を推定
+async function estimateTravelTime(fromAddress, toAddress) {
+    const [from, to] = await Promise.all([geocodeAddress(fromAddress), geocodeAddress(toAddress)]);
+    if (!from || !to) return null;
+    const distKm = haversineDistance(from.lat, from.lng, to.lat, to.lng);
+    return { distKm: Math.round(distKm * 10) / 10, minutes: estimateTravelMinutes(distKm), fromCoord: from, toCoord: to };
+}
+
+// ドライバーの既存配車と新しい案件の間で移動時間が現実的かチェック
+async function checkTravelFeasibility(driverDispatches, newShipment, newStart, newEnd, allShipments) {
+    const warnings = [];
+    if (!driverDispatches || driverDispatches.length === 0) return warnings;
+
+    for (const d of driverDispatches) {
+        const existingShipment = allShipments.find(s => s.id === d.shipment_id);
+        if (!existingShipment) continue;
+
+        const dEnd = d.end_time;    // 既存の終了
+        const dStart = d.start_time; // 既存の開始
+
+        // 新案件が既存案件の後に来る場合: 既存の降ろし地→新の積み地
+        if (newStart >= dEnd) {
+            const gapMin = timeToMinutes(newStart) - timeToMinutes(dEnd);
+            const travel = await estimateTravelTime(existingShipment.delivery_address, newShipment.pickup_address);
+            if (travel && travel.minutes > gapMin) {
+                warnings.push(`⚠️ ${existingShipment.client_name}の降ろし地→${newShipment.client_name}の積み地まで推定${travel.minutes}分（${travel.distKm}km）ですが、隙間は${gapMin}分しかありません`);
+            }
+        }
+        // 新案件が既存案件の前に来る場合: 新の降ろし地→既存の積み地
+        if (newEnd <= dStart) {
+            const gapMin = timeToMinutes(dStart) - timeToMinutes(newEnd);
+            const travel = await estimateTravelTime(newShipment.delivery_address, existingShipment.pickup_address);
+            if (travel && travel.minutes > gapMin) {
+                warnings.push(`⚠️ ${newShipment.client_name}の降ろし地→${existingShipment.client_name}の積み地まで推定${travel.minutes}分（${travel.distKm}km）ですが、隙間は${gapMin}分しかありません`);
+            }
+        }
+    }
+    return warnings;
+}
+
 function scheduleBgSync(delaySec = 5) {
     if (_bgSyncTimer) clearTimeout(_bgSyncTimer);
     _bgSyncTimer = setTimeout(() => { _bgSyncTimer = null; loadDispatchCalendar(); }, delaySec * 1000);
@@ -1015,6 +1095,27 @@ async function onGanttDragEnd(e) {
             }
         }
 
+        // 移動時間チェック（車両変更 or 時間変更時）
+        {
+            const allDispatches3 = _cache['_lastDispatches']?.data || await cachedApiGet('/dispatches');
+            const thisDisp3 = allDispatches3.find(x => x.id === id);
+            const allShipments3 = await cachedApiGet('/shipments');
+            const thisShipment = thisDisp3 ? allShipments3.find(s => s.id === thisDisp3.shipment_id) : null;
+            if (thisShipment) {
+                const checkVehicle = vehicleChanged ? targetVehicleId : vehicleId;
+                const otherDispatches = allDispatches3.filter(x => x.vehicle_id == checkVehicle && x.id !== id);
+                const barStart = timeChanged ? newStart : origStart;
+                const barEnd = timeChanged ? newEnd : origEnd;
+                const travelWarnings = await checkTravelFeasibility(otherDispatches, thisShipment, barStart, barEnd, allShipments3);
+                if (travelWarnings.length > 0) {
+                    if (!await showConfirm(travelWarnings.join('\n') + '\n\nこのまま割り当てますか？')) {
+                        loadDispatchCalendar();
+                        return;
+                    }
+                }
+            }
+        }
+
         // Requirement 4: 案件に元々時間が設定されている場合のみ警告
         if (timeChanged) {
             const allDispatches = _cache['_lastDispatches']?.data || await cachedApiGet('/dispatches');
@@ -1409,12 +1510,43 @@ async function autoDispatch(dayStr) {
     function geoScore(addr1, addr2) {
         if (!addr1 || !addr2) return 0;
         const a = addr1.replace(/\s/g, ''), b = addr2.replace(/\s/g, '');
-        // 都道府県+市区町村が一致 → 高スコア
         let score = 0;
         for (let i = 0; i < Math.min(a.length, b.length, 10); i++) {
             if (a[i] === b[i]) score++; else break;
         }
         return score;
+    }
+
+    // ジオコーディングを事前にバッチ取得（Nominatimは1req/sec制限）
+    const allAddresses = new Set();
+    unassigned.forEach(s => { if (s.pickup_address) allAddresses.add(s.pickup_address); if (s.delivery_address) allAddresses.add(s.delivery_address); });
+    existingDispatches.forEach(d => { if (d.delivery_address) allAddresses.add(d.delivery_address); if (d.pickup_address) allAddresses.add(d.pickup_address); });
+    // キャッシュにないものだけ順次取得（レート制限対応）
+    for (const addr of allAddresses) {
+        if (!_geocodeCache[addr]) {
+            await geocodeAddress(addr);
+            await new Promise(r => setTimeout(r, 1100)); // Nominatim 1req/sec
+        }
+    }
+
+    // Haversineベースの移動時間チェック
+    function checkTravelGap(fromDeliveryAddr, toPickupAddr, gapMinutes) {
+        const from = _geocodeCache[fromDeliveryAddr];
+        const to = _geocodeCache[toPickupAddr];
+        if (!from || !to) return { ok: true, minutes: 0, distKm: 0 }; // 不明時はOK扱い
+        const distKm = haversineDistance(from.lat, from.lng, to.lat, to.lng);
+        const minutes = estimateTravelMinutes(distKm);
+        return { ok: minutes <= gapMinutes, minutes, distKm: Math.round(distKm * 10) / 10 };
+    }
+
+    // 積み合わせ判定：同方面かつ時間重複 → 同じ車両に積める
+    function canConsolidate(shipmentA, shipmentB) {
+        if (!shipmentA.pickup_address || !shipmentB.pickup_address) return false;
+        if (!shipmentA.delivery_address || !shipmentB.delivery_address) return false;
+        // 積み地が近い AND 降ろし地が近い → 同方面
+        const pickupScore = geoScore(shipmentA.pickup_address, shipmentB.pickup_address);
+        const deliveryScore = geoScore(shipmentA.delivery_address, shipmentB.delivery_address);
+        return pickupScore >= 3 && deliveryScore >= 3;
     }
 
     // 車両ごとの最後の降ろし地を取得
@@ -1425,6 +1557,16 @@ async function autoDispatch(dayStr) {
             if (!existing || d.end_time > existing.end_time) {
                 vehicleLastDelivery[d.vehicle_id] = { address: d.delivery_address, end_time: d.end_time };
             }
+        }
+    });
+
+    // 車両ごとの配車済み案件リスト（積み合わせ判定用）
+    const vehicleShipments = {};
+    existingDispatches.forEach(d => {
+        if (d.vehicle_id && d.shipment_id) {
+            if (!vehicleShipments[d.vehicle_id]) vehicleShipments[d.vehicle_id] = [];
+            const s = shipments.find(x => x.id === d.shipment_id);
+            if (s) vehicleShipments[d.vehicle_id].push(s);
         }
     });
 
@@ -1449,27 +1591,47 @@ async function autoDispatch(dayStr) {
         for (const v of activeVehicles) {
             // 積載量チェック（kg → t変換）
             const capacityKg = (v.capacity || 0) * 1000;
-            if (capacityKg > 0 && weight > capacityKg) continue;
-            // 時間重複チェック
-            if (hasTimeConflict(vehicleSlots[v.id], startTime, endTime)) continue;
+            const currentLoad = (vehicleSlots[v.id] || []).reduce((sum, sl) => sum + (sl.weight || 0), 0);
 
-            // スコア計算: 降ろし地→積み地の近さ
+            // 積み合わせ可能か？（時間重複してるけど同方面なら同じ車に積める）
+            const existingShipmentsOnVehicle = vehicleShipments[v.id] || [];
+            const isConsolidatable = existingShipmentsOnVehicle.some(es => canConsolidate(es, s));
+
+            if (isConsolidatable && capacityKg > 0 && (currentLoad + weight) <= capacityKg) {
+                // 積み合わせ：時間重複OK、重量合計が積載量以内
+            } else {
+                // 通常：積載量・時間重複チェック
+                if (capacityKg > 0 && weight > capacityKg) continue;
+                if (hasTimeConflict(vehicleSlots[v.id], startTime, endTime)) continue;
+            }
+
+            // スコア計算
             let score = 0;
             const lastDel = vehicleLastDelivery[v.id];
             if (lastDel && s.pickup_address) {
                 score = geoScore(lastDel.address, s.pickup_address) * 10;
-                // 時間的に連続してる（前の降ろしが今の積みより前）ならボーナス
-                if (lastDel.end_time <= startTime) score += 5;
+                // 移動時間が現実的かチェック
+                if (lastDel.end_time <= startTime) {
+                    const gapMin = timeToMinutes(startTime) - timeToMinutes(lastDel.end_time);
+                    const travel = checkTravelGap(lastDel.address, s.pickup_address, gapMin);
+                    if (travel.ok) {
+                        score += 15; // 移動可能 → 高スコア
+                    } else {
+                        score -= 20; // 移動不可能 → 大幅減点（ただし排除はしない）
+                    }
+                }
             }
-            // 既にこの車両にドライバーが乗ってればボーナス（車両の稼働率UP）
+            // 積み合わせ可能ならボーナス
+            if (isConsolidatable) score += 25;
+            // 既にこの車両にドライバーが乗ってればボーナス
             if (vehicleDriverMap[v.id]) score += 3;
-            candidates.push({ vehicle: v, score });
+            candidates.push({ vehicle: v, score, consolidated: isConsolidatable });
         }
 
         // スコア高い順にソート
         candidates.sort((a, b) => b.score - a.score);
 
-        for (const { vehicle: v } of candidates) {
+        for (const { vehicle: v, consolidated } of candidates) {
             // ドライバーを探す（この車両に既に配車されてるドライバー優先）
             let bestDriver = null;
             const existingDriverId = vehicleDriverMap[v.id];
@@ -1506,11 +1668,14 @@ async function autoDispatch(dayStr) {
 
             assignments.push({
                 shipment: s, vehicle: v, driver: bestDriver,
-                startTime, endTime,
+                startTime, endTime, consolidated: !!consolidated,
             });
 
             // スロットを更新
             vehicleSlots[v.id].push({ start: startTime, end: endTime, weight });
+            // 積み合わせ用の案件リストも更新
+            if (!vehicleShipments[v.id]) vehicleShipments[v.id] = [];
+            vehicleShipments[v.id].push(s);
             if (!driverSlots[bestDriver.id]) driverSlots[bestDriver.id] = [];
             driverSlots[bestDriver.id].push({ start: startTime, end: endTime, vehicleId: v.id });
             if (!vehicleDriverMap[v.id]) vehicleDriverMap[v.id] = bestDriver.id;
@@ -1535,7 +1700,7 @@ async function autoDispatch(dayStr) {
         const pickup = a.shipment.pickup_address ? a.shipment.pickup_address.split(/[都道府県市区町村郡]/).slice(-1)[0]?.substring(0,6) || a.shipment.pickup_address.substring(0,8) : '-';
         const delivery = a.shipment.delivery_address ? a.shipment.delivery_address.split(/[都道府県市区町村郡]/).slice(-1)[0]?.substring(0,6) || a.shipment.delivery_address.substring(0,8) : '-';
         previewHtml += `<tr style="border-bottom:1px solid #e5e7eb">
-            <td style="padding:4px 6px">${a.shipment.client_name} ${a.shipment.cargo_description || ''}</td>
+            <td style="padding:4px 6px">${a.consolidated ? '📦 ' : ''}${a.shipment.client_name} ${a.shipment.cargo_description || ''}${a.consolidated ? ' <span style="color:#ea580c;font-size:0.7rem">(積合)</span>' : ''}</td>
             <td style="padding:4px 6px;text-align:center;font-size:0.72rem">${pickup}→${delivery}</td>
             <td style="padding:4px 6px;text-align:center">${a.startTime}〜${a.endTime}</td>
             <td style="padding:4px 6px;text-align:center">${a.vehicle.number}</td>
