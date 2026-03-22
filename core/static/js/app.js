@@ -758,24 +758,21 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
 
         const vDispatches = dispatches.filter(d => d.vehicle_id === v.id);
         // 重なりを検出して段(row)を割り当て
+        // まずlane計算だけ先にやる
         const lanes = [];
         const dispatchLanes = vDispatches.map(d => {
-            // 日付またぎ対応: 表示日に応じて表示時間を調整
             let startMin, endMin, isMultiDay = false, dayLabel = '';
             if (d.end_date && d.end_date !== d.date) {
                 isMultiDay = true;
                 if (dayStr === d.date) {
-                    // 初日: start_time 〜 表示終了
                     startMin = timeToMinutes(d.start_time);
                     endMin = HOUR_END * 60;
                     dayLabel = '▶';
                 } else if (dayStr === d.end_date) {
-                    // 最終日: 表示開始 〜 end_time
                     startMin = HOUR_START * 60;
                     endMin = timeToMinutes(d.end_time);
                     dayLabel = '▶';
                 } else {
-                    // 中間日: 全日表示
                     startMin = HOUR_START * 60;
                     endMin = HOUR_END * 60;
                     dayLabel = '⇥ 継続中';
@@ -793,10 +790,13 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         const laneHeight = 32;
         const timelineMinH = maxLanes * laneHeight + 8;
 
+        // 複数レーンの場合、直前のtimeline HTMLにmin-heightを注入
         if (maxLanes > 1) {
-            const styleSearch = `data-vehicle-id="${v.id}" data-maintenance="false" style="grid-column: 2 / -1;"`;
-            const styleReplace = `data-vehicle-id="${v.id}" data-maintenance="false" style="grid-column: 2 / -1; min-height:${timelineMinH}px;"`;
-            html = html.replace(styleSearch, styleReplace);
+            // 最後に追加したtimelineのstyleにmin-heightを追加
+            html = html.replace(
+                new RegExp(`data-vehicle-id="${v.id}" data-maintenance="false" style="grid-column: 2 / -1;"`),
+                `data-vehicle-id="${v.id}" data-maintenance="false" style="grid-column: 2 / -1; min-height:${timelineMinH}px;"`
+            );
         }
 
         const totalMin = HOUR_COUNT * 60;
