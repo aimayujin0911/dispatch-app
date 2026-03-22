@@ -659,10 +659,9 @@ async function loadDispatchCalendar() {
         if (s.status !== '未配車') return false;
         return isShipmentForDate(s, activeDayStr);
     });
-    const allUnassigned = shipments.filter(s => s.status === '未配車');
     const panel = document.getElementById('unassigned-panel');
     if (unassigned.length > 0) {
-        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件<span style="color:var(--text-light);font-size:0.8rem"> / 全${allUnassigned.length}件</span>)</h3>
+        panel.innerHTML = `<h3 style="margin-bottom:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件)</h3>
             <div class="unassigned-list">
                 ${unassigned.map(s => {
                     const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
@@ -688,7 +687,7 @@ async function loadDispatchCalendar() {
                 }).join('')}
             </div>`;
     } else {
-        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件 - ${activeDayStr}</h3><p style="color:var(--text-light);font-size:0.85rem">${allUnassigned.length > 0 ? 'この日に該当する未配車案件はありません（全' + allUnassigned.length + '件）' : '全ての案件が配車済みです'}</p>`;
+        panel.innerHTML = `<h3 style="margin-bottom:8px">📦 未配車案件 - ${activeDayStr}</h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
     }
 }
 
