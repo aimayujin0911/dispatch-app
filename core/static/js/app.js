@@ -2510,7 +2510,7 @@ async function showDispatchDetail(id) {
             <button class="btn btn-edit" onclick="editDispatch(${d.id})">✎ 編集</button>
             <button class="btn btn-sm" onclick="printDispatchInstruction(${d.id})" title="運行指示書">🖨 指示書</button>
             <button class="btn btn-sm" onclick="createVehicleNotificationFromDispatch(${d.id})" title="車番連絡票">📋 車番連絡</button>
-            <button class="btn btn-sm" onclick="handleTransportRequest(${d.id})" title="輸送依頼書">📄 依頼書</button>
+            ${d.is_partner ? `<button class="btn btn-sm" onclick="handleTransportRequest(${d.id})" title="輸送依頼書">📄 依頼書</button>` : ''}
             <button class="btn" onclick="closeModal()">閉じる</button>
         </div>`;
     showModal();
