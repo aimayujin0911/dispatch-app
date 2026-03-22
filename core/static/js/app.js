@@ -582,7 +582,8 @@ async function loadDispatchCalendar() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
                 <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
                 <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" title="未配車案件を自動で配車" style="background:#ea580c;color:#fff;font-weight:600">⚡ 自動配車</button>
-                ${_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr ? `<button class="btn btn-sm" onclick="undoAutoDispatch()" title="直前の自動配車を取り消し" style="background:#64748b;color:#fff">↩ 元に戻す (${_lastAutoDispatchIds.length}件)</button>` : ''}
+                <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" title="この日の配車をリセット（協力会社除く）" style="background:#dc2626;color:#fff;font-weight:600">🔄 リセット</button>
+                ${(_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr) ? `<button class="btn btn-sm" onclick="${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch'}()" title="直前の操作を取り消し" style="background:#64748b;color:#fff">↩ 元に戻す (${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? _lastResetData.length : _lastAutoDispatchIds.length}件)</button>` : ''}
                 <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
                     ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
                 </select>
@@ -1415,6 +1416,82 @@ async function confirmShipmentDrop(vehicleId, shipmentId, dayStr) {
     await apiPost('/dispatches', postData);
     closeModal();
     loadDispatchCalendar();
+}
+
+// ===== 配車リセット =====
+let _lastResetData = []; // リセット前の配車データ（復元用）
+let _lastResetDay = '';
+
+async function resetDispatches(dayStr) {
+    const dispatches = await apiGet(`/dispatches?target_date=${dayStr}`);
+    const toReset = dispatches.filter(d => !d.partner_id); // 協力会社以外
+    if (toReset.length === 0) return alert('リセットする配車がありません');
+
+    if (!await showConfirm(`⚠️ ${dayStr} の配車 ${toReset.length}件（協力会社除く）をリセットします。\n\n案件は未配車に戻ります。\nリセット後は「↩ 元に戻す」で復元できます。\n\nよろしいですか？`)) return;
+
+    // リセット前のデータを保存（復元用）
+    _lastResetData = toReset.map(d => ({
+        id: d.id,
+        shipment_id: d.shipment_id,
+        vehicle_id: d.vehicle_id,
+        driver_id: d.driver_id,
+        date: d.date,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        end_date: d.end_date,
+        status: d.status,
+        notes: d.notes,
+    }));
+    _lastResetDay = dayStr;
+
+    let ok = 0, ng = 0;
+    for (const d of toReset) {
+        try {
+            if (d.shipment_id) {
+                await apiPut(`/shipments/${d.shipment_id}`, { status: '未配車' });
+            }
+            await apiDelete(`/dispatches/${d.id}`);
+            ok++;
+        } catch (e) { console.error('Reset failed:', d.id, e); ng++; }
+    }
+    // 自動配車のundoデータもクリア
+    _lastAutoDispatchIds = [];
+    _lastAutoDispatchDay = '';
+    invalidateCache('/shipments');
+    invalidateCache('/dispatches');
+    invalidateCache('_lastDispatches');
+    loadDispatchCalendar();
+    alert(`配車をリセットしました\n✅ 削除: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}\n\n※「↩ 元に戻す」で復元できます`);
+}
+
+async function undoReset() {
+    if (_lastResetData.length === 0) return alert('復元するデータがありません');
+    if (!await showConfirm(`リセット前の配車（${_lastResetData.length}件）を復元しますか？`)) return;
+
+    let ok = 0, ng = 0;
+    for (const d of _lastResetData) {
+        try {
+            await apiPost('/dispatches', {
+                shipment_id: d.shipment_id,
+                vehicle_id: d.vehicle_id,
+                driver_id: d.driver_id,
+                date: d.date,
+                start_time: d.start_time,
+                end_time: d.end_time,
+                end_date: d.end_date,
+                status: d.status || '予定',
+                notes: d.notes || '',
+            });
+            ok++;
+        } catch (e) { console.error('Undo reset failed:', d, e); ng++; }
+    }
+    _lastResetData = [];
+    _lastResetDay = '';
+    invalidateCache('/shipments');
+    invalidateCache('/dispatches');
+    invalidateCache('_lastDispatches');
+    loadDispatchCalendar();
+    alert(`配車を復元しました\n✅ 復元: ${ok}件${ng > 0 ? `\n❌ 失敗: ${ng}件` : ''}`);
 }
 
 // ===== 自動配車 =====
