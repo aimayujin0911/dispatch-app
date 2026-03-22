@@ -102,27 +102,37 @@ def send_invoice_email(data: SendInvoiceEmail, db: Session = Depends(get_db), cu
     for s in shipments:
         items_html += f"<tr><td>{s.delivery_date}</td><td>{s.client_name}: {s.pickup_address} → {s.delivery_address}</td><td style='text-align:right'>¥{s.price:,}</td></tr>"
 
-    subject = data.subject or f"請求書送付のご案内 - {settings.company_name}"
+    subject = data.subject or f"{settings.company_name}から請求書が届いています"
     html_body = f"""
-    <html><body style="font-family:sans-serif;color:#333">
-    <h2>請求書</h2>
-    <p>{shipments[0].client_name} 御中</p>
-    <p>下記の通りご請求申し上げます。</p>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%">
-        <tr style="background:#f0f0f0"><th>日付</th><th>内容</th><th>金額</th></tr>
-        {items_html}
-        <tr style="background:#f0f0f0;font-weight:bold"><td colspan="2">合計</td><td style="text-align:right">¥{total:,}</td></tr>
-    </table>
-    <br>
-    <p><strong>振込先:</strong><br>{(settings.bank_info or '').replace(chr(10), '<br>')}</p>
-    <p><strong>お支払期限:</strong> {data.body or '月末締め翌月末払い'}</p>
-    <hr>
-    <p style="font-size:0.85em;color:#666">
-        {settings.company_name}<br>
-        {settings.address}<br>
-        TEL: {settings.phone} / FAX: {settings.fax}<br>
-        適格請求書番号: {settings.registration_number}
-    </p>
+    <html><body style="font-family:'Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+    <div style="background:#16a34a;color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+        <h2 style="margin:0;font-size:1.2rem">💰 請求書</h2>
+        <p style="margin:4px 0 0;font-size:0.85rem;opacity:0.9">{settings.company_name}より</p>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+        <p>いつもお世話になっております。<br>{settings.company_name}です。</p>
+        <p>{shipments[0].client_name} 御中</p>
+        <p>下記の通りご請求申し上げます。</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr style="background:#f8fafc"><th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left">日付</th><th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left">内容</th><th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right">金額</th></tr>
+            {items_html}
+            <tr style="background:#f0fdf4;font-weight:bold"><td colspan="2" style="padding:10px 12px;border:1px solid #e5e7eb">合計</td><td style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;color:#16a34a;font-size:1.1rem">¥{total:,}</td></tr>
+        </table>
+        <div style="background:#f8fafc;padding:12px;border-radius:6px;margin:16px 0">
+            <p style="margin:0 0 4px;font-weight:600">振込先</p>
+            <p style="margin:0;font-size:0.9rem">{(settings.bank_info or '').replace(chr(10), '<br>')}</p>
+        </div>
+        <p><strong>お支払期限:</strong> {data.body or '月末締め翌月末払い'}</p>
+        <p>ご不明な点がございましたらお気軽にお問い合わせください。</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
+        <p style="font-size:0.8rem;color:#94a3b8;line-height:1.6">
+            {settings.company_name}<br>
+            {settings.address}<br>
+            TEL: {settings.phone} / FAX: {settings.fax}<br>
+            適格請求書番号: {settings.registration_number}
+        </p>
+        <p style="font-size:0.7rem;color:#cbd5e1">※このメールはハコプロForから自動送信されています。</p>
+    </div>
     </body></html>
     """
 
@@ -186,25 +196,37 @@ def send_doc_email(data: SendDocEmail, db: Session = Depends(get_db), current_us
         doc = db.query(TransportRequest).filter(TransportRequest.id == data.doc_id).first()
         if not doc:
             raise HTTPException(status_code=404, detail="輸送依頼書が見つかりません")
-        subject = f"輸送依頼書のご送付 - {company_name}"
+        subject = f"{company_name}から輸送依頼書が届いています"
         html_body = f"""
-        <html><body style="font-family:sans-serif;color:#333">
-        <h2>輸送依頼書</h2>
-        <p>お世話になっております。{company_name}です。</p>
-        <p>下記の通り輸送をご依頼申し上げます。</p>
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%">
-            <tr style="background:#f0f0f0"><th>項目</th><th>内容</th></tr>
-            <tr><td>集荷日</td><td>{doc.pickup_date} {doc.pickup_time}</td></tr>
-            <tr><td>配達日</td><td>{doc.delivery_date} {doc.delivery_time}</td></tr>
-            <tr><td>集荷地</td><td>{doc.pickup_address}</td></tr>
-            <tr><td>配達先</td><td>{doc.delivery_address}</td></tr>
-            <tr><td>荷物</td><td>{doc.cargo_description} ({doc.cargo_weight}kg)</td></tr>
-            <tr><td>運賃</td><td>¥{doc.freight_amount:,}</td></tr>
-        </table>
-        <br>
-        <p>ご確認の程よろしくお願いいたします。</p>
-        <hr>
-        <p style="font-size:0.85em;color:#666">{company_name}</p>
+        <html><body style="font-family:'Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+        <div style="background:#ea580c;color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0;font-size:1.2rem">📄 輸送依頼書</h2>
+            <p style="margin:4px 0 0;font-size:0.85rem;opacity:0.9">{company_name}より</p>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+            <p>いつもお世話になっております。<br>{company_name}です。</p>
+            <p>下記の通り輸送をご依頼させていただきます。<br>内容をご確認の上、ご対応をお願いいたします。</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600;width:120px">集荷日時</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.pickup_date} {doc.pickup_time}</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">配達日時</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.delivery_date} {doc.delivery_time}</td></tr>
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">集荷地</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.pickup_address}</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">配達先</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.delivery_address}</td></tr>
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">荷物</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.cargo_description}（{doc.cargo_weight:,.0f}kg）</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">運賃</td><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:700;color:#ea580c">¥{doc.freight_amount:,}</td></tr>
+                {f'<tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">車種指定</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.vehicle_type_required}</td></tr>' if doc.vehicle_type_required else ''}
+                {f'<tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">特記事項</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.special_instructions}</td></tr>' if doc.special_instructions else ''}
+            </table>
+            <p>ご不明な点がございましたらお気軽にお問い合わせください。</p>
+            <p>何卒よろしくお願いいたします。</p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
+            <p style="font-size:0.8rem;color:#94a3b8;line-height:1.6">
+                {company_name}<br>
+                {settings.address if settings and settings.address else ''}<br>
+                {('TEL: ' + settings.phone) if settings and settings.phone else ''}
+                {(' / FAX: ' + settings.fax) if settings and settings.fax else ''}
+            </p>
+            <p style="font-size:0.7rem;color:#cbd5e1">※このメールはハコプロForから自動送信されています。</p>
+        </div>
         </body></html>
         """
         doc.status = "送付済"
@@ -212,25 +234,37 @@ def send_doc_email(data: SendDocEmail, db: Session = Depends(get_db), current_us
         doc = db.query(VehicleNotification).filter(VehicleNotification.id == data.doc_id).first()
         if not doc:
             raise HTTPException(status_code=404, detail="車番連絡票が見つかりません")
-        subject = f"車番連絡票のご送付 - {company_name}"
+        subject = f"{company_name}から車番連絡票が届いています"
         html_body = f"""
-        <html><body style="font-family:sans-serif;color:#333">
-        <h2>車番連絡票</h2>
-        <p>お世話になっております。{company_name}です。</p>
-        <p>下記の通り車両情報をご連絡いたします。</p>
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%">
-            <tr style="background:#f0f0f0"><th>項目</th><th>内容</th></tr>
-            <tr><td>到着日時</td><td>{doc.arrival_date} {doc.arrival_time}</td></tr>
-            <tr><td>車両番号</td><td>{doc.vehicle_number}</td></tr>
-            <tr><td>車種</td><td>{doc.vehicle_type}</td></tr>
-            <tr><td>ドライバー</td><td>{doc.driver_name} ({doc.driver_phone})</td></tr>
-            <tr><td>荷物</td><td>{doc.cargo_description} ({doc.quantity})</td></tr>
-            <tr><td>届先</td><td>{doc.destination_name}<br>{doc.destination_address}</td></tr>
-        </table>
-        <br>
-        <p>ご確認の程よろしくお願いいたします。</p>
-        <hr>
-        <p style="font-size:0.85em;color:#666">{company_name}</p>
+        <html><body style="font-family:'Hiragino Sans','Yu Gothic','Meiryo',sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+        <div style="background:#2563eb;color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0;font-size:1.2rem">📋 車番連絡票</h2>
+            <p style="margin:4px 0 0;font-size:0.85rem;opacity:0.9">{company_name}より</p>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+            <p>いつもお世話になっております。<br>{company_name}です。</p>
+            <p>下記の通り車両情報をご連絡いたします。<br>到着時のご確認をお願いいたします。</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600;width:120px">到着予定</td><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:700">{doc.arrival_date} {doc.arrival_time}</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">車両番号</td><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:700;font-size:1.1rem">{doc.vehicle_number}</td></tr>
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">車種</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.vehicle_type}</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">ドライバー</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.driver_name}（TEL: {doc.driver_phone}）</td></tr>
+                <tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">荷物</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.cargo_description} {doc.quantity}</td></tr>
+                <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">届先</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.destination_name}<br>{doc.destination_address}</td></tr>
+                {f'<tr style="background:#f8fafc"><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">届先担当</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.destination_contact}</td></tr>' if doc.destination_contact else ''}
+                {f'<tr><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">特記事項</td><td style="padding:10px 12px;border:1px solid #e5e7eb">{doc.special_notes}</td></tr>' if doc.special_notes else ''}
+            </table>
+            <p>ご不明な点がございましたらお気軽にお問い合わせください。</p>
+            <p>何卒よろしくお願いいたします。</p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
+            <p style="font-size:0.8rem;color:#94a3b8;line-height:1.6">
+                {company_name}<br>
+                {settings.address if settings and settings.address else ''}<br>
+                {('TEL: ' + settings.phone) if settings and settings.phone else ''}
+                {(' / FAX: ' + settings.fax) if settings and settings.fax else ''}
+            </p>
+            <p style="font-size:0.7rem;color:#cbd5e1">※このメールはハコプロForから自動送信されています。</p>
+        </div>
         </body></html>
         """
         doc.status = "送付済"

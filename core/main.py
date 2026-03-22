@@ -132,6 +132,8 @@ def seed_on_startup():
             ("vehicles", "has_power_gate", "BOOLEAN DEFAULT false"),
             # 案件: 温度帯
             ("shipments", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
+            # 協力会社: メールアドレス
+            ("partner_companies", "email", "VARCHAR(100) DEFAULT ''"),
         ]
         for table, col, coltype in migrate_cols:
             try:

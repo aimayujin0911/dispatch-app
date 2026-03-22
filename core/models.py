@@ -121,6 +121,7 @@ class PartnerCompany(Base):
     address = Column(String(200), default="")
     phone = Column(String(20), default="")
     fax = Column(String(20), default="")
+    email = Column(String(100), default="")
     contact_person = Column(String(50), default="")
     bank_info = Column(Text, default="")
     payment_terms = Column(String(50), default="月末締め翌月末払い")

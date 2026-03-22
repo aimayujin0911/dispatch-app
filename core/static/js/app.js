@@ -4633,7 +4633,7 @@ async function showDocSendOptions(docType, dispatchId) {
     let recipientName = '', recipientEmail = '';
     if (docType === 'transport-request' && partner) {
         recipientName = partner.name;
-        recipientEmail = partner.fax || ''; // faxフィールドにメール入ってる場合も
+        recipientEmail = partner.email || '';
     }
     if (!recipientEmail && client) {
         recipientName = client.name;
@@ -4715,7 +4715,7 @@ async function docSendByEmail(docType, dispatchId) {
     const client = d.client_name ? clients.find(c => c.name === d.client_name) : null;
 
     let recipientEmail = '';
-    if (docType === 'transport-request' && partner) recipientEmail = partner.fax || '';
+    if (docType === 'transport-request' && partner) recipientEmail = partner.email || '';
     if (!recipientEmail && client) recipientEmail = client.billing_email || '';
     if (!recipientEmail) return alert('送付先のメールアドレスが設定されていません');
 
