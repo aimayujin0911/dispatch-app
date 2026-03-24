@@ -280,17 +280,11 @@ def seed_on_startup():
             db.commit()
         except Exception:
             db.rollback()
-        # トランシアテナント: ユーザーがなければ全投入、車両がなければ追加投入
-        from models import Vehicle as VehicleModel
-        transia_users = db.query(User).filter(User.tenant_id == "transia").first()
-        transia_vehicles = db.query(VehicleModel).filter(VehicleModel.tenant_id == "transia").first()
-        if not transia_users or not transia_vehicles:
-            logger.info(f"Transia seeding (users={'yes' if transia_users else 'no'}, vehicles={'yes' if transia_vehicles else 'no'})...")
-            try:
-                from seed_data import seed_transia
-                seed_transia()
-                logger.info("Transia tenant seed completed")
-            except Exception as e:
+        # トランシアテナント: バージョンチェックで自動更新
+        try:
+            from seed_data import seed_transia
+            seed_transia()
+        except Exception as e:
                 logger.error(f"Transia seed failed: {e}")
     finally:
         db.close()

@@ -855,21 +855,43 @@ def seed():
     print("テストデータ投入完了!")
 
 
+TRANSIA_DATA_VERSION = "v3"  # データ更新時にインクリメント
+
 def seed_transia():
     """トランシア（幸手）テナントのデータ投入（実データファイルから読み込み）"""
     import pandas as pd
     from database import SessionLocal
+    from sqlalchemy import text
     db = SessionLocal()
 
-    # 既に車両データがあればスキップ
-    if db.query(Vehicle).filter(Vehicle.tenant_id == "transia").first():
+    # バージョンチェック: CompanySettingsのnotesにバージョン保存
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == "transia").first()
+    current_ver = (settings.notes if settings else "") or ""
+    if TRANSIA_DATA_VERSION in current_ver:
         db.close()
-        print("トランシアデータは既に存在します")
+        print(f"トランシアデータは最新({TRANSIA_DATA_VERSION})です")
         return
 
-    # ユーザーは既にいるがブランチ取得が必要
+    print(f"トランシアデータ更新: {current_ver} -> {TRANSIA_DATA_VERSION}")
+
+    # 既存のoperational dataをクリーン（admin/dispatcher/settingsは残す）
+    try:
+        # 配車→案件→ドライバーUser→ドライバー→車両→荷主 の順で削除
+        db.execute(text("DELETE FROM dispatches WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM shipments WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM users WHERE tenant_id = 'transia' AND role = 'driver'"))
+        db.execute(text("DELETE FROM drivers WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM vehicles WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM clients WHERE tenant_id = 'transia'"))
+        db.commit()
+        print("トランシア既存データクリーン完了")
+    except Exception as e:
+        db.rollback()
+        print(f"クリーン失敗: {e}")
+
+    # ブランチ・ユーザー確認
     existing_branch = db.query(Branch).filter(Branch.tenant_id == "transia").first()
-    has_users = db.query(User).filter(User.tenant_id == "transia").first()
+    has_users = db.query(User).filter(User.tenant_id == "transia", User.role != "driver").first()
 
     today = date.today()
     from auth import hash_password
@@ -1182,9 +1204,13 @@ def seed_transia():
             matched_vehicle.default_driver_id = matched_driver.id
             matched_count += 1
 
+    # バージョン保存
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == "transia").first()
+    if settings:
+        settings.notes = f"一般貨物自動車運送事業 [{TRANSIA_DATA_VERSION}]"
     db.commit()
     db.close()
-    print(f"トランシアテナントデータ投入完了! 取引先{client_count}件, 車両{len(vehicle_records)}台, ドライバー{len(driver_fullname_map)}名, 車両-ドライバー紐付け{matched_count}件")
+    print(f"トランシアテナントデータ投入完了! 取引先{client_count}件, 車両{len(vehicle_records)}台, ドライバー{len(driver_fullname_map)}名, 車両-ドライバー紐付け{matched_count}件 [{TRANSIA_DATA_VERSION}]")
 
 
 if __name__ == "__main__":
