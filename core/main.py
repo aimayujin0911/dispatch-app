@@ -134,6 +134,11 @@ def seed_on_startup():
             ("shipments", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
             # 協力会社: メールアドレス
             ("partner_companies", "email", "VARCHAR(100) DEFAULT ''"),
+            # 案件: 座標キャッシュ
+            ("shipments", "pickup_lat", "FLOAT"),
+            ("shipments", "pickup_lng", "FLOAT"),
+            ("shipments", "delivery_lat", "FLOAT"),
+            ("shipments", "delivery_lng", "FLOAT"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -228,6 +233,22 @@ def seed_on_startup():
         except Exception as e:
             db.rollback()
             print(f"[Driver-User sync] FAILED: {e}", flush=True)
+        # 座標キャッシュが無い案件をバックグラウンドでジオコーディング
+        try:
+            no_geo = db.execute(text(
+                "SELECT id FROM shipments WHERE (pickup_lat IS NULL AND pickup_address != '' AND pickup_address IS NOT NULL) "
+                "OR (delivery_lat IS NULL AND delivery_address != '' AND delivery_address IS NOT NULL) LIMIT 50"
+            )).fetchall()
+            if no_geo:
+                import threading
+                def bg_geocode():
+                    from routers.shipments import geocode_shipment_bg
+                    for row in no_geo:
+                        geocode_shipment_bg(row[0])
+                threading.Thread(target=bg_geocode, daemon=True).start()
+                print(f"[Geocode] Queueing {len(no_geo)} shipments for background geocoding", flush=True)
+        except Exception as e:
+            print(f"[Geocode] Init failed: {e}", flush=True)
         # トランシアテナントデータが無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")

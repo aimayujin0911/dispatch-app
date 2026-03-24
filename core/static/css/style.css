@@ -775,10 +775,9 @@ body {
     font-size: 0.65rem;
     font-weight: 600;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 45%;
+    overflow: visible;
     pointer-events: none;
+    z-index: 1;
 }
 .gantt-bar-start { left: 6px; }
 .gantt-bar-end { right: 6px; text-align: right; }

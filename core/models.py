@@ -388,6 +388,11 @@ class Shipment(Base):
     loading_time = Column(Integer, default=0)
     unloading_time = Column(Integer, default=0)
     notes = Column(Text, default="")
+    # 座標キャッシュ（ジオコーディング結果）
+    pickup_lat = Column(Float, nullable=True)
+    pickup_lng = Column(Float, nullable=True)
+    delivery_lat = Column(Float, nullable=True)
+    delivery_lng = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
 
     __table_args__ = (

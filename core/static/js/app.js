@@ -13,6 +13,18 @@ let _bgSyncTimer = null; // D&D後のバックグラウンド同期タイマー
 // ===== ジオコーディング＆距離計算 =====
 const _geocodeCache = {}; // 住所 → {lat, lng}
 
+// APIレスポンスの案件データから座標をプリロード（Nominatim呼び出し不要に）
+function preloadGeoFromShipments(shipments) {
+    for (const s of shipments) {
+        if (s.pickup_lat && s.pickup_lng && s.pickup_address) {
+            _geocodeCache[s.pickup_address] = { lat: s.pickup_lat, lng: s.pickup_lng };
+        }
+        if (s.delivery_lat && s.delivery_lng && s.delivery_address) {
+            _geocodeCache[s.delivery_address] = { lat: s.delivery_lat, lng: s.delivery_lng };
+        }
+    }
+}
+
 async function geocodeAddress(address) {
     if (!address) return null;
     // 短い住所は無視
@@ -582,7 +594,7 @@ async function loadDispatchCalendar() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
                 <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
                 <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" title="未配車案件を自動で配車" style="background:#ea580c;color:#fff;font-weight:600">⚡ 自動配車</button>
-                <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" title="この日の配車をリセット（協力会社除く）" style="background:#dc2626;color:#fff;font-weight:600">🔄 リセット</button>
+                <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" title="この日の配車をリセット（協力会社除く）" style="background:${dayDispatches.filter(d => !d.partner_id).length > 0 ? '#dc2626' : '#9ca3af'};color:#fff;font-weight:600" ${dayDispatches.filter(d => !d.partner_id).length === 0 ? 'disabled' : ''}>🔄 リセット</button>
                 ${(_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr) ? `<button class="btn btn-sm" onclick="${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch'}()" title="直前の操作を取り消し" style="background:#64748b;color:#fff">↩ 元に戻す (${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? _lastResetData.length : _lastAutoDispatchIds.length}件)</button>` : ''}
                 <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
                     ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
@@ -1748,6 +1760,9 @@ async function autoDispatch(dayStr) {
         cachedApiGet('/vehicles'),
         apiGet(`/dispatches?target_date=${dayStr}`),
     ]);
+
+    // DB保存済みの座標をプリロード（Nominatim呼び出し不要に）
+    preloadGeoFromShipments(shipments);
 
     // 未配車案件（その日に該当するもの）
     const unassigned = shipments.filter(s => s.status === '未配車' && isShipmentForDate(s, dayStr));

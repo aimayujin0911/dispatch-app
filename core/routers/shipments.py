@@ -1,11 +1,59 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
-from database import get_db
+import httpx
+from database import get_db, SessionLocal
 from models import Shipment, User
 from core.auth import get_current_user
+
+_geo_cache = {}  # メモリキャッシュ: 住所 → (lat, lng)
+
+def geocode_address(address: str):
+    """住所→緯度経度（Nominatim）"""
+    if not address:
+        return None, None
+    if address in _geo_cache:
+        return _geo_cache[address]
+    try:
+        r = httpx.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"format": "json", "q": address, "countrycodes": "jp", "limit": 1},
+            headers={"User-Agent": "HakoPro/1.0"},
+            timeout=5,
+        )
+        data = r.json()
+        if data:
+            lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
+            _geo_cache[address] = (lat, lng)
+            return lat, lng
+    except Exception:
+        pass
+    return None, None
+
+def geocode_shipment_bg(shipment_id: int):
+    """バックグラウンドで座標取得してDB更新"""
+    db = SessionLocal()
+    try:
+        s = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+        if not s:
+            return
+        changed = False
+        if s.pickup_address and not s.pickup_lat:
+            lat, lng = geocode_address(s.pickup_address)
+            if lat:
+                s.pickup_lat, s.pickup_lng = lat, lng
+                changed = True
+        if s.delivery_address and not s.delivery_lat:
+            lat, lng = geocode_address(s.delivery_address)
+            if lat:
+                s.delivery_lat, s.delivery_lng = lat, lng
+                changed = True
+        if changed:
+            db.commit()
+    finally:
+        db.close()
 
 router = APIRouter()
 
@@ -84,24 +132,32 @@ def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db),
 
 
 @router.post("")
-def create_shipment(data: ShipmentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_shipment(data: ShipmentCreate, bg: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     shipment = Shipment(**data.model_dump())
     shipment.tenant_id = current_user.tenant_id
     db.add(shipment)
     db.commit()
     db.refresh(shipment)
+    bg.add_task(geocode_shipment_bg, shipment.id)
     return shipment
 
 
 @router.put("/{shipment_id}")
-def update_shipment(shipment_id: int, data: ShipmentUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_shipment(shipment_id: int, data: ShipmentUpdate, bg: BackgroundTasks = BackgroundTasks(), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.tenant_id == current_user.tenant_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="案件が見つかりません")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    addr_changed = 'pickup_address' in update_data or 'delivery_address' in update_data
+    for key, value in update_data.items():
         setattr(shipment, key, value)
+    if addr_changed:
+        shipment.pickup_lat = shipment.pickup_lng = None
+        shipment.delivery_lat = shipment.delivery_lng = None
     db.commit()
     db.refresh(shipment)
+    if addr_changed:
+        bg.add_task(geocode_shipment_bg, shipment.id)
     return shipment
 
 
