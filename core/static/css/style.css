@@ -191,6 +191,10 @@ body {
 .topbar-btn-feedback { background: #f59e0b; color: #fff; }
 .topbar-btn-logout { background: none; border: 1px solid #d1d5db; color: #64748b; }
 
+/* モバイルボトムナビ: PCでは非表示 */
+.mobile-bottom-nav { display: none; }
+.mobile-action-sheet { display: none; }
+
 .menu-toggle {
     display: none;
     background: none;
