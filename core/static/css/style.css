@@ -1098,8 +1098,9 @@ body {
     .topbar-btn-feedback { padding: 4px 6px; }
     .topbar-btn-logout { padding: 4px 6px; }
 
-    /* モーダルフルスクリーン */
-    .modal { width: 100%; max-width: 100%; max-height: 100vh; border-radius: 0; margin: 0; }
+    /* モーダル: 後ろが透けて見える */
+    .modal-overlay { background: rgba(0,0,0,0.4) !important; }
+    .modal { width: 94%; max-width: 94%; max-height: 80vh; border-radius: 12px; margin: auto; margin-top: 10vh; overflow-y: auto; }
 
     /* モバイルコンパクトコントロール */
     .m-cal-controls { padding: 4px 6px; background: #fff; border-bottom: 1px solid var(--border); }

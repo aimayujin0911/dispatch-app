@@ -627,7 +627,7 @@ async function loadDispatchCalendar() {
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px">
-                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">▼ ${filteredVehicles.length}台</button>
+                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="font-size:0.65rem;${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
                 </div>
                 <div id="m-filter-panel" class="m-filter-panel ${filterType || filterCap ? 'open' : ''}">
                     <select id="cal-filter-type" class="m-cal-select" onchange="loadDispatchCalendar()">
