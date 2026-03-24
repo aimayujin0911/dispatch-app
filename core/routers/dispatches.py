@@ -201,6 +201,9 @@ def delete_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_use
     dispatch = db.query(Dispatch).filter(Dispatch.id == dispatch_id, Dispatch.tenant_id == current_user.tenant_id).first()
     if not dispatch:
         raise HTTPException(status_code=404, detail="配車が見つかりません")
+    # 関連する車番連絡票を先に削除（外部キー制約）
+    from models import VehicleNotification
+    db.query(VehicleNotification).filter(VehicleNotification.dispatch_id == dispatch_id).delete()
     db.delete(dispatch)
     db.commit()
     return {"ok": True}
