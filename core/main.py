@@ -265,7 +265,22 @@ def seed_on_startup():
                 print(f"[Geocode] Queueing {len(no_geo)} shipments for background geocoding", flush=True)
         except Exception as e:
             print(f"[Geocode] Init failed: {e}", flush=True)
-        # トランシアテナントデータが無ければ投入
+        # トランシアのダミーデータ削除（実データ投入前のクリーンアップ）
+        try:
+            for tbl in ['dispatches', 'shipments', 'vehicles', 'drivers', 'clients']:
+                # 車番がTRA-で始まるダミー車両や、ダミードライバーを削除
+                if tbl == 'vehicles':
+                    db.execute(text("DELETE FROM vehicles WHERE tenant_id = 'transia' AND chassis_number LIKE 'TRA-%'"))
+                elif tbl == 'drivers':
+                    db.execute(text("DELETE FROM drivers WHERE tenant_id = 'transia' AND phone LIKE '090-000%'"))
+                elif tbl == 'clients':
+                    db.execute(text("DELETE FROM clients WHERE tenant_id = 'transia' AND phone LIKE '0480-XX%'"))
+                elif tbl == 'shipments':
+                    db.execute(text("DELETE FROM shipments WHERE tenant_id = 'transia' AND name LIKE '%定期便' OR (tenant_id = 'transia' AND name LIKE '%冷蔵便') OR (tenant_id = 'transia' AND name LIKE '%配送')"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        # トランシアテナントの管理者が無ければ投入
         if not db.query(User).filter(User.tenant_id == "transia").first():
             logger.info("Transia tenant not found, seeding...")
             try:
