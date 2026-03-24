@@ -640,6 +640,16 @@ async function loadDispatchCalendar() {
                         ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                     </select>
                     ${filterType || filterCap ? `<button class="m-cal-btn" onclick="document.getElementById('cal-filter-type').value='';document.getElementById('cal-filter-cap').value='';loadDispatchCalendar()" style="font-size:0.6rem">✕ クリア</button>` : ''}
+                    <div style="width:100%;display:flex;align-items:center;gap:3px;margin-top:2px">
+                        <span style="font-size:0.6rem;color:#6b7280;flex-shrink:0">時間:</span>
+                        <select id="cal-hour-start" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
+                            ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+                        </select>
+                        <span style="font-size:0.6rem">〜</span>
+                        <select id="cal-hour-end" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
+                            ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
             </div>`;
 
