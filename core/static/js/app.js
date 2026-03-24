@@ -1443,6 +1443,8 @@ async function resetDispatches(dayStr) {
 
     if (!await showConfirm(`⚠️ ${dayStr} の配車 ${toReset.length}件（協力会社除く）をリセットします。\n\n案件は未配車に戻ります。\nリセット後は「↩ 元に戻す」で復元できます。\n\nよろしいですか？`)) return;
 
+    showAutoDispatchLoading(true, 'リセット中...');
+
     // リセット前のデータを保存（復元用）
     _lastResetData = toReset.map(d => ({
         id: d.id,
@@ -1471,6 +1473,7 @@ async function resetDispatches(dayStr) {
     // 自動配車のundoデータもクリア
     _lastAutoDispatchIds = [];
     _lastAutoDispatchDay = '';
+    showAutoDispatchLoading(false);
     invalidateCache('/shipments');
     invalidateCache('/dispatches');
     invalidateCache('_lastDispatches');
