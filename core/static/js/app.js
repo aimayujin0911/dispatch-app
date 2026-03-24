@@ -614,9 +614,12 @@ async function loadDispatchCalendar() {
         // 縦ガントHTML生成
         const totalMin = HOUR_COUNT * 60;
         const rowH = 40; // 1時間あたりの高さ(px)
-        const colW = 120; // 車両列の幅(px)
+        // 画面幅に合わせて列幅を自動計算（時刻列40px + 車両列×N = 画面幅）
+        const screenW = window.innerWidth;
+        const timeColW = 40;
+        const colW = Math.max(70, Math.floor((screenW - timeColW) / Math.min(filteredVehicles.length, 4)));
         let vgHtml = `<div class="vertical-gantt-wrapper">
-            <div class="vertical-gantt" style="grid-template-columns:50px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:40px repeat(${HOUR_COUNT}, ${rowH}px)">`;
+            <div class="vertical-gantt" style="grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:40px repeat(${HOUR_COUNT}, ${rowH}px)">`;
 
         // コーナーセル
         vgHtml += `<div class="vg-corner">時刻</div>`;
@@ -655,7 +658,7 @@ async function loadDispatchCalendar() {
                 const endMin = timeToMinutes(d.end_time);
                 const topPct = ((startMin - HOUR_START * 60) / totalMin) * 100;
                 const heightPct = ((endMin - startMin) / totalMin) * 100;
-                const leftPx = 50 + vdata.index * colW + 3;
+                const leftPx = timeColW + vdata.index * colW + 2;
                 const wc = getWeightColor(d.weight, d.vehicle_capacity);
                 const driverName = d.driver_name || '';
                 const pickup = (d.pickup_address || '').substring(0, 6);
@@ -672,7 +675,7 @@ async function loadDispatchCalendar() {
         });
 
         // vertical-gantt-wrapperの中にバーを配置するため、gridをrelativeに
-        vgHtml = vgHtml.replace('class="vertical-gantt"', 'class="vertical-gantt" style="position:relative;grid-template-columns:50px repeat(' + filteredVehicles.length + ', ' + colW + 'px);grid-template-rows:40px repeat(' + HOUR_COUNT + ', ' + rowH + 'px)"');
+        vgHtml = vgHtml.replace('class="vertical-gantt"', 'class="vertical-gantt" style="position:relative;grid-template-columns:' + timeColW + 'px repeat(' + filteredVehicles.length + ', ' + colW + 'px);grid-template-rows:40px repeat(' + HOUR_COUNT + ', ' + rowH + 'px)"');
         vgHtml += barsHtml + `</div>`;
 
         calContainer.innerHTML = mobileControlsHtml + vgHtml;
