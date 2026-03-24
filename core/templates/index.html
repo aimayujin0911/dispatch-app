@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=52">
+    <link rel="stylesheet" href="/static/css/style.css?v=53">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -48,10 +48,10 @@
         <header class="topbar">
             <button class="menu-toggle" id="menuToggle">☰</button>
             <h1 id="pageTitle">ダッシュボード</h1>
-            <div class="topbar-right" style="display:flex;align-items:center;gap:12px">
-                <span id="currentUser" style="font-size:0.85rem"></span>
-                <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">📬 依頼</button>
-                <button onclick="logout()" style="background:none;border:1px solid #d1d5db;color:#64748b;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">🚪 ログアウト</button>
+            <div class="topbar-right">
+                <span id="currentUser" class="topbar-user"></span>
+                <button onclick="openFeedbackModal()" class="topbar-btn topbar-btn-feedback">📬 <span class="topbar-btn-label">依頼</span></button>
+                <button onclick="logout()" class="topbar-btn topbar-btn-logout">🚪 <span class="topbar-btn-label">ログアウト</span></button>
             </div>
         </header>
 
