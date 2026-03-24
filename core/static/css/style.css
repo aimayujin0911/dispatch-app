@@ -1360,116 +1360,150 @@ body {
 .matrix-table {
     border-collapse: separate;
     border-spacing: 0;
-    table-layout: fixed;
 }
 .matrix-table thead {
     position: sticky;
     top: 0;
     z-index: 10;
 }
-.matrix-header-row1 th,
-.matrix-header-row2 th {
+.matrix-header-row1 th {
     background: #ea580c;
     color: #fff;
-    padding: 4px 2px;
-    font-size: 0.68rem;
+    padding: 6px 4px;
+    font-size: 0.72rem;
     font-weight: 600;
     text-align: center;
     border: 1px solid #c2410c;
     white-space: nowrap;
 }
-.matrix-header-row1 th {
-    padding: 6px 4px;
-    font-size: 0.72rem;
+/* Vehicle column headers */
+.matrix-vehicle-col-header {
+    background: #ea580c;
+    color: #fff;
+    padding: 6px 6px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #c2410c;
+    white-space: nowrap;
+    min-width: 120px;
+    width: 120px;
+    vertical-align: middle;
 }
-.matrix-date-col-header {
-    min-width: 360px; /* 6 periods × 60px */
+.matrix-vehicle-col-header .mvh-number {
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: #fff;
 }
-.matrix-date-col-header.matrix-today-header,
-.matrix-period-header.matrix-today-header {
-    background: #d97706;
-}
-.matrix-date-col-header.matrix-weekend-header,
-.matrix-period-header.matrix-weekend-header {
-    background: #9333ea;
-}
-.matrix-period-header {
-    width: 60px;
-    min-width: 60px;
-    max-width: 60px;
+.matrix-vehicle-col-header .mvh-info {
     font-size: 0.58rem;
-    font-weight: 500;
+    color: rgba(255,255,255,0.8);
+    margin-top: 1px;
 }
+.matrix-vehicle-col-header .mvh-driver {
+    display: inline-block;
+    font-size: 0.58rem;
+    font-weight: 600;
+    margin-top: 3px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+}
+/* Corner header (日付) */
 .matrix-corner-header {
     position: sticky;
     left: 0;
     z-index: 12;
     background: #1e293b !important;
     color: #fff;
-    width: 140px;
-    min-width: 140px;
-    max-width: 140px;
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
     border-color: #0f172a !important;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
+}
+/* Date label cells (sticky left) */
+.matrix-date-header-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+}
+.matrix-date-label {
+    background: #fff;
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
+    border-right: 2px solid #cbd5e1;
+    padding: 6px 8px;
+    font-weight: 700;
+    font-size: 0.76rem;
+    color: #1e293b;
+    text-align: center;
+    vertical-align: middle;
+    border-bottom: 1px solid #e2e8f0;
+}
+.matrix-today-label {
+    background: #fef3c7 !important;
+    color: #92400e;
+}
+.matrix-saturday-label {
+    background: #fff7ed !important;
+    color: #9a3412;
+}
+.matrix-sunday-label {
+    background: #ffedd5 !important;
+    color: #c2410c;
 }
 .matrix-table td {
-    padding: 2px;
+    padding: 0;
     border: 1px solid #e2e8f0;
     vertical-align: top;
     font-size: 0.65rem;
 }
-.matrix-vehicle-header {
-    position: sticky;
-    left: 0;
-    z-index: 5;
-    background: #fff;
-    width: 140px;
-    min-width: 140px;
-    max-width: 140px;
-    border-right: 2px solid #cbd5e1;
-    padding: 6px 8px;
-    vertical-align: middle;
+/* Transposed cell (date-row × vehicle-col) */
+.matrix-cell-t {
+    min-height: 54px;
+    min-width: 120px;
+    width: 120px;
+    vertical-align: top;
+    padding: 0 !important;
 }
-.mvh-number {
-    font-weight: 700;
-    font-size: 0.78rem;
-    color: #1e293b;
-}
-.mvh-info {
-    font-size: 0.6rem;
-    color: #64748b;
-    margin-top: 1px;
-}
-.mvh-driver {
-    display: inline-block;
-    font-size: 0.6rem;
-    font-weight: 600;
-    margin-top: 3px;
-    padding: 1px 6px;
-    border-radius: 8px;
-    border: 1px solid;
-}
-.matrix-cell {
-    min-height: 48px;
-    width: 60px;
-    min-width: 60px;
-    max-width: 60px;
-}
-.matrix-day-border {
-    border-left: 2px solid #94a3b8;
-}
+/* Row background colors */
 .matrix-today-cell {
-    background: #fffbeb;
+    background: #fef3c7;
 }
-.matrix-weekend-cell {
-    background: #faf5ff;
+.matrix-saturday-cell {
+    background: #fff7ed;
+}
+.matrix-sunday-cell {
+    background: #ffedd5;
+}
+/* Slots container */
+.matrix-slots, .matrix-slots-empty {
+    display: flex;
+    flex-direction: column;
+    min-height: 54px;
+}
+.matrix-slots-empty {
+    min-height: 54px;
+}
+.matrix-slot {
+    flex: 1;
+    min-height: 8px;
+    padding: 0 2px;
+    cursor: pointer;
+}
+.matrix-slot-border {
+    border-top: 1px solid #f1f5f9;
 }
 .matrix-empty-cell {
     cursor: pointer;
     transition: background 0.15s;
 }
 .matrix-empty-cell:hover {
-    background: #fff7ed;
+    background: #fff7ed !important;
 }
 .matrix-drop-target {
     background: #fed7aa !important;
@@ -1497,11 +1531,6 @@ body {
 .matrix-dispatch-item[draggable="true"]:active {
     cursor: grabbing;
 }
-.matrix-dispatch-span {
-    opacity: 0.45;
-    background: #f1f5f9;
-    min-height: 18px;
-}
 .matrix-dispatch-time {
     font-weight: 700;
     color: #1e40af;
@@ -1516,12 +1545,6 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-.matrix-span-badge {
-    font-size: 0.5rem;
-    font-weight: 400;
-    color: #ea580c;
-    margin-left: 2px;
 }
 /* 車両ツールチップ */
 .matrix-vehicle-tooltip {

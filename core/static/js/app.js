@@ -1157,38 +1157,12 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             </div>
         </div>`;
 
-    // テーブル構築 — rows=vehicles, cols=date×6periods
-    const totalCols = NUM_DAYS * 6;
+    // テーブル構築 — transposed: rows=dates, cols=vehicles
+    // Each cell contains 6 time-period slots as thin horizontal dividers
     let tableHtml = `<div class="matrix-wrapper"><table class="matrix-table"><thead>`;
 
-    // ヘッダー行1: 日付（各6列スパン）
-    tableHtml += `<tr class="matrix-header-row1"><th class="matrix-vehicle-header matrix-corner-header" rowspan="2">車両 / ドライバー</th>`;
-    matrixDays.forEach((day, i) => {
-        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-        const isTodayFlag = isToday(day);
-        let cls = 'matrix-date-col-header';
-        if (isTodayFlag) cls += ' matrix-today-header';
-        else if (isWeekend) cls += ' matrix-weekend-header';
-        const dayLabel = `${day.getMonth() + 1}/${day.getDate()}(${dayNames[day.getDay()]})`;
-        tableHtml += `<th class="${cls}" colspan="6">${dayLabel}</th>`;
-    });
-    tableHtml += `</tr>`;
-
-    // ヘッダー行2: 時間帯ラベル
-    tableHtml += `<tr class="matrix-header-row2">`;
-    matrixDays.forEach((day) => {
-        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-        const isTodayFlag = isToday(day);
-        MATRIX_PERIODS.forEach(p => {
-            let cls = 'matrix-period-header';
-            if (isTodayFlag) cls += ' matrix-today-header';
-            else if (isWeekend) cls += ' matrix-weekend-header';
-            tableHtml += `<th class="${cls}">${p.label}</th>`;
-        });
-    });
-    tableHtml += `</tr></thead><tbody>`;
-
-    // 各車両の行
+    // ヘッダー行: 日付コーナー + 各車両
+    tableHtml += `<tr class="matrix-header-row1"><th class="matrix-corner-header matrix-date-header-sticky">日付</th>`;
     filteredVehicles.forEach(v => {
         const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
         const vType = v.vehicle_type || '';
@@ -1196,48 +1170,71 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
         const driverName = vehicleDriverNames[v.id] || '';
         const dc = getDriverColor(vehicleDriverIds[v.id]);
 
-        tableHtml += `<tr>`;
-        // 車両ヘッダーセル（sticky left）
-        tableHtml += `<td class="matrix-vehicle-header" onclick="showVehicleTooltip(event, ${v.id})" style="cursor:pointer">`;
+        tableHtml += `<th class="matrix-vehicle-col-header" onclick="showVehicleTooltip(event, ${v.id})" style="cursor:pointer">`;
         tableHtml += `<div class="mvh-number">${shortNum}</div>`;
         if (vType || cap) tableHtml += `<div class="mvh-info">${vType} ${cap}</div>`;
         if (driverName) tableHtml += `<div class="mvh-driver" style="color:${dc.text};background:${dc.bg};border-color:${dc.border}">${driverName}</div>`;
-        tableHtml += `</td>`;
+        tableHtml += `</th>`;
+    });
+    tableHtml += `</tr></thead><tbody>`;
 
-        // 各日×各時間帯のセル
-        matrixDays.forEach((day, dayIdx) => {
-            const dayStr = matrixDayStrs[dayIdx];
-            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-            const isTodayFlag = isToday(day);
+    // 各日付の行
+    matrixDays.forEach((day, dayIdx) => {
+        const dayStr = matrixDayStrs[dayIdx];
+        const dow = day.getDay();
+        const isSat = dow === 6;
+        const isSun = dow === 0;
+        const isTodayFlag = isToday(day);
 
-            MATRIX_PERIODS.forEach((period, pIdx) => {
-                // この時間帯に該当する配車
-                const cellDispatches = rangeDispatches
-                    .filter(d => d.vehicle_id === v.id && d.date === dayStr && getTimePeriodIndex(d.start_time) === pIdx)
-                    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+        let rowCls = 'matrix-date-row';
+        if (isTodayFlag) rowCls += ' matrix-today-row';
+        else if (isSun) rowCls += ' matrix-sunday-row';
+        else if (isSat) rowCls += ' matrix-saturday-row';
 
-                // またがり表示: 開始が前の時間帯だが終了がこの時間帯以降
-                const spanDispatches = rangeDispatches
-                    .filter(d => {
-                        if (d.vehicle_id !== v.id || d.date !== dayStr) return false;
-                        const span = getDispatchPeriodSpan(d);
-                        return span.startIdx < pIdx && span.endIdx >= pIdx;
-                    });
+        tableHtml += `<tr class="${rowCls}">`;
 
-                let cellCls = 'matrix-cell';
-                if (isTodayFlag) cellCls += ' matrix-today-cell';
-                else if (isWeekend) cellCls += ' matrix-weekend-cell';
-                // 日の区切り(最初の時間帯)
-                if (pIdx === 0) cellCls += ' matrix-day-border';
+        // 日付ラベル（sticky left）
+        let dateCls = 'matrix-date-header-sticky matrix-date-label';
+        if (isTodayFlag) dateCls += ' matrix-today-label';
+        else if (isSun) dateCls += ' matrix-sunday-label';
+        else if (isSat) dateCls += ' matrix-saturday-label';
+        const dayLabel = `${day.getMonth() + 1}/${day.getDate()}(${dayNames[dow]})`;
+        tableHtml += `<td class="${dateCls}">${dayLabel}</td>`;
 
-                const dropAttrs = `ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',${pIdx})"`;
+        // 各車両のセル
+        filteredVehicles.forEach(v => {
+            // この車両・この日付の全配車を取得
+            const dayDispatches = rangeDispatches
+                .filter(d => d.vehicle_id === v.id && d.date === dayStr)
+                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
-                if (cellDispatches.length === 0 && spanDispatches.length === 0) {
-                    tableHtml += `<td class="${cellCls} matrix-empty-cell" onclick="openQuickDispatchModal('${dayStr}','${String(period.startH).padStart(2,'0')}:00','${String(period.endH === 24 ? 23 : period.endH).padStart(2,'0')}:${period.endH === 24 ? '59' : '00'}',${v.id})" ${dropAttrs}></td>`;
-                } else {
-                    tableHtml += `<td class="${cellCls}" ${dropAttrs}>`;
-                    // 本来の配車
-                    cellDispatches.forEach(d => {
+            // 6スロットに振り分け
+            const slots = [[], [], [], [], [], []];
+            dayDispatches.forEach(d => {
+                const pIdx = getTimePeriodIndex(d.start_time);
+                slots[pIdx].push(d);
+            });
+
+            let cellCls = 'matrix-cell-t';
+            if (isTodayFlag) cellCls += ' matrix-today-cell';
+            else if (isSun) cellCls += ' matrix-sunday-cell';
+            else if (isSat) cellCls += ' matrix-saturday-cell';
+
+            const hasAny = dayDispatches.length > 0;
+
+            if (!hasAny) {
+                // 空セル — click to create
+                tableHtml += `<td class="${cellCls} matrix-empty-cell" onclick="openQuickDispatchModal('${dayStr}','08:00','17:00',${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
+                tableHtml += `<div class="matrix-slots-empty"></div>`;
+                tableHtml += `</td>`;
+            } else {
+                tableHtml += `<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
+                tableHtml += `<div class="matrix-slots">`;
+                slots.forEach((slotArr, pIdx) => {
+                    const period = MATRIX_PERIODS[pIdx];
+                    const slotCls = pIdx > 0 ? ' matrix-slot-border' : '';
+                    tableHtml += `<div class="matrix-slot${slotCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openQuickDispatchModal('${dayStr}','${String(period.startH).padStart(2,'0')}:00','${String(period.endH === 24 ? 23 : period.endH).padStart(2,'0')}:${period.endH === 24 ? '59' : '00'}',${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${v.id},'${dayStr}',${pIdx})">`;
+                    slotArr.forEach(d => {
                         const ddc = getDriverColor(d.driver_id);
                         const borderColor = ddc ? ddc.border : '#94a3b8';
                         const bgColor = ddc ? ddc.bg : '#f8fafc';
@@ -1246,25 +1243,17 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                         const pickupShort = pickup.length > 6 ? pickup.substring(0, 6) : pickup;
                         const deliveryShort = delivery.length > 6 ? delivery.substring(0, 6) : delivery;
                         const timeStr = d.start_time ? d.start_time.substring(0, 5) : '';
-                        const span = getDispatchPeriodSpan(d);
-                        const spanBadge = span.endIdx > span.startIdx ? `<span class="matrix-span-badge" title="複数時間帯にまたがる">▸${MATRIX_PERIODS[span.endIdx].label}</span>` : '';
 
-                        tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="showDispatchDetail(${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
-                        tableHtml += `<div class="matrix-dispatch-time">${timeStr} ${spanBadge}</div>`;
+                        tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
+                        tableHtml += `<div class="matrix-dispatch-time">${timeStr}</div>`;
                         tableHtml += `<div class="matrix-dispatch-route">${pickupShort}→${deliveryShort}</div>`;
                         tableHtml += `</div>`;
                     });
-                    // またがり配車（薄い表示）
-                    spanDispatches.forEach(d => {
-                        const ddc = getDriverColor(d.driver_id);
-                        const borderColor = ddc ? ddc.border : '#94a3b8';
-                        tableHtml += `<div class="matrix-dispatch-item matrix-dispatch-span" style="border-left-color:${borderColor}" onclick="showDispatchDetail(${d.id})" title="(継続) ${d.driver_name || ''}">`;
-                        tableHtml += `<div class="matrix-dispatch-time" style="font-size:0.55rem;opacity:0.6">…継続</div>`;
-                        tableHtml += `</div>`;
-                    });
-                    tableHtml += `</td>`;
-                }
-            });
+                    tableHtml += `</div>`;
+                });
+                tableHtml += `</div>`;
+                tableHtml += `</td>`;
+            }
         });
         tableHtml += `</tr>`;
     });
@@ -1273,14 +1262,15 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
 
     calContainer.innerHTML = controlsHtml + tableHtml;
 
-    // 今日の列にスクロール
+    // 今日の行にスクロール
     const todayIdx = matrixDays.findIndex(d => isToday(d));
     if (todayIdx > 0) {
         const wrapper = calContainer.querySelector('.matrix-wrapper');
         if (wrapper) {
-            // 各時間帯セル幅=60px、車両ヘッダー=140px
-            const scrollTo = 140 + todayIdx * 6 * 60 - 60;
-            wrapper.scrollLeft = Math.max(0, scrollTo);
+            const todayRow = wrapper.querySelectorAll('.matrix-date-row')[todayIdx];
+            if (todayRow) {
+                wrapper.scrollTop = todayRow.offsetTop - 60;
+            }
         }
     }
 }
