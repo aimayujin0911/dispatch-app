@@ -622,7 +622,7 @@ async function loadDispatchCalendar() {
                     ${days.map((d, i) => `<button class="m-cal-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth()+1)}/${d.getDate()}</button>`).join('')}
                     <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
                     <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
-                    <input type="date" class="m-cal-date" value="${activeDayStr}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()"">
+                    <label class="m-cal-btn" style="position:relative;cursor:pointer">📅<input type="date" class="m-cal-date-input" value="${activeDayStr}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()"></label>
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
@@ -907,7 +907,7 @@ async function loadDispatchCalendar() {
                 <button class="btn btn-sm btn-primary" onclick="closeMobileUnassigned();openQuickShipmentModal('${activeDayStr}')" style="font-size:0.65rem;padding:2px 8px">＋ 追加</button>
                 ${unassigned.length > 0 ? `<button class="btn btn-sm" onclick="closeMobileUnassigned();autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-size:0.65rem;padding:2px 8px">⚡ 自動配車</button>` : ''}
             </h3>
-            ${unassigned.length > 0 ? unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeMobileUnassigned();openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
+            ${unassigned.length > 0 ? unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
                 <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
                 ${s.pickup_time ? `<span style="color:#1d4ed8;font-size:0.7rem;float:right">${s.pickup_time}→${s.delivery_time}</span>` : ''}
                 <div style="font-size:0.65rem;color:#6b7280;margin-top:2px">${s.pickup_address} → ${s.delivery_address}</div>
@@ -1172,6 +1172,10 @@ function mTouchStart(e, dispatchId) {
             const grid = bar.closest('.vertical-gantt');
             const gridRect = grid ? grid.getBoundingClientRect() : null;
             const wrapEl = document.querySelector('.vertical-gantt-wrapper');
+            // バー内のタッチ位置オフセットを記録
+            const barRect = bar.getBoundingClientRect();
+            const offsetInBarY = touch.clientY - barRect.top;
+            const offsetInBarX = touch.clientX - barRect.left;
             _mDrag = {
                 dispatchId,
                 bar,
@@ -1185,6 +1189,8 @@ function mTouchStart(e, dispatchId) {
                 wrapEl,
                 scrollTopAtStart: wrapEl ? wrapEl.scrollTop : 0,
                 scrollLeftAtStart: wrapEl ? wrapEl.scrollLeft : 0,
+                offsetInBarY, // バー上端からの距離
+                offsetInBarX, // バー左端からの距離
             };
             bar.style.opacity = '0.7';
             bar.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
@@ -1206,14 +1212,17 @@ function mTouchStart(e, dispatchId) {
 }
 
 // タッチ座標からグリッドのセル（車両ID、時刻）を計算
+// バー内のタッチ位置オフセットを補正して、バー上端基準でセルを特定
 function getCellFromTouch(clientX, clientY) {
     if (!_mDrag || !_mDrag.wrapper || !_mDrag.wrapEl) return null;
     const wrap = _mDrag.wrapEl;
     const wrapRect = wrap.getBoundingClientRect();
+    // バー内オフセット補正（長押し位置を考慮）
+    const adjustedY = clientY - (_mDrag.offsetInBarY || 0);
+    const adjustedX = clientX - (_mDrag.offsetInBarX || 0);
     // wrapper内でのスクロール込み座標
-    const relX = clientX - wrapRect.left + wrap.scrollLeft;
-    const relY = clientY - wrapRect.top + wrap.scrollTop;
-    // timeColW と colW はグローバルに保存しておく
+    const relX = adjustedX - wrapRect.left + wrap.scrollLeft;
+    const relY = adjustedY - wrapRect.top + wrap.scrollTop;
     if (!window._mGridInfo) return null;
     const { timeColW, colW, rowH, vehicles, hourStart } = window._mGridInfo;
     if (relX < timeColW) return null; // 時刻列
@@ -2497,20 +2506,10 @@ async function autoDispatch(dayStr) {
             const existingDriverId = vehicleDriverMap[v.id];
 
             if (existingDriverId) {
-                // 同じ車両には同じドライバーを必ず使う
+                // 同じ車両には同じドライバーを強制固定（勤務時間チェック不要）
                 const d = activeDrivers.find(dr => dr.id === existingDriverId);
                 if (d && canDrive(d.license_type, v.capacity)) {
-                    if (consolidated) {
-                        // 混載: ドライバー固定（時間重複チェック不要、同じ車に同乗）
-                        bestDriver = d;
-                    } else {
-                        // 同じ車両なら勤務時間内であればドライバー固定（時間重複は許容）
-                        const ws = d.work_start || '08:00';
-                        const we = d.work_end || '17:00';
-                        if (startTime >= ws && endTime <= we) {
-                            bestDriver = d;
-                        }
-                    }
+                    bestDriver = d;
                 }
             }
 
