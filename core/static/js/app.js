@@ -211,9 +211,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         toggleSidebar();
     });
 
-    // ユーザー情報とダッシュボードを並列読み込み
+    // ユーザー情報読み込み
     loadUserInfo();
-    loadDashboard();
+    // スマホは配車表を初期表示、PCはダッシュボード
+    if (isMobile()) {
+        navigateTo('dispatches');
+    } else {
+        loadDashboard();
+    }
 });
 
 // ===== ナビゲーション =====
@@ -244,6 +249,10 @@ function navigateTo(page) {
     // ボトムナビのアクティブ更新
     document.querySelectorAll('.mobile-bottom-nav button').forEach(b => {
         b.classList.toggle('active', b.dataset.page === page);
+    });
+    // 未配車FABは配車表ページのみ表示
+    document.querySelectorAll('.unassigned-fab, .unassigned-slide-panel').forEach(el => {
+        el.style.display = page === 'dispatches' ? '' : 'none';
     });
 }
 
@@ -721,11 +730,17 @@ async function loadDispatchCalendar() {
                 const delivery = (d.delivery_address || '').substring(0, 6);
                 const topPx = (startMin - HOUR_START * 60) / 60 * rowH;
                 const heightPx = (endMin - startMin) / 60 * rowH;
+                // 積載超過チェック
+                const capKg = (d.vehicle_capacity || 0) * 1000;
+                const isOverload = capKg > 0 && d.weight > capKg;
+                const capPct = capKg > 0 ? Math.round(d.weight / capKg * 100) : 0;
+                const overloadStyle = isOverload ? 'border:2px solid #dc2626;' : '';
+                const overloadIcon = isOverload ? `<span style="color:#dc2626;font-size:0.5rem;font-weight:700">🚨${capPct}%</span> ` : '';
 
                 const barW = colW - 6 - indent;
                 const dc = getDriverColor(d.driver_id);
-                barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
-                    <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${driverName}</span>
+                barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${isOverload ? '#fee2e2' : wc.bg};color:${isOverload ? '#991b1b' : wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${overloadStyle}${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}${isOverload ? '\n🚨積載超過'+capPct+'%' : ''}">
+                    <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${overloadIcon}${driverName}</span>
                     <span class="vg-bar-addr">${pickup}→${delivery}</span>
                     <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
                 </div>`;
