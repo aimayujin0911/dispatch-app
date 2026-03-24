@@ -860,57 +860,165 @@ def seed_transia():
     from database import SessionLocal
     db = SessionLocal()
 
-    # 既にトランシアデータがあればスキップ
-    if db.query(User).filter(User.tenant_id == "transia").first():
+    # 既に車両データがあればスキップ
+    if db.query(Vehicle).filter(Vehicle.tenant_id == "transia").first():
         db.close()
         print("トランシアデータは既に存在します")
         return
 
+    # ユーザーは既にいるがブランチ取得が必要
+    existing_branch = db.query(Branch).filter(Branch.tenant_id == "transia").first()
+    has_users = db.query(User).filter(User.tenant_id == "transia").first()
+
     today = date.today()
     from auth import hash_password
 
-    # トランシア営業所
-    t_branch = Branch(name="本社", address="埼玉県幸手市中1-1-1", phone="0480-XX-XXXX", tenant_id="transia")
-    db.add(t_branch)
-    db.flush()
+    if existing_branch:
+        t_branch = existing_branch
+    else:
+        t_branch = Branch(name="本社", address="埼玉県幸手市中1-1-1", phone="0480-XX-XXXX", tenant_id="transia")
+        db.add(t_branch)
+        db.flush()
 
-    # トランシア管理者
-    t_admin = User(
-        email="admin@transia.co.jp",
-        password_hash=hash_password("transia1234"),
-        name="トランシア管理者",
-        role="admin",
-        tenant_id="transia",
-        branch_id=t_branch.id,
-    )
-    t_dispatcher = User(
-        email="haisha@transia.co.jp",
-        password_hash=hash_password("transia1234"),
-        name="配車担当",
-        role="dispatcher",
-        tenant_id="transia",
-        branch_id=t_branch.id,
-    )
-    db.add_all([t_admin, t_dispatcher])
-    db.flush()
+    if not has_users:
+        t_admin = User(
+            email="admin@transia.co.jp",
+            password_hash=hash_password("transia1234"),
+            name="トランシア管理者",
+            role="admin",
+            tenant_id="transia",
+            branch_id=t_branch.id,
+        )
+        t_dispatcher = User(
+            email="haisha@transia.co.jp",
+            password_hash=hash_password("transia1234"),
+            name="配車担当",
+            role="dispatcher",
+            tenant_id="transia",
+            branch_id=t_branch.id,
+        )
+        db.add_all([t_admin, t_dispatcher])
+        db.flush()
 
-    # トランシア自社情報（マトリックスビューをデフォルトに）
-    t_settings = CompanySettings(
-        company_name="株式会社トランシア",
-        postal_code="340-0114",
-        address="埼玉県幸手市中1-1-1",
-        phone="0480-XX-XXXX",
-        representative="代表取締役",
-        notes="一般貨物自動車運送事業",
-        tenant_id="transia",
-        dispatch_view_mode="matrix",
-    )
-    db.add(t_settings)
-    # ※ 車両・ドライバー・荷主・案件は実データ投入スクリプトで別途登録
+    if not db.query(CompanySettings).filter(CompanySettings.tenant_id == "transia").first():
+        t_settings = CompanySettings(
+            company_name="株式会社トランシア",
+            postal_code="340-0114",
+            address="埼玉県幸手市中1-1-1",
+            phone="0480-XX-XXXX",
+            representative="代表取締役",
+            notes="一般貨物自動車運送事業",
+            tenant_id="transia",
+            dispatch_view_mode="matrix",
+        )
+        db.add(t_settings)
+    # === トランシア車両・ドライバーデータ（Excelから抽出） ===
+    # 1課〜5課のドライバー＋車両（車両番号、ドライバー名、車種、車番）
+    transia_data = [
+        # 1課（大型ドラム車）
+        {"dept": "1課", "num": "164", "driver": "島田", "type": "ウイング車", "cap": 13, "chassis": "2900G", "temp": "常温", "pg": False, "insp": "R7/12/10"},
+        {"dept": "1課", "num": "150", "driver": "浅見", "type": "ウイング車", "cap": 13, "chassis": "3100G", "temp": "常温", "pg": False, "insp": "R8/1/6"},
+        {"dept": "1課", "num": "116", "driver": "川畑", "type": "ウイング車", "cap": 13, "chassis": "3800", "temp": "常温", "pg": False, "insp": "R8/4/21"},
+        {"dept": "1課", "num": "211", "driver": "猪狩", "type": "ウイング車", "cap": 10, "chassis": "3000", "temp": "常温", "pg": False, "insp": "R8/6/16"},
+        {"dept": "1課", "num": "125", "driver": "迫", "type": "ウイング車", "cap": 10, "chassis": "3400", "temp": "常温", "pg": False, "insp": "R8/4/21"},
+        {"dept": "1課", "num": "157", "driver": "藤沼", "type": "ウイング車", "cap": 10, "chassis": "2200", "temp": "常温", "pg": False, "insp": "R8/4/29"},
+        {"dept": "1課", "num": "151", "driver": "松本", "type": "ウイング車", "cap": 13, "chassis": "2800G", "temp": "常温", "pg": False, "insp": "R8/9/29"},
+        {"dept": "1課", "num": "210", "driver": "志田", "type": "ウイング車", "cap": 13, "chassis": "3700", "temp": "常温", "pg": False, "insp": "R8/4/29"},
+        {"dept": "1課", "num": "251", "driver": "中島", "type": "ウイング車", "cap": 10, "chassis": "9000", "temp": "常温", "pg": False, "insp": "R7/10/27"},
+        {"dept": "1課", "num": "123", "driver": "塚本", "type": "ウイング車", "cap": 13, "chassis": "4400", "temp": "常温", "pg": False, "insp": "R7/10/11"},
+        {"dept": "1課", "num": "166", "driver": "杉山", "type": "ウイング車", "cap": 13, "chassis": "3500", "temp": "常温", "pg": False, "insp": "R8/3/17"},
+        {"dept": "1課", "num": "171", "driver": "齊藤", "type": "ウイング車", "cap": 13, "chassis": "1200", "temp": "常温", "pg": False, "insp": "R7/10/16"},
+        {"dept": "1課", "num": "215", "driver": "長谷川", "type": "ウイング車", "cap": 10, "chassis": "2100", "temp": "常温", "pg": False, "insp": "R8/4/26"},
+        {"dept": "1課", "num": "208", "driver": "毛塚", "type": "ウイング車", "cap": 10, "chassis": "1600", "temp": "常温", "pg": False, "insp": "R8/3/5"},
+        {"dept": "1課", "num": "172", "driver": "加藤", "type": "ウイング車", "cap": 13, "chassis": "3200", "temp": "常温", "pg": False, "insp": "R8/3/2"},
+        {"dept": "1課", "num": "197", "driver": "秦", "type": "ウイング車", "cap": 10, "chassis": "1900", "temp": "常温", "pg": False, "insp": "R8/3/30"},
+        {"dept": "1課", "num": "226", "driver": "柿沼", "type": "ウイング車", "cap": 10, "chassis": "3600", "temp": "常温", "pg": False, "insp": "R8/4/29"},
+        {"dept": "1課", "num": "262", "driver": "若山", "type": "ウイング車", "cap": 10, "chassis": "1700", "temp": "常温", "pg": False, "insp": "R8/3/12"},
+        {"dept": "1課", "num": "252", "driver": "葭川", "type": "ウイング車", "cap": 13, "chassis": "1100", "temp": "常温", "pg": False, "insp": "R8/9/29"},
+        # 2課（2t箱車）
+        {"dept": "2課", "num": "7200", "driver": "弘中", "type": "ウイング車", "cap": 3, "chassis": "7200", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "2課", "num": "4300", "driver": "井上", "type": "ウイング車", "cap": 3, "chassis": "4300", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "2課", "num": "6200", "driver": "山寺", "type": "バン", "cap": 2, "chassis": "6200", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "6300", "driver": "清水", "type": "バン", "cap": 2, "chassis": "6300", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "1300", "driver": "新井", "type": "バン", "cap": 2, "chassis": "1300", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "3900", "driver": "牧野", "type": "バン", "cap": 2, "chassis": "3900", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "4100", "driver": "川上", "type": "バン", "cap": 2, "chassis": "4100", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "6000", "driver": "松下", "type": "バン", "cap": 2, "chassis": "6000", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "5000", "driver": "田中", "type": "バン", "cap": 2, "chassis": "5000", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "2課", "num": "4700", "driver": "未配車", "type": "バン", "cap": 2, "chassis": "4700", "temp": "常温", "pg": False, "insp": ""},
+        # 3課（ユニック車）
+        {"dept": "3課", "num": "7000", "driver": "金子", "type": "ユニック車", "cap": 7, "chassis": "7000", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "8000", "driver": "阿部", "type": "ユニック車", "cap": 7, "chassis": "8000", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "875", "driver": "青田", "type": "ユニック車", "cap": 3, "chassis": "875", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "988", "driver": "山口", "type": "ユニック車", "cap": 3, "chassis": "988", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "1039", "driver": "渡辺", "type": "ユニック車", "cap": 3, "chassis": "1039", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "5800", "driver": "木村", "type": "ユニック車", "cap": 3, "chassis": "5800", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "3908", "driver": "小堀", "type": "ユニック車", "cap": 3, "chassis": "3908", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "3906", "driver": "柿沼", "type": "ユニック車", "cap": 3, "chassis": "3906", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "4600", "driver": "青木", "type": "平ボディ", "cap": 2, "chassis": "4600", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "3課", "num": "2300", "driver": "奥藤", "type": "平ボディ", "cap": 2, "chassis": "2300", "temp": "常温", "pg": False, "insp": ""},
+        # 4課（4tワイド）
+        {"dept": "4課", "num": "192", "driver": "中村", "type": "ウイング車", "cap": 4, "chassis": "192", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "4課", "num": "144", "driver": "細谷", "type": "ウイング車", "cap": 4, "chassis": "144", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "4課", "num": "234", "driver": "佐々木", "type": "ウイング車", "cap": 4, "chassis": "234", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "4課", "num": "221", "driver": "重文字", "type": "ウイング車", "cap": 4, "chassis": "221", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "4課", "num": "249", "driver": "舟生", "type": "ウイング車", "cap": 4, "chassis": "249", "temp": "常温", "pg": False, "insp": ""},
+        {"dept": "4課", "num": "260", "driver": "今成", "type": "ウイング車", "cap": 4, "chassis": "260", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "4課", "num": "269", "driver": "岡野", "type": "ウイング車", "cap": 4, "chassis": "269", "temp": "常温", "pg": True, "insp": ""},
+        {"dept": "4課", "num": "105", "driver": "新谷", "type": "ウイング車", "cap": 4, "chassis": "105", "temp": "常温", "pg": True, "insp": ""},
+        # 5課（チルド車）
+        {"dept": "5課", "num": "248", "driver": "佐藤", "type": "バン", "cap": 3, "chassis": "5200", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
+        {"dept": "5課", "num": "229", "driver": "茂木", "type": "バン", "cap": 3, "chassis": "5300", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
+        {"dept": "5課", "num": "272", "driver": "未配車", "type": "バン", "cap": 3, "chassis": "5400", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
+        {"dept": "5課", "num": "255", "driver": "未配車", "type": "バン", "cap": 3, "chassis": "5900", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+        {"dept": "5課", "num": "268", "driver": "朝来野", "type": "バン", "cap": 4, "chassis": "268", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
+        {"dept": "5課", "num": "278", "driver": "澤村", "type": "バン", "cap": 4, "chassis": "278", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+        {"dept": "5課", "num": "247", "driver": "山崎", "type": "バン", "cap": 4, "chassis": "247", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+        {"dept": "5課", "num": "270", "driver": "トレンティーノ", "type": "バン", "cap": 4, "chassis": "270", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+        {"dept": "5課", "num": "271", "driver": "岡安", "type": "バン", "cap": 4, "chassis": "271", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+        {"dept": "5課", "num": "273", "driver": "池谷", "type": "バン", "cap": 4, "chassis": "273", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
+    ]
+
+    # ドライバー作成（「未配車」は除外）
+    driver_map = {}  # name -> Driver
+    for d in transia_data:
+        dname = d["driver"]
+        if dname == "未配車" or dname in driver_map:
+            continue
+        drv = Driver(name=dname, phone="", license_type="大型" if d["cap"] >= 7 else "中型" if d["cap"] >= 3 else "普通", status="待機中", tenant_id="transia", branch_id=t_branch.id)
+        db.add(drv)
+        db.flush()
+        driver_map[dname] = drv
+        # ドライバー用Userレコード
+        db.add(User(name=dname, email="", login_id=f"t_{dname}", password_hash="", role="driver", tenant_id="transia", branch_id=t_branch.id, driver_id=drv.id, is_active=True))
+
+    # 車両作成（ドライバー紐付け）
+    for d in transia_data:
+        drv = driver_map.get(d["driver"])
+        v = Vehicle(
+            number=f"春日部 {d['num']}", chassis_number=d["chassis"], type=d["type"],
+            capacity=d["cap"], status="通常", temperature_zone=d["temp"],
+            has_power_gate=d["pg"], inspection_expiry=d["insp"],
+            default_driver_id=drv.id if drv else None,
+            notes=d["dept"], tenant_id="transia", branch_id=t_branch.id,
+        )
+        db.add(v)
+
+    # 荷主（代表的な取引先を追加）
+    transia_clients = [
+        Client(name="DIC", address="東京都中央区日本橋", phone="", tenant_id="transia"),
+        Client(name="JPR", address="東京都千代田区", phone="", tenant_id="transia"),
+        Client(name="流山倉庫", address="千葉県流山市", phone="", tenant_id="transia"),
+        Client(name="八千代倉庫", address="千葉県八千代市", phone="", tenant_id="transia"),
+        Client(name="鴻巣", address="埼玉県鴻巣市", phone="", tenant_id="transia"),
+        Client(name="幸手物産", address="埼玉県幸手市", phone="", tenant_id="transia"),
+        Client(name="久喜倉庫", address="埼玉県久喜市", phone="", tenant_id="transia"),
+    ]
+    db.add_all(transia_clients)
 
     db.commit()
     db.close()
-    print("トランシアテナントデータ投入完了!")
+    print(f"トランシアテナントデータ投入完了! ドライバー{len(driver_map)}名, 車両{len(transia_data)}台")
 
 
 if __name__ == "__main__":
