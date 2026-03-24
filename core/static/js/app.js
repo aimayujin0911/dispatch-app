@@ -741,8 +741,8 @@ async function loadDispatchCalendar() {
                 const dc = getDriverColor(d.driver_id);
                 barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${isOverload ? '#fee2e2' : wc.bg};color:${isOverload ? '#991b1b' : wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${overloadStyle}${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}${isOverload ? '\n🚨積載超過'+capPct+'%' : ''}">
                     <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${overloadIcon}${driverName}</span>
-                    <span class="vg-bar-addr">${pickup}→${delivery}</span>
-                    <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
+                    ${heightPx >= 40 ? `<span class="vg-bar-addr">${pickup}→${delivery}</span>` : ''}
+                    ${heightPx >= 55 ? `<span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>` : ''}
                 </div>`;
             });
         });
@@ -1321,20 +1321,17 @@ function mTouchStart(e, dispatchId) {
 }
 
 // タッチ座標からグリッドのセル（車両ID、時刻）を計算
-// バー内のタッチ位置オフセットを補正して、バー上端基準でセルを特定
 function getCellFromTouch(clientX, clientY) {
-    if (!_mDrag || !_mDrag.wrapper || !_mDrag.wrapEl) return null;
-    const wrap = _mDrag.wrapEl;
+    const wrap = _mDrag?.wrapEl || document.querySelector('.vertical-gantt-wrapper');
+    if (!wrap || !window._mGridInfo) return null;
     const wrapRect = wrap.getBoundingClientRect();
-    // バー内オフセット補正（長押し位置を考慮）
-    const adjustedY = clientY - (_mDrag.offsetInBarY || 0);
-    const adjustedX = clientX - (_mDrag.offsetInBarX || 0);
-    // wrapper内でのスクロール込み座標
-    const relX = adjustedX - wrapRect.left + wrap.scrollLeft;
-    const relY = adjustedY - wrapRect.top + wrap.scrollTop;
-    if (!window._mGridInfo) return null;
+    // バー内オフセット補正（長押し位置を考慮、_mDragがある場合のみ）
+    const offY = _mDrag?.offsetInBarY || 0;
+    const offX = _mDrag?.offsetInBarX || 0;
+    const relX = (clientX - offX) - wrapRect.left + wrap.scrollLeft;
+    const relY = (clientY - offY) - wrapRect.top + wrap.scrollTop;
     const { timeColW, colW, rowH, vehicles, hourStart } = window._mGridInfo;
-    if (relX < timeColW) return null; // 時刻列
+    if (relX < timeColW) return null;
     const colIdx = Math.floor((relX - timeColW) / colW);
     if (colIdx < 0 || colIdx >= vehicles.length) return null;
     const rowIdx = Math.floor(relY / rowH);
@@ -1466,6 +1463,22 @@ async function applyMobileDrop(dispatchId, vehicleId, hour) {
             }
         }
 
+        // 車両変更時: その車両に既存ドライバーがいれば変更確認
+        let updateData = { vehicle_id: vehicleId, start_time: newStart, end_time: newEnd };
+        if (vehicleId !== d.vehicle_id) {
+            const allDispatches = await cachedApiGet('/dispatches');
+            const existingOnVehicle = allDispatches.find(x => x.vehicle_id === vehicleId && x.date === d.date && x.driver_id && x.id !== dispatchId);
+            if (existingOnVehicle && existingOnVehicle.driver_id !== d.driver_id) {
+                const driverName = existingOnVehicle.driver_name || `ID:${existingOnVehicle.driver_id}`;
+                const changeDriver = await showConfirm(
+                    `🚛 この車両には ${driverName} が配車されています。\n\nドライバーを ${driverName} に変更しますか？`
+                );
+                if (changeDriver) {
+                    updateData.driver_id = existingOnVehicle.driver_id;
+                }
+            }
+        }
+
         // 楽観的UI: バーを即座にDOM上で移動
         if (window._mGridInfo) {
             const { timeColW, colW, rowH } = window._mGridInfo;
@@ -1485,11 +1498,7 @@ async function applyMobileDrop(dispatchId, vehicleId, hour) {
         }
 
         // バックグラウンドでAPI更新
-        apiPut(`/dispatches/${dispatchId}`, {
-            vehicle_id: vehicleId,
-            start_time: newStart,
-            end_time: newEnd,
-        }).then(() => {
+        apiPut(`/dispatches/${dispatchId}`, updateData).then(() => {
             invalidateCache('/dispatches');
             scheduleBgSync(3);
         }).catch(e => {

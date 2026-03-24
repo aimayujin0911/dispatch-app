@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=72">
+    <link rel="stylesheet" href="/static/css/style.css?v=73">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -345,7 +345,7 @@
     <div id="mobileMoreMenu" class="mobile-more-menu" style="display:none">
         <div class="mobile-more-backdrop" onclick="toggleMobileMore()"></div>
         <div class="mobile-more-panel">
-            <div class="mobile-more-header">メニュー<button onclick="toggleMobileMore()" style="float:right;border:none;background:none;font-size:1.2rem;cursor:pointer">✕</button></div>
+            <div class="mobile-more-header"><span>メニュー</span><button onclick="toggleMobileMore()" style="border:none;background:none;font-size:1.2rem;cursor:pointer;padding:0 4px">✕</button></div>
             <button onclick="navigateTo('drivers');toggleMobileMore()">🚛 ドライバー</button>
             <button onclick="navigateTo('vehicles');toggleMobileMore()">🚗 車両管理</button>
             <button onclick="navigateTo('clients');toggleMobileMore()">🏢 荷主管理</button>
@@ -539,7 +539,7 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=73"></script>
+    <script src="/static/js/app.js?v=74"></script>
     <script src="/static/js/tenant-switcher.js?v=3"></script>
 </body>
 </html>
