@@ -855,7 +855,7 @@ def seed():
     print("テストデータ投入完了!")
 
 
-TRANSIA_DATA_VERSION = "v3"  # データ更新時にインクリメント
+TRANSIA_DATA_VERSION = "v4"  # データ更新時にインクリメント
 
 def seed_transia():
     """トランシア（幸手）テナントのデータ投入（実データファイルから読み込み）"""
@@ -874,21 +874,7 @@ def seed_transia():
 
     print(f"トランシアデータ更新: {current_ver} -> {TRANSIA_DATA_VERSION}")
 
-    # 既存のoperational dataをクリーン（admin/dispatcher/settingsは残す）
-    try:
-        # 配車→案件→ドライバーUser→ドライバー→車両→荷主 の順で削除
-        db.execute(text("DELETE FROM dispatches WHERE tenant_id = 'transia'"))
-        db.execute(text("DELETE FROM shipments WHERE tenant_id = 'transia'"))
-        db.execute(text("DELETE FROM users WHERE tenant_id = 'transia' AND role = 'driver'"))
-        db.execute(text("DELETE FROM drivers WHERE tenant_id = 'transia'"))
-        db.execute(text("DELETE FROM vehicles WHERE tenant_id = 'transia'"))
-        db.execute(text("DELETE FROM clients WHERE tenant_id = 'transia'"))
-        db.commit()
-        print("トランシア既存データクリーン完了")
-    except Exception as e:
-        db.rollback()
-        print(f"クリーン失敗: {e}")
-
+    # 既存データは残して、新規分だけ追加（重複スキップ）
     # ブランチ・ユーザー確認
     existing_branch = db.query(Branch).filter(Branch.tenant_id == "transia").first()
     has_users = db.query(User).filter(User.tenant_id == "transia", User.role != "driver").first()
@@ -946,6 +932,7 @@ def seed_transia():
     # 1. 取引先データ（1,454件）
     # =============================================
     df_clients = pd.read_excel(client_file, engine="openpyxl")
+    existing_client_names = set(c.name for c in db.query(Client).filter(Client.tenant_id == "transia").all())
     client_count = 0
     for _, row in df_clients.iterrows():
         # 会社名の組み立て
@@ -976,6 +963,8 @@ def seed_transia():
         fax = str(row["FAX番号"]) if pd.notna(row["FAX番号"]) else ""
         postal = str(row["郵便番号"]) if pd.notna(row["郵便番号"]) else ""
 
+        if name in existing_client_names:
+            continue
         client = Client(
             name=name,
             address=address,
@@ -984,6 +973,7 @@ def seed_transia():
             tenant_id="transia",
         )
         db.add(client)
+        existing_client_names.add(name)
         client_count += 1
 
     db.flush()
@@ -1036,6 +1026,7 @@ def seed_transia():
             return 1.0
         return 0.0
 
+    existing_vehicle_nums = set(v.number for v in db.query(Vehicle).filter(Vehicle.tenant_id == "transia").all())
     vehicle_records = []
     for idx in range(len(df_vehicles)):
         raw_type = df_vehicles.iloc[idx, 2]
@@ -1054,6 +1045,12 @@ def seed_transia():
         # パワーゲート: "格"=格納ゲート, "跳"=跳ね上げゲート → True
         has_pg = "格" in raw_type or "跳" in raw_type
 
+        if raw_num in existing_vehicle_nums:
+            # 既存車両は取得して紐付け用に保持
+            existing_v = db.query(Vehicle).filter(Vehicle.tenant_id == "transia", Vehicle.number == raw_num).first()
+            if existing_v:
+                vehicle_records.append((raw_num, existing_v))
+            continue
         v = Vehicle(
             number=raw_num,
             type=base_type,
@@ -1061,7 +1058,7 @@ def seed_transia():
             status="通常",
             temperature_zone=temp_zone,
             has_power_gate=has_pg,
-            notes=raw_type,  # 元の車種略称をメモに保存
+            notes=raw_type,
             tenant_id="transia",
             branch_id=t_branch.id,
         )
@@ -1074,14 +1071,26 @@ def seed_transia():
     # 3. 従業員データ（Jinjer CSV → ドライバー＋User）
     # =============================================
     df_employees = pd.read_csv(employee_file, encoding="shift-jis")
+    existing_driver_names = set(d.name for d in db.query(Driver).filter(Driver.tenant_id == "transia").all())
     driver_map = {}  # 姓 -> [Driver, ...] （同姓対応のためリスト）
     driver_fullname_map = {}  # フルネーム -> Driver
+
+    # 既存ドライバーもマップに入れる
+    for d in db.query(Driver).filter(Driver.tenant_id == "transia").all():
+        driver_fullname_map[d.name] = d
+        sei = d.name.split(" ")[0] if " " in d.name else d.name
+        if sei not in driver_map:
+            driver_map[sei] = []
+        driver_map[sei].append(d)
 
     for _, row in df_employees.iterrows():
         sei = str(row["職場氏名(氏)"]) if pd.notna(row["職場氏名(氏)"]) else ""
         mei = str(row["職場氏名(名)"]) if pd.notna(row["職場氏名(名)"]) else ""
         emp_no = str(row["社員番号"]) if pd.notna(row["社員番号"]) else ""
         fullname = sei + " " + mei
+
+        if fullname in existing_driver_names:
+            continue
 
         drv = Driver(
             name=fullname,
@@ -1095,6 +1104,7 @@ def seed_transia():
         db.flush()
 
         driver_fullname_map[fullname] = drv
+        existing_driver_names.add(fullname)
         if sei not in driver_map:
             driver_map[sei] = []
         driver_map[sei].append(drv)
