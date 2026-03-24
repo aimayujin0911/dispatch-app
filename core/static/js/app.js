@@ -958,6 +958,14 @@ function matrixGoToday() {
     loadDispatchCalendar();
 }
 
+function matrixSelectMonth(value) {
+    // value is "YYYY-MM" from <input type="month">
+    if (!value) return;
+    const [y, m] = value.split('-').map(Number);
+    _matrixMonthStart = new Date(y, m - 1, 1);
+    loadDispatchCalendar();
+}
+
 // Legacy alias for week navigation (unused but kept for safety)
 function matrixChangeWeek(dir) { matrixChangeMonth(dir > 0 ? 1 : -1); }
 
@@ -1088,8 +1096,8 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
     monthStart.setHours(0, 0, 0, 0);
     monthStart.setDate(1);
 
-    // 30日分の日付を生成
-    const NUM_DAYS = 30;
+    // 当月の日数を計算（28-31日）
+    const NUM_DAYS = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
     const matrixDays = [];
     const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
     for (let i = 0; i < NUM_DAYS; i++) {
@@ -1133,13 +1141,15 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
     // 月ラベル
     const monthLabel = `${monthStart.getFullYear()}年${monthStart.getMonth() + 1}月`;
 
-    // コントロール部分
+    // コントロール部分 — 年月ピッカー付き
+    const monthValue = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
     let controlsHtml = `
         <div class="cal-controls" style="gap:8px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
-                <button class="btn btn-sm" onclick="matrixChangeMonth(-1)" title="前月">◀ 前月</button>
+                <button class="btn btn-sm" onclick="matrixChangeMonth(-1)" title="前月">◀</button>
+                <input type="month" class="input-date" value="${monthValue}" onchange="matrixSelectMonth(this.value)" title="年月を選択" style="width:160px;font-size:0.9rem">
+                <button class="btn btn-sm" onclick="matrixChangeMonth(1)" title="翌月">▶</button>
                 <button class="btn btn-sm" onclick="matrixGoToday()">今月</button>
-                <button class="btn btn-sm" onclick="matrixChangeMonth(1)" title="翌月">翌月 ▶</button>
                 <span style="font-size:1.1rem;font-weight:700;margin:0 4px;color:var(--text-dark,#1e293b);white-space:nowrap">${monthLabel}</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-left:auto">
@@ -1465,7 +1475,8 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
         }
 
         html += `<div class="cal-vehicle-label">`;
-        html += `<div class="cal-vehicle-name">${v.number}</div>`;
+        const driverLabel = v.default_driver_name ? `<span style="font-size:0.7rem;color:#475569;font-weight:500;margin-left:4px">${v.default_driver_name}</span>` : '';
+        html += `<div class="cal-vehicle-name">${v.number}${driverLabel}</div>`;
         const tempBadge = v.temperature_zone && v.temperature_zone !== '常温' ? `<span style="font-size:0.6rem;color:#0891b2;font-weight:600">❄${v.temperature_zone}</span>` : '';
         const pgBadge = v.has_power_gate ? '<span style="font-size:0.6rem;color:#7c3aed">PG</span>' : '';
         html += `<div class="cal-vehicle-info"><span class="badge badge-${statusCls}" style="font-size:0.65rem;padding:1px 6px">${v.status}</span> ${v.type} ${v.capacity ? v.capacity + 't' : ''} ${tempBadge} ${pgBadge}</div>`;

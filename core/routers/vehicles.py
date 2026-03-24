@@ -33,10 +33,23 @@ class VehicleUpdate(BaseModel):
 
 @router.get("")
 def list_vehicles(type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from models import Driver
     query = db.query(Vehicle).filter(Vehicle.tenant_id == current_user.tenant_id)
     if type:
         query = query.filter(Vehicle.type == type)
-    return query.order_by(Vehicle.id.desc()).all()
+    vehicles = query.order_by(Vehicle.id.desc()).all()
+    # default_driver_nameを付与
+    driver_ids = [v.default_driver_id for v in vehicles if v.default_driver_id]
+    driver_map = {}
+    if driver_ids:
+        drivers = db.query(Driver).filter(Driver.id.in_(driver_ids)).all()
+        driver_map = {d.id: d.name for d in drivers}
+    result = []
+    for v in vehicles:
+        vd = {c.name: getattr(v, c.name) for c in v.__table__.columns}
+        vd["default_driver_name"] = driver_map.get(v.default_driver_id, "") if v.default_driver_id else ""
+        result.append(vd)
+    return result
 
 
 @router.post("")
