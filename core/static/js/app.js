@@ -1027,31 +1027,40 @@ async function createDispatchFromDrop(shipmentId, vehicleId, hour) {
         return;
     }
 
-    try {
-        // 楽観的UI: 即座に配車表を更新
-        apiPost('/dispatches', {
-            shipment_id: shipmentId,
-            vehicle_id: vehicleId,
-            driver_id: driverId,
-            date: activeDayStr2,
-            start_time: startTime,
-            end_time: endTime,
-        }).then(() => {
-            invalidateCache('/dispatches');
-            invalidateCache('/shipments');
-            scheduleBgSync(2);
-        }).catch(e => {
-            alert('配車作成に失敗: ' + e.message);
-            loadDispatchCalendar();
-        });
-        // 即座にカレンダー再描画
+    // 楽観的UI: キャッシュに仮データを注入して即再描画
+    const fakeDispatch = {
+        id: -Date.now(), shipment_id: shipmentId, vehicle_id: vehicleId, driver_id: driverId,
+        date: activeDayStr2, start_time: startTime, end_time: endTime, status: '予定',
+        driver_name: drivers.find(d => d.id === driverId)?.name || '',
+        vehicle_number: '', shipment_name: s?.name || '', client_name: s?.client_name || '',
+        pickup_address: s?.pickup_address || '', delivery_address: s?.delivery_address || '',
+        cargo_description: s?.cargo_description || '', weight: s?.weight || 0, price: s?.price || 0,
+        pickup_time: s?.pickup_time || '', delivery_time: s?.delivery_time || '',
+        vehicle_capacity: 0,
+    };
+    // キャッシュに仮配車を追加
+    if (_cache['/dispatches']?.data) _cache['/dispatches'].data.push(fakeDispatch);
+    // 案件ステータスを配車済みに
+    if (_cache['/shipments']?.data) {
+        const cs = _cache['/shipments'].data.find(x => x.id === shipmentId);
+        if (cs) cs.status = '配車済み';
+    }
+    loadDispatchCalendar();
+
+    // バックグラウンドでAPI実行→完了後に正式データで同期
+    apiPost('/dispatches', {
+        shipment_id: shipmentId, vehicle_id: vehicleId, driver_id: driverId,
+        date: activeDayStr2, start_time: startTime, end_time: endTime,
+    }).then(() => {
+        invalidateCache('/dispatches');
+        invalidateCache('/shipments');
+        scheduleBgSync(2);
+    }).catch(e => {
+        alert('配車作成に失敗: ' + e.message);
         invalidateCache('/dispatches');
         invalidateCache('/shipments');
         loadDispatchCalendar();
-    } catch (e) {
-        alert('配車作成に失敗: ' + e.message);
-        loadDispatchCalendar();
-    }
+    });
 }
 
 function closeMobileUnassigned() {
