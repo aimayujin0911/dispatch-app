@@ -616,16 +616,18 @@ async function loadDispatchCalendar() {
         // 画面幅に4列収まるように列幅計算。5台以上は横スクロール
         const visibleCols = Math.min(filteredVehicles.length, 4);
         const colW = Math.floor((screenW - timeColW) / visibleCols);
-        let vgHtml = `<div class="vertical-gantt-wrapper">
-            <div class="vertical-gantt" style="grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:40px repeat(${HOUR_COUNT}, ${rowH}px)">`;
-
-        // コーナーセル
-        vgHtml += `<div class="vg-corner">時刻</div>`;
-        // 車両ヘッダー
+        // ヘッダー（固定、スクロールしない）
+        let headerHtml = `<div class="vg-header-row" style="display:flex;">
+            <div class="vg-corner" style="width:${timeColW}px;min-width:${timeColW}px;flex-shrink:0;">時刻</div>`;
         filteredVehicles.forEach(v => {
             const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
-            vgHtml += `<div class="vg-vehicle-header" title="${v.number}\n${v.type} ${v.capacity}t">${shortNum}<br><span style="font-size:0.5rem;opacity:0.7">${v.type} ${v.capacity}t</span></div>`;
+            headerHtml += `<div class="vg-vehicle-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;" title="${v.number}\n${v.type} ${v.capacity}t">${shortNum}<br><span style="font-size:0.5rem;opacity:0.7">${v.type} ${v.capacity}t</span></div>`;
         });
+        headerHtml += `</div>`;
+
+        // 時間セル（スクロール可能エリア）
+        let vgHtml = `<div class="vertical-gantt-wrapper">
+            <div class="vertical-gantt" style="position:relative;grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:repeat(${HOUR_COUNT}, ${rowH}px)">`;
 
         // 時間行×車両列
         for (let h = HOUR_START; h < HOUR_START + HOUR_COUNT; h++) {
@@ -661,7 +663,7 @@ async function loadDispatchCalendar() {
                 const driverName = d.driver_name || '';
                 const pickup = (d.pickup_address || '').substring(0, 6);
                 const delivery = (d.delivery_address || '').substring(0, 6);
-                const topPx = 40 + (startMin - HOUR_START * 60) / 60 * rowH;
+                const topPx = (startMin - HOUR_START * 60) / 60 * rowH;
                 const heightPx = (endMin - startMin) / 60 * rowH;
 
                 barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${leftPx}px;width:${colW - 6}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
@@ -672,15 +674,21 @@ async function loadDispatchCalendar() {
             });
         });
 
-        // vertical-gantt-wrapperの中にバーを配置するため、gridをrelativeに
-        vgHtml = vgHtml.replace('class="vertical-gantt"', 'class="vertical-gantt" style="position:relative;grid-template-columns:' + timeColW + 'px repeat(' + filteredVehicles.length + ', ' + colW + 'px);grid-template-rows:40px repeat(' + HOUR_COUNT + ', ' + rowH + 'px)"');
         vgHtml += barsHtml + `</div>`;
 
-        calContainer.innerHTML = mobileControlsHtml + vgHtml;
+        calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
 
-        // スクロール位置復元
+        // スクロール位置復元 + ヘッダー横スクロール同期
         const vWrapper = document.querySelector('.vertical-gantt-wrapper');
-        if (vWrapper) { vWrapper.scrollTop = savedScrollTop; vWrapper.scrollLeft = savedScrollLeft; }
+        const vHeader = document.querySelector('.vg-header-row');
+        if (vWrapper) {
+            vWrapper.scrollTop = savedScrollTop;
+            vWrapper.scrollLeft = savedScrollLeft;
+            if (vHeader) vHeader.scrollLeft = savedScrollLeft;
+            vWrapper.addEventListener('scroll', () => {
+                if (vHeader) vHeader.scrollLeft = vWrapper.scrollLeft;
+            });
+        }
 
         // 未配車パネルはデスクトップと同じ処理（この後で実行される）
         // モバイル時はガント後のインジケーターは省略

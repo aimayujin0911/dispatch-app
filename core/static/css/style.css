@@ -1148,22 +1148,25 @@ body {
         -webkit-user-select: none;
         user-select: none;
     }
+    /* ヘッダー行（グリッド外、固定） */
+    .vg-header-row {
+        flex: 0 0 auto;
+        display: flex;
+        overflow: hidden;
+    }
     .vg-corner {
-        position: sticky; left: 0; top: 0; z-index: 20;
         background: var(--primary); color: #fff;
-        font-size: 0.65rem; font-weight: 700;
+        font-size: 0.6rem; font-weight: 700;
         display: flex; align-items: center; justify-content: center;
         border-right: 1px solid rgba(255,255,255,0.3);
-        border-bottom: 2px solid var(--primary-dark);
     }
     .vg-vehicle-header {
-        position: sticky; top: 0; z-index: 15;
         background: var(--primary); color: #fff;
-        font-size: 0.6rem; font-weight: 600;
-        padding: 6px 4px; text-align: center;
+        font-size: 0.55rem; font-weight: 600;
+        padding: 4px 2px; text-align: center;
         border-right: 1px solid rgba(255,255,255,0.2);
-        border-bottom: 2px solid var(--primary-dark);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        display: flex; align-items: center; justify-content: center; flex-direction: column;
     }
     .vg-time-label {
         position: sticky; left: 0; z-index: 10;
