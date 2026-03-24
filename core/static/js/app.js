@@ -1001,22 +1001,50 @@ function mUnassignedEnd(e) {
     _mUnassignedDrag = null;
 }
 async function createDispatchFromDrop(shipmentId, vehicleId, hour) {
-    const dayStr = _cache['_activeDayStr'] || document.querySelector('.m-cal-tab.active')?.textContent;
     const days2 = [];
     for (let i = 0; i < CAL_DAYS; i++) { const d = new Date(calendarDate); d.setDate(d.getDate() + i); days2.push(d); }
     const activeDayStr2 = `${days2[selectedDayIndex].getFullYear()}-${String(days2[selectedDayIndex].getMonth()+1).padStart(2,'0')}-${String(days2[selectedDayIndex].getDate()).padStart(2,'0')}`;
-    const shipments = await cachedApiGet('/shipments');
+    const [shipments, dispatches, drivers] = await Promise.all([
+        cachedApiGet('/shipments'), cachedApiGet('/dispatches'), cachedApiGet('/drivers')
+    ]);
     const s = shipments.find(x => x.id === shipmentId);
     const startTime = s?.pickup_time || `${String(hour).padStart(2,'0')}:00`;
     const endTime = s?.delivery_time || `${String(Math.min(hour + 4, 23)).padStart(2,'0')}:00`;
+
+    // ドライバー自動選択: この車両に既存ドライバーがいればそのIDを使う
+    let driverId = null;
+    const existingOnVehicle = dispatches.find(d => d.vehicle_id === vehicleId && d.date === activeDayStr2 && d.driver_id);
+    if (existingOnVehicle) {
+        driverId = existingOnVehicle.driver_id;
+    } else {
+        // 空いてるドライバーから最初の1人
+        const busyDriverIds = new Set(dispatches.filter(d => d.date === activeDayStr2).map(d => d.driver_id));
+        const available = drivers.find(d => d.status !== '非番' && !busyDriverIds.has(d.id));
+        if (available) driverId = available.id;
+    }
+    if (!driverId) {
+        alert('利用可能なドライバーが見つかりません。手動で配車してください。');
+        return;
+    }
+
     try {
-        await apiPost('/dispatches', {
+        // 楽観的UI: 即座に配車表を更新
+        apiPost('/dispatches', {
             shipment_id: shipmentId,
             vehicle_id: vehicleId,
+            driver_id: driverId,
             date: activeDayStr2,
             start_time: startTime,
             end_time: endTime,
+        }).then(() => {
+            invalidateCache('/dispatches');
+            invalidateCache('/shipments');
+            scheduleBgSync(2);
+        }).catch(e => {
+            alert('配車作成に失敗: ' + e.message);
+            loadDispatchCalendar();
         });
+        // 即座にカレンダー再描画
         invalidateCache('/dispatches');
         invalidateCache('/shipments');
         loadDispatchCalendar();
