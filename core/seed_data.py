@@ -855,7 +855,7 @@ def seed():
     print("テストデータ投入完了!")
 
 
-TRANSIA_DATA_VERSION = "v5"  # データ更新時にインクリメント
+TRANSIA_DATA_VERSION = "v6"  # データ更新時にインクリメント
 
 def seed_transia():
     """トランシア（幸手）テナントのデータ投入（実データファイルから読み込み）"""
@@ -1116,8 +1116,8 @@ def seed_transia():
         drv = Driver(
             name=fullname,
             phone="",
-            license_type="大型",
-            status="待機中",
+            license_type="",  # データにないため空欄
+            status="",  # データにないため空欄
             tenant_id="transia",
             branch_id=t_branch.id,
         )
