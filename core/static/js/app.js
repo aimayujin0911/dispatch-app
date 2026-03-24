@@ -3881,7 +3881,7 @@ async function loadShipments() {
                 <td><a href="#" onclick="event.preventDefault();editShipment(${s.id})" class="link-cell">${s.name || '(未設定)'}</a></td>
                 <td><a href="#" onclick="event.preventDefault();openClientDetailByName('${s.client_name}')" style="color:#2563eb;font-weight:600">${s.client_name}</a></td>
                 <td>${s.cargo_description || '-'} <span style="font-size:0.7rem;padding:1px 4px;border-radius:3px;background:${s.transport_type === '冷凍' ? '#dbeafe' : s.transport_type === '冷蔵' ? '#e0f2fe' : s.transport_type === 'チルド' ? '#fef3c7' : s.transport_type === '危険物' ? '#fee2e2' : '#f1f5f9'};color:${s.transport_type === '危険物' ? '#dc2626' : '#334155'}">${s.transport_type || 'ドライ'}</span></td>
-                <td>${s.pickup_address} → ${s.delivery_address}</td>
+                <td style="font-size:0.8rem;line-height:1.4"><span style="white-space:nowrap">${s.pickup_address}</span><br><span style="color:#6b7280">→ ${s.delivery_address}</span></td>
                 <td>${s.pickup_date}</td>
                 <td style="font-size:0.8rem">${s.pickup_time || s.delivery_time ? (s.pickup_time || '-') + '→' + (s.delivery_time || '-') : (s.time_note || '-')}</td>
                 <td>¥${s.price.toLocaleString()} ${s.unit_price_type && s.unit_price_type !== '個建' ? `<span style="font-size:0.65rem;color:#64748b">(${s.unit_price_type})</span>` : ''}</td>
