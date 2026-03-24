@@ -528,8 +528,8 @@ async function loadDashboard() {
 
     const dTotal = data.drivers.total || 1;
     document.getElementById('driver-status-bars').innerHTML = `
-        ${statusBar('運行中', data.drivers.active, dTotal, 'blue')}
-        ${statusBar('待機中', data.drivers.standby, dTotal, 'green')}`;
+        ${statusBar('運行中', data.drivers.active, dTotal, 'blue', '人')}
+        ${statusBar('待機中', data.drivers.standby, dTotal, 'green', '人')}`;
 
     const maxRev = Math.max(...data.revenue_trend.map(r => r.revenue), 1);
     document.getElementById('revenue-chart').innerHTML = data.revenue_trend.map(r => {
@@ -542,10 +542,10 @@ async function loadDashboard() {
     }).join('');
 }
 
-function statusBar(label, count, total, color) {
+function statusBar(label, count, total, color, unit = '台') {
     const pct = Math.round((count / total) * 100);
     return `<div class="status-bar">
-        <div class="status-bar-label"><span>${label}</span><span>${count}台</span></div>
+        <div class="status-bar-label"><span>${label}</span><span>${count}${unit}</span></div>
         <div class="status-bar-track"><div class="status-bar-fill ${color}" style="width:${pct}%"></div></div>
     </div>`;
 }
