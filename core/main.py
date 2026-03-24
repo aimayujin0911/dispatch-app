@@ -140,9 +140,12 @@ def seed_on_startup():
             # ドライバーログイン対応
             ("users", "login_id", "VARCHAR(50)"),
             ("users", "driver_id", "INTEGER"),
-            # 車両: 温度帯・パワーゲート
+            # 車両: 温度帯・パワーゲート・固定ドライバー
             ("vehicles", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
             ("vehicles", "has_power_gate", "BOOLEAN DEFAULT false"),
+            ("vehicles", "default_driver_id", "INTEGER"),
+            # テナント表示設定
+            ("company_settings", "dispatch_view_mode", "VARCHAR(20) DEFAULT 'gantt'"),
             # 案件: 温度帯
             ("shipments", "temperature_zone", "VARCHAR(20) DEFAULT '常温'"),
             # 協力会社: メールアドレス

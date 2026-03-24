@@ -76,6 +76,8 @@ class CompanySettings(Base):
     smtp_user = Column(String(100), default="")
     smtp_password = Column(String(200), default="")
     sender_email = Column(String(100), default="")
+    # 表示設定
+    dispatch_view_mode = Column(String(20), default="gantt")  # gantt / matrix
 
 
 class Client(Base):
@@ -324,10 +326,12 @@ class Vehicle(Base):
     status = Column(String(20), default="空車")
     first_registration = Column(String(10), default="")
     inspection_expiry = Column(String(10), default="")
+    default_driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)  # 固定ドライバー
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
     dispatches = relationship("Dispatch", back_populates="vehicle")
+    default_driver = relationship("Driver", foreign_keys=[default_driver_id])
 
 
 class Driver(Base):
