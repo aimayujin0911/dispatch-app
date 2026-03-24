@@ -1078,23 +1078,171 @@ function printDispatchTable() {
 }
 
 // ===== ガントバー ドラッグ＆ドロップ（車両＋時間移動） =====
-// モバイルタッチハンドラ
+// ===== モバイル タッチD&D (Googleカレンダー方式) =====
+let _mDrag = null; // { dispatchId, bar, ghost, startX, startY, isDragging, wrapper }
+
 function mTouchStart(e, dispatchId) {
+    const touch = e.touches[0];
     _touchStartTime = Date.now();
-    _touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    _touchStartPos = { x: touch.clientX, y: touch.clientY };
+    const bar = e.target.closest('.vg-bar');
+
     _touchTimer = setTimeout(() => {
-        // ロングプレス → アクションシート表示
-        showMobileActionSheet(dispatchId);
         _touchTimer = null;
-    }, 500);
+        // ロングプレス → D&Dモード開始
+        if (bar) {
+            e.preventDefault();
+            navigator.vibrate && navigator.vibrate(30); // 触覚フィードバック
+            _mDrag = {
+                dispatchId,
+                bar,
+                isDragging: true,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                origLeft: bar.style.left,
+                origTop: bar.style.top,
+                wrapper: bar.closest('.vertical-gantt'),
+            };
+            bar.style.opacity = '0.7';
+            bar.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
+            bar.style.zIndex = '50';
+            bar.style.transform = 'scale(1.05)';
+            bar.style.transition = 'transform 0.15s, box-shadow 0.15s';
+            // スクロール無効化
+            const wrapper = document.querySelector('.vertical-gantt-wrapper');
+            if (wrapper) wrapper.style.overflow = 'hidden';
+        }
+    }, 400);
+
+    // touchmove/touchendをbarに追加
+    if (bar) {
+        bar.addEventListener('touchmove', mTouchMove, { passive: false });
+        bar.addEventListener('touchend', mTouchEndDrag, { passive: false });
+    }
 }
-function mTouchEnd(e, dispatchId) {
+
+function mTouchMove(e) {
+    const touch = e.touches[0];
+    // ロングプレス前に指が動いたらキャンセル
+    if (_touchTimer) {
+        const dx = Math.abs(touch.clientX - _touchStartPos.x);
+        const dy = Math.abs(touch.clientY - _touchStartPos.y);
+        if (dx > 8 || dy > 8) {
+            clearTimeout(_touchTimer);
+            _touchTimer = null;
+        }
+        return;
+    }
+    if (!_mDrag || !_mDrag.isDragging) return;
+    e.preventDefault();
+
+    const dx = touch.clientX - _mDrag.startX;
+    const dy = touch.clientY - _mDrag.startY;
+    _mDrag.bar.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
+
+    // ドロップ先のハイライト
+    const wrapper = _mDrag.wrapper;
+    if (wrapper) {
+        wrapper.querySelectorAll('.vg-cell').forEach(c => c.style.background = '');
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target) {
+            const cell = target.closest('.vg-cell');
+            if (cell) cell.style.background = 'rgba(234,88,12,0.15)';
+        }
+    }
+}
+
+function mTouchEndDrag(e) {
+    const bar = e.target.closest('.vg-bar') || (_mDrag && _mDrag.bar);
+    if (bar) {
+        bar.removeEventListener('touchmove', mTouchMove);
+        bar.removeEventListener('touchend', mTouchEndDrag);
+    }
+
     if (_touchTimer) {
         clearTimeout(_touchTimer);
         _touchTimer = null;
         const elapsed = Date.now() - _touchStartTime;
         if (elapsed < 300) {
-            // 短いタップ → 詳細表示
+            showDispatchDetail(_mDrag ? _mDrag.dispatchId : 0);
+        }
+        _mDrag = null;
+        return;
+    }
+
+    if (!_mDrag || !_mDrag.isDragging) { _mDrag = null; return; }
+
+    // リセットスタイル
+    _mDrag.bar.style.opacity = '';
+    _mDrag.bar.style.boxShadow = '';
+    _mDrag.bar.style.zIndex = '';
+    _mDrag.bar.style.transform = '';
+    _mDrag.bar.style.transition = '';
+
+    // スクロール復元
+    const wrapperEl = document.querySelector('.vertical-gantt-wrapper');
+    if (wrapperEl) wrapperEl.style.overflow = '';
+
+    // セルハイライト解除
+    if (_mDrag.wrapper) {
+        _mDrag.wrapper.querySelectorAll('.vg-cell').forEach(c => c.style.background = '');
+    }
+
+    // ドロップ先を判定
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (target) {
+        const cell = target.closest('.vg-cell');
+        if (cell) {
+            const targetVehicleId = parseInt(cell.dataset.vehicleId);
+            const targetHour = parseInt(cell.dataset.hour);
+            if (targetVehicleId && !isNaN(targetHour)) {
+                applyMobileDrop(_mDrag.dispatchId, targetVehicleId, targetHour);
+                _mDrag = null;
+                return;
+            }
+        }
+    }
+    // ドロップ先なし → 元に戻す
+    _mDrag = null;
+    loadDispatchCalendar();
+}
+
+async function applyMobileDrop(dispatchId, vehicleId, hour) {
+    try {
+        const dispatches = await cachedApiGet('/dispatches');
+        const d = dispatches.find(x => x.id === dispatchId);
+        if (!d) return;
+
+        // 元の時間幅を維持
+        const origStartMin = timeToMinutes(d.start_time);
+        const origEndMin = timeToMinutes(d.end_time);
+        const duration = origEndMin - origStartMin;
+        const newStartMin = hour * 60;
+        const newEndMin = newStartMin + duration;
+        const newStart = `${String(Math.floor(newStartMin / 60)).padStart(2, '0')}:${String(newStartMin % 60).padStart(2, '0')}`;
+        const newEnd = `${String(Math.floor(newEndMin / 60)).padStart(2, '0')}:${String(newEndMin % 60).padStart(2, '0')}`;
+
+        await apiPut(`/dispatches/${dispatchId}`, {
+            vehicle_id: vehicleId,
+            start_time: newStart,
+            end_time: newEnd,
+        });
+        invalidateCache('/dispatches');
+        loadDispatchCalendar();
+    } catch (e) {
+        alert('移動に失敗: ' + e.message);
+        loadDispatchCalendar();
+    }
+}
+
+function mTouchEnd(e, dispatchId) {
+    // mTouchEndDragで処理されなかった場合のフォールバック
+    if (_touchTimer) {
+        clearTimeout(_touchTimer);
+        _touchTimer = null;
+        const elapsed = Date.now() - _touchStartTime;
+        if (elapsed < 300) {
             showDispatchDetail(dispatchId);
         }
     }
