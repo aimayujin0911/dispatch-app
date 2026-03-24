@@ -543,8 +543,8 @@ function statusBar(label, count, total, color) {
 
 // ===== 配車表（車両×時間ガントチャート） =====
 const CAL_DAYS = 3;
-let HOUR_START = 5;
-let HOUR_END = 22;
+let HOUR_START = 0;
+let HOUR_END = 24;
 let HOUR_COUNT = HOUR_END - HOUR_START;
 let selectedDayIndex = 0;
 
@@ -622,12 +622,13 @@ async function loadDispatchCalendar() {
                     ${days.map((d, i) => `<button class="m-cal-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth()+1)}/${d.getDate()}</button>`).join('')}
                     <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
                     <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
+                    <input type="date" class="m-cal-date" value="${activeDayStr}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()"">
                     <button class="m-cal-btn m-cal-action" onclick="autoDispatch('${activeDayStr}')">⚡</button>
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px">
-                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">🔍 ${filteredVehicles.length}台</button>
+                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">▼ ${filteredVehicles.length}台</button>
                 </div>
                 <div id="m-filter-panel" class="m-filter-panel ${filterType || filterCap ? 'open' : ''}">
                     <select id="cal-filter-type" class="m-cal-select" onchange="loadDispatchCalendar()">
@@ -650,6 +651,8 @@ async function loadDispatchCalendar() {
         // 画面幅に4列収まるように列幅計算。5台以上は横スクロール
         const visibleCols = Math.min(filteredVehicles.length, 4);
         const colW = Math.floor((screenW - timeColW) / visibleCols);
+        // D&D用にグリッド情報をグローバル保存
+        window._mGridInfo = { timeColW, colW, rowH, vehicles: filteredVehicles, hourStart: HOUR_START };
         // ヘッダー（固定、スクロールしない）
         let headerHtml = `<div class="vg-header-row" style="display:flex;">
             <div class="vg-corner" style="width:${timeColW}px;min-width:${timeColW}px;flex-shrink:0;">時刻</div>`;
@@ -1152,6 +1155,9 @@ function mTouchStart(e, dispatchId) {
         if (bar) {
             e.preventDefault();
             navigator.vibrate && navigator.vibrate(30); // 触覚フィードバック
+            const grid = bar.closest('.vertical-gantt');
+            const gridRect = grid ? grid.getBoundingClientRect() : null;
+            const wrapEl = document.querySelector('.vertical-gantt-wrapper');
             _mDrag = {
                 dispatchId,
                 bar,
@@ -1160,7 +1166,11 @@ function mTouchStart(e, dispatchId) {
                 startY: touch.clientY,
                 origLeft: bar.style.left,
                 origTop: bar.style.top,
-                wrapper: bar.closest('.vertical-gantt'),
+                wrapper: grid,
+                gridRect,
+                wrapEl,
+                scrollTopAtStart: wrapEl ? wrapEl.scrollTop : 0,
+                scrollLeftAtStart: wrapEl ? wrapEl.scrollLeft : 0,
             };
             bar.style.opacity = '0.7';
             bar.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
@@ -1179,6 +1189,25 @@ function mTouchStart(e, dispatchId) {
         bar.addEventListener('touchmove', mTouchMove, { passive: false });
         bar.addEventListener('touchend', mTouchEndDrag, { passive: false });
     }
+}
+
+// タッチ座標からグリッドのセル（車両ID、時刻）を計算
+function getCellFromTouch(clientX, clientY) {
+    if (!_mDrag || !_mDrag.wrapper || !_mDrag.wrapEl) return null;
+    const wrap = _mDrag.wrapEl;
+    const wrapRect = wrap.getBoundingClientRect();
+    // wrapper内でのスクロール込み座標
+    const relX = clientX - wrapRect.left + wrap.scrollLeft;
+    const relY = clientY - wrapRect.top + wrap.scrollTop;
+    // timeColW と colW はグローバルに保存しておく
+    if (!window._mGridInfo) return null;
+    const { timeColW, colW, rowH, vehicles, hourStart } = window._mGridInfo;
+    if (relX < timeColW) return null; // 時刻列
+    const colIdx = Math.floor((relX - timeColW) / colW);
+    if (colIdx < 0 || colIdx >= vehicles.length) return null;
+    const rowIdx = Math.floor(relY / rowH);
+    const hour = hourStart + rowIdx;
+    return { vehicleId: vehicles[colIdx].id, hour, colIdx, rowIdx };
 }
 
 function mTouchMove(e) {
@@ -1200,35 +1229,23 @@ function mTouchMove(e) {
     const dy = touch.clientY - _mDrag.startY;
     _mDrag.bar.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
 
-    // ドロップ先のシャドウプレビュー
+    // ドロップ先のシャドウプレビュー（座標計算ベース）
     const wrapper = _mDrag.wrapper;
     if (wrapper) {
-        wrapper.querySelectorAll('.vg-cell').forEach(c => c.style.background = '');
-        // 既存のゴーストシャドウを削除
         const oldGhost = wrapper.querySelector('.vg-drop-ghost');
         if (oldGhost) oldGhost.remove();
 
-        // バーを一時非表示にしてelementFromPointでセルを取得
-        _mDrag.bar.style.display = 'none';
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        _mDrag.bar.style.display = '';
-        if (target) {
-            const cell = target.closest('.vg-cell');
-            if (cell) {
-                const vid = cell.dataset.vehicleId;
-                const hour = parseInt(cell.dataset.hour);
-                // その車両列の全セルをハイライト（案件の時間分）
-                const barH = parseFloat(_mDrag.bar.style.height) || 40;
-                const grid = wrapper.querySelector('.vertical-gantt');
-                if (grid) {
-                    const ghost = document.createElement('div');
-                    ghost.className = 'vg-drop-ghost';
-                    const cellRect = cell.getBoundingClientRect();
-                    const gridRect = grid.getBoundingClientRect();
-                    ghost.style.cssText = `position:absolute;left:${cellRect.left - gridRect.left}px;top:${cellRect.top - gridRect.top + wrapper.scrollTop}px;width:${cellRect.width}px;height:${barH}px;background:rgba(234,88,12,0.2);border:2px dashed #ea580c;border-radius:4px;pointer-events:none;z-index:5;`;
-                    grid.appendChild(ghost);
-                }
-            }
+        const cellInfo = getCellFromTouch(touch.clientX, touch.clientY);
+        if (cellInfo && window._mGridInfo) {
+            const { timeColW, colW, rowH } = window._mGridInfo;
+            const barH = parseFloat(_mDrag.bar.style.height) || 40;
+            const ghostLeft = timeColW + cellInfo.colIdx * colW + 2;
+            const ghostTop = cellInfo.rowIdx * rowH;
+            const ghost = document.createElement('div');
+            ghost.className = 'vg-drop-ghost';
+            ghost.style.cssText = `position:absolute;left:${ghostLeft}px;top:${ghostTop}px;width:${colW - 6}px;height:${barH}px;background:rgba(234,88,12,0.2);border:2px dashed #ea580c;border-radius:4px;pointer-events:none;z-index:5;`;
+            wrapper.appendChild(ghost);
+            _mDrag._lastCell = cellInfo;
         }
     }
 }
@@ -1272,22 +1289,13 @@ function mTouchEndDrag(e) {
         if (ghost) ghost.remove();
     }
 
-    // ドロップ先を判定（バーを一時非表示にしてセルを取得）
+    // ドロップ先を判定（座標計算ベース）
     const touch = e.changedTouches[0];
-    _mDrag.bar.style.display = 'none';
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    _mDrag.bar.style.display = '';
-    if (target) {
-        const cell = target.closest('.vg-cell');
-        if (cell) {
-            const targetVehicleId = parseInt(cell.dataset.vehicleId);
-            const targetHour = parseInt(cell.dataset.hour);
-            if (targetVehicleId && !isNaN(targetHour)) {
-                applyMobileDrop(_mDrag.dispatchId, targetVehicleId, targetHour);
-                _mDrag = null;
-                return;
-            }
-        }
+    const cellInfo = getCellFromTouch(touch.clientX, touch.clientY);
+    if (cellInfo && cellInfo.vehicleId && !isNaN(cellInfo.hour)) {
+        applyMobileDrop(_mDrag.dispatchId, cellInfo.vehicleId, cellInfo.hour);
+        _mDrag = null;
+        return;
     }
     // ドロップ先なし → 元に戻す
     _mDrag = null;
