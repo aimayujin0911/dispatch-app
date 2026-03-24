@@ -2368,12 +2368,18 @@ async function autoDispatch(dayStr) {
             const existingDriverId = vehicleDriverMap[v.id];
 
             if (existingDriverId) {
+                // 混載時は同じ車両のドライバーを必ず使う（時間重複OK）
                 const d = activeDrivers.find(dr => dr.id === existingDriverId);
                 if (d && canDrive(d.license_type, v.capacity)) {
-                    const ws = d.work_start || '08:00';
-                    const we = d.work_end || '17:00';
-                    if (startTime >= ws && endTime <= we && !hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) {
+                    if (consolidated) {
+                        // 混載: ドライバー固定（時間重複チェック不要、同じ車に同乗）
                         bestDriver = d;
+                    } else {
+                        const ws = d.work_start || '08:00';
+                        const we = d.work_end || '17:00';
+                        if (startTime >= ws && endTime <= we && !hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) {
+                            bestDriver = d;
+                        }
                     }
                 }
             }
@@ -2385,7 +2391,8 @@ async function autoDispatch(dayStr) {
                     const ws = d.work_start || '08:00';
                     const we = d.work_end || '17:00';
                     if (startTime < ws || endTime > we) continue;
-                    if (hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) continue;
+                    // 混載でない場合のみ時間重複チェック
+                    if (!consolidated && hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) continue;
                     // ドライバーが既に別車両に固定されている場合はスキップ
                     if (driverVehicleMap[d.id] && driverVehicleMap[d.id] !== v.id) continue;
                     const driverVehicles = new Set((driverSlots[d.id] || []).map(sl => sl.vehicleId));
