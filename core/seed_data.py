@@ -855,7 +855,7 @@ def seed():
     print("テストデータ投入完了!")
 
 
-TRANSIA_DATA_VERSION = "v4"  # データ更新時にインクリメント
+TRANSIA_DATA_VERSION = "v5"  # データ更新時にインクリメント
 
 def seed_transia():
     """トランシア（幸手）テナントのデータ投入（実データファイルから読み込み）"""
@@ -922,11 +922,32 @@ def seed_transia():
         )
         db.add(t_settings)
 
-    # === データファイルパス ===
-    data_dir = "C:/Users/yuuji/Claude/transia_data"
-    client_file = f"{data_dir}/取引先_20260324165912.xlsx"
-    vehicle_file = f"{data_dir}/車両一覧.xlsx"
-    employee_file = f"{data_dir}/jinjer_労働者名簿_15459_20260323 (1).csv"
+    # === データファイルパス（リポジトリ内のcore/data/に配置） ===
+    import os
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    client_file = os.path.join(data_dir, "取引先_20260324165912.xlsx")
+    vehicle_file = os.path.join(data_dir, "車両一覧.xlsx")
+    employee_file = os.path.join(data_dir, "jinjer_労働者名簿_15459_20260323 (1).csv")
+
+    if not os.path.exists(client_file):
+        print(f"[Transia] データファイルが見つかりません: {data_dir}")
+        db.close()
+        return
+
+    # 既存ダミーデータ削除（今回のみ: 旧seed_transiaで作成されたTRA-001等）
+    from sqlalchemy import text
+    try:
+        db.execute(text("DELETE FROM dispatches WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM shipments WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM users WHERE tenant_id = 'transia' AND role = 'driver'"))
+        db.execute(text("DELETE FROM drivers WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM vehicles WHERE tenant_id = 'transia'"))
+        db.execute(text("DELETE FROM clients WHERE tenant_id = 'transia'"))
+        db.commit()
+        print("[Transia] 既存データクリーン完了")
+    except Exception as e:
+        db.rollback()
+        print(f"[Transia] クリーン失敗: {e}")
 
     # =============================================
     # 1. 取引先データ（1,454件）
