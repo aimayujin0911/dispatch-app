@@ -779,9 +779,17 @@ body {
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
     pointer-events: none;
 }
+.bar-addr-pickup, .bar-addr-delivery {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+.bar-addr-delivery { text-align: right; }
 /* 非表示にする（後方互換用） */
 .gantt-bar-start, .gantt-bar-end { display: none; }
 
