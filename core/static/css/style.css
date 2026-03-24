@@ -1113,6 +1113,14 @@ body {
     .m-cal-date-input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
     .m-filter-panel { display: none; gap: 4px; padding: 4px 6px; align-items: center; flex-wrap: wrap; }
     .m-filter-panel.open { display: flex; }
+    .m-filter-chip {
+        font-size: 0.6rem; padding: 3px 8px; border-radius: 12px;
+        border: 1px solid #d1d5db; background: #f9fafb; color: #374151;
+        cursor: pointer; white-space: nowrap;
+    }
+    .m-filter-chip.active {
+        background: #ea580c; color: #fff; border-color: #ea580c;
+    }
 
     /* ガントチャート: 横→縦モード */
     .gantt-grid { min-width: unset !important; }

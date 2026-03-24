@@ -547,6 +547,8 @@ let HOUR_START = 0;
 let HOUR_END = 24;
 let HOUR_COUNT = HOUR_END - HOUR_START;
 let selectedDayIndex = 0;
+let _mFilterTypes = []; // 選択中の車種（複数）
+let _mFilterCaps = [];  // 選択中の積載量（複数）
 
 async function loadDispatchCalendar() {
     // スクロール位置を保存
@@ -580,11 +582,18 @@ async function loadDispatchCalendar() {
 
     const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
     const capacities = [...new Set(vehicles.map(v => v.capacity))].sort((a, b) => a - b);
+    // PC版フィルター（単一選択、後方互換）
     const filterType = document.getElementById('cal-filter-type')?.value || '';
     const filterCap = document.getElementById('cal-filter-cap')?.value || '';
     let filteredVehicles = vehicles;
-    if (filterType) filteredVehicles = filteredVehicles.filter(v => v.type === filterType);
-    if (filterCap) filteredVehicles = filteredVehicles.filter(v => v.capacity == parseFloat(filterCap));
+    if (isMobile()) {
+        // スマホ版: 複数選択フィルター
+        if (_mFilterTypes.length > 0) filteredVehicles = filteredVehicles.filter(v => _mFilterTypes.includes(v.type));
+        if (_mFilterCaps.length > 0) filteredVehicles = filteredVehicles.filter(v => _mFilterCaps.includes(String(v.capacity)));
+    } else {
+        if (filterType) filteredVehicles = filteredVehicles.filter(v => v.type === filterType);
+        if (filterCap) filteredVehicles = filteredVehicles.filter(v => v.capacity == parseFloat(filterCap));
+    }
     // Requirement 5: 整備中の車両を一番下に並び替え
     filteredVehicles = [
         ...filteredVehicles.filter(v => v.status !== '整備中'),
@@ -628,18 +637,25 @@ async function loadDispatchCalendar() {
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px">
-                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="font-size:0.65rem;${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
+                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="font-size:0.65rem;${_mFilterTypes.length > 0 || _mFilterCaps.length > 0 ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
                 </div>
-                <div id="m-filter-panel" class="m-filter-panel ${filterType || filterCap ? 'open' : ''}">
-                    <select id="cal-filter-type" class="m-cal-select" onchange="loadDispatchCalendar()">
-                        <option value="">全車種</option>
-                        ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
-                    </select>
-                    <select id="cal-filter-cap" class="m-cal-select" onchange="loadDispatchCalendar()">
-                        <option value="">全積載</option>
-                        ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
-                    </select>
-                    ${filterType || filterCap ? `<button class="m-cal-btn" onclick="document.getElementById('cal-filter-type').value='';document.getElementById('cal-filter-cap').value='';loadDispatchCalendar()" style="font-size:0.6rem">✕ クリア</button>` : ''}
+                <div id="m-filter-panel" class="m-filter-panel ${_mFilterTypes.length > 0 || _mFilterCaps.length > 0 ? 'open' : ''}">
+                    <div style="width:100%">
+                        <div style="font-size:0.6rem;color:#6b7280;margin-bottom:2px">車種:</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px">
+                            ${vehicleTypes.map(t => `<label class="m-filter-chip ${_mFilterTypes.includes(t) ? 'active' : ''}"><input type="checkbox" value="${t}" ${_mFilterTypes.includes(t) ? 'checked' : ''} onchange="toggleMFilter('type','${t}')" hidden>${t}</label>`).join('')}
+                        </div>
+                    </div>
+                    <div style="width:100%;margin-top:4px">
+                        <div style="font-size:0.6rem;color:#6b7280;margin-bottom:2px">積載量:</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px">
+                            ${capacities.map(c => `<label class="m-filter-chip ${_mFilterCaps.includes(String(c)) ? 'active' : ''}"><input type="checkbox" value="${c}" ${_mFilterCaps.includes(String(c)) ? 'checked' : ''} onchange="toggleMFilter('cap','${c}')" hidden>${c}t</label>`).join('')}
+                        </div>
+                    </div>
+                    <div style="width:100%;display:flex;gap:6px;margin-top:6px">
+                        <button class="m-cal-btn m-cal-action" onclick="loadDispatchCalendar()" style="flex:1;font-size:0.7rem">適用</button>
+                        ${_mFilterTypes.length > 0 || _mFilterCaps.length > 0 ? `<button class="m-cal-btn" onclick="_mFilterTypes=[];_mFilterCaps=[];loadDispatchCalendar()" style="font-size:0.65rem">✕ クリア</button>` : ''}
+                    </div>
                 </div>
                 <div id="m-time-panel" class="m-filter-panel">
                     <span style="font-size:0.6rem;color:#6b7280;flex-shrink:0">表示時間:</span>
@@ -1398,6 +1414,16 @@ function showMobileActionSheet(dispatchId) {
     `;
     sheet.style.display = 'flex';
 }
+function toggleMFilter(type, value) {
+    const arr = type === 'type' ? _mFilterTypes : _mFilterCaps;
+    const idx = arr.indexOf(value);
+    if (idx >= 0) arr.splice(idx, 1);
+    else arr.push(value);
+    // チップのactive状態をトグル（再描画せずUI更新）
+    const chip = event.target.closest('.m-filter-chip');
+    if (chip) chip.classList.toggle('active');
+}
+
 function toggleMobileMore() {
     const menu = document.getElementById('mobileMoreMenu');
     if (menu) menu.style.display = menu.style.display === 'none' ? '' : 'none';
