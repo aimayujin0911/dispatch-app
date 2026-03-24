@@ -592,21 +592,22 @@ async function loadDispatchCalendar() {
 
     // ===== モバイル: 縦ガントモード =====
     if (isMobile()) {
+        const hasUndo = (_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr);
+        const undoFn = _lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch';
+        const hasDispatches = dayDispatches.filter(d => !d.partner_id).length > 0;
         const mobileControlsHtml = `
-            <div class="cal-controls">
-                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                    <button class="btn btn-sm" onclick="changeDays(-1)">◀</button>
-                    <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
-                    <button class="btn btn-sm" onclick="changeDays(1)">▶</button>
-                    <span style="font-size:0.9rem;font-weight:700">${activeDateLabel}</span>
+            <div class="m-cal-controls">
+                <div class="m-cal-row">
+                    <button class="m-cal-btn" onclick="changeDays(-1)">◀</button>
+                    <span class="m-cal-date">${(baseDate.getMonth()+1)}/${baseDate.getDate()}(${dayNames[baseDate.getDay()]})</span>
+                    <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
+                    <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
+                    <button class="m-cal-btn m-cal-action" onclick="autoDispatch('${activeDayStr}')">⚡</button>
+                    <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
+                    ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
-                <div class="cal-day-tabs" style="display:flex;gap:2px">
-                    ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
-                </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap">
-                    <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-weight:600;font-size:0.7rem">⚡自動配車</button>
-                    <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" style="background:${dayDispatches.filter(d => !d.partner_id).length > 0 ? '#dc2626' : '#9ca3af'};color:#fff;font-size:0.7rem" ${dayDispatches.filter(d => !d.partner_id).length === 0 ? 'disabled' : ''}>🔄リセット</button>
-                    ${(_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr) ? `<button class="btn btn-sm" onclick="${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch'}()" style="background:#64748b;color:#fff;font-size:0.7rem">↩戻す</button>` : ''}
+                <div class="m-cal-tabs">
+                    ${days.map((d, i) => `<button class="m-cal-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth()+1)}/${d.getDate()}</button>`).join('')}
                 </div>
             </div>`;
 
@@ -1105,8 +1106,10 @@ function showMobileActionSheet(dispatchId) {
         <div style="text-align:center;font-weight:700;margin-bottom:12px;color:#475569">配車操作</div>
         <button onclick="closeMobileActionSheet();showDispatchDetail(${dispatchId})">📋 詳細を表示</button>
         <button onclick="closeMobileActionSheet();openEditDispatchModal(${dispatchId})">✏️ 編集</button>
+        <button onclick="closeMobileActionSheet();mobileChangeVehicle(${dispatchId})">🚛 車両を変更</button>
+        <button onclick="closeMobileActionSheet();mobileChangeTime(${dispatchId})">⏰ 時間を変更</button>
         <button onclick="closeMobileActionSheet();generateTransportRequest(${dispatchId})">📄 輸送依頼書</button>
-        <button onclick="closeMobileActionSheet();generateVehicleNotification(${dispatchId})">🚛 車番連絡票</button>
+        <button onclick="closeMobileActionSheet();generateVehicleNotification(${dispatchId})">📋 車番連絡票</button>
         <button class="action-sheet-cancel" onclick="closeMobileActionSheet()">キャンセル</button>
     `;
     sheet.style.display = 'flex';
@@ -1114,6 +1117,43 @@ function showMobileActionSheet(dispatchId) {
 function closeMobileActionSheet() {
     const sheet = document.getElementById('mobile-action-sheet');
     if (sheet) sheet.style.display = 'none';
+}
+
+async function mobileChangeVehicle(dispatchId) {
+    const vehicles = await cachedApiGet('/vehicles');
+    const activeV = vehicles.filter(v => v.status !== '整備中');
+    const options = activeV.map(v => `${v.id}:${v.number} (${v.type} ${v.capacity}t)`);
+    const sheet = document.getElementById('mobile-action-sheet');
+    const body = document.getElementById('action-sheet-body');
+    body.innerHTML = `
+        <div style="text-align:center;font-weight:700;margin-bottom:12px">🚛 車両を選択</div>
+        ${activeV.map(v => `<button onclick="mobileApplyVehicle(${dispatchId},${v.id})">${v.number}<br><span style="font-size:0.75rem;color:#64748b">${v.type} ${v.capacity}t</span></button>`).join('')}
+        <button class="action-sheet-cancel" onclick="closeMobileActionSheet()">キャンセル</button>
+    `;
+    sheet.style.display = 'flex';
+}
+async function mobileApplyVehicle(dispatchId, vehicleId) {
+    closeMobileActionSheet();
+    try {
+        await apiPut(`/dispatches/${dispatchId}`, { vehicle_id: vehicleId });
+        invalidateCache('/dispatches');
+        loadDispatchCalendar();
+    } catch (e) { alert('車両変更に失敗しました: ' + e.message); }
+}
+
+async function mobileChangeTime(dispatchId) {
+    const dispatches = await cachedApiGet('/dispatches');
+    const d = dispatches.find(x => x.id === dispatchId);
+    if (!d) return;
+    const newStart = prompt('開始時間を入力 (例: 08:00)', d.start_time);
+    if (!newStart) return;
+    const newEnd = prompt('終了時間を入力 (例: 12:00)', d.end_time);
+    if (!newEnd) return;
+    try {
+        await apiPut(`/dispatches/${dispatchId}`, { start_time: newStart, end_time: newEnd });
+        invalidateCache('/dispatches');
+        loadDispatchCalendar();
+    } catch (e) { alert('時間変更に失敗しました: ' + e.message); }
 }
 
 function startGanttDrag(e, dispatchId, vehicleId) {
