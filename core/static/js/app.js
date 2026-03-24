@@ -1086,6 +1086,8 @@ function mTouchStart(e, dispatchId) {
     _touchStartTime = Date.now();
     _touchStartPos = { x: touch.clientX, y: touch.clientY };
     const bar = e.target.closest('.vg-bar');
+    // テキスト選択を防止
+    if (window.getSelection) window.getSelection().removeAllRanges();
 
     _touchTimer = setTimeout(() => {
         _touchTimer = null;

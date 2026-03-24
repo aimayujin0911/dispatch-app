@@ -1123,6 +1123,13 @@ body {
         padding-bottom: 0;
         margin-top: 0;
     }
+    #page-dispatches #dispatch-calendar {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+    }
     .m-cal-controls { flex: 0 0 auto; }
 
     /* 縦ガントグリッド */
@@ -1138,6 +1145,8 @@ body {
     .vertical-gantt {
         display: grid;
         min-width: max-content;
+        -webkit-user-select: none;
+        user-select: none;
     }
     .vg-corner {
         position: sticky; left: 0; top: 0; z-index: 20;
@@ -1178,6 +1187,10 @@ body {
         padding: 2px 3px;
         overflow: hidden;
         z-index: 1;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        touch-action: none;
         cursor: pointer;
         z-index: 2;
         display: flex; flex-direction: column;
