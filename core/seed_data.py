@@ -1004,13 +1004,13 @@ def seed_transia():
         )
         db.add(v)
 
-    # 荷主（代表的な取引先を追加）
+    # 荷主（配車表Excelから読み取れた荷主名のみ）
     transia_clients = [
-        Client(name="DIC", address="東京都中央区日本橋", phone="", tenant_id="transia"),
-        Client(name="JPR", address="東京都千代田区", phone="", tenant_id="transia"),
-        Client(name="流山倉庫", address="千葉県流山市", phone="", tenant_id="transia"),
-        Client(name="八千代倉庫", address="千葉県八千代市", phone="", tenant_id="transia"),
-        Client(name="鴻巣", address="埼玉県鴻巣市", phone="", tenant_id="transia"),
+        Client(name="DIC", address="", phone="", tenant_id="transia"),
+        Client(name="JPR", address="", phone="", tenant_id="transia"),
+        Client(name="丸紅", address="", phone="", tenant_id="transia"),
+        Client(name="原信", address="", phone="", tenant_id="transia"),
+        Client(name="ニチハ", address="", phone="", tenant_id="transia"),
         Client(name="幸手物産", address="埼玉県幸手市", phone="", tenant_id="transia"),
         Client(name="久喜倉庫", address="埼玉県久喜市", phone="", tenant_id="transia"),
     ]
