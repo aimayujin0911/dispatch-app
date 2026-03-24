@@ -16,6 +16,26 @@ let _touchTimer = null;
 let _touchStartPos = null;
 let _touchStartTime = 0;
 
+// ===== ドライバーカラー =====
+const _driverColors = [
+    { bg: '#dbeafe', text: '#1e40af', border: '#3b82f6', badge: '#eff6ff' },  // 青
+    { bg: '#dcfce7', text: '#166534', border: '#22c55e', badge: '#f0fdf4' },  // 緑
+    { bg: '#fef3c7', text: '#92400e', border: '#f59e0b', badge: '#fffbeb' },  // 黄
+    { bg: '#fce7f3', text: '#9d174d', border: '#ec4899', badge: '#fdf2f8' },  // ピンク
+    { bg: '#e0e7ff', text: '#3730a3', border: '#6366f1', badge: '#eef2ff' },  // インディゴ
+    { bg: '#ccfbf1', text: '#115e59', border: '#14b8a6', badge: '#f0fdfa' },  // ティール
+    { bg: '#fee2e2', text: '#991b1b', border: '#ef4444', badge: '#fef2f2' },  // 赤
+    { bg: '#f3e8ff', text: '#6b21a8', border: '#a855f7', badge: '#faf5ff' },  // 紫
+    { bg: '#ffedd5', text: '#9a3412', border: '#f97316', badge: '#fff7ed' },  // オレンジ
+    { bg: '#e0f2fe', text: '#075985', border: '#0ea5e9', badge: '#f0f9ff' },  // スカイ
+    { bg: '#fef9c3', text: '#854d0e', border: '#eab308', badge: '#fefce8' },  // ライム
+    { bg: '#ede9fe', text: '#5b21b6', border: '#8b5cf6', badge: '#f5f3ff' },  // バイオレット
+];
+function getDriverColor(driverId) {
+    if (!driverId) return _driverColors[0];
+    return _driverColors[(driverId - 1) % _driverColors.length];
+}
+
 // ===== ジオコーディング＆距離計算 =====
 const _geocodeCache = {}; // 住所 → {lat, lng}
 
@@ -695,8 +715,9 @@ async function loadDispatchCalendar() {
                 const heightPx = (endMin - startMin) / 60 * rowH;
 
                 const barW = colW - 6 - indent;
-                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
-                    <span class="vg-bar-driver">${driverName}</span>
+                const dc = getDriverColor(d.driver_id);
+                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
+                    <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${driverName}</span>
                     <span class="vg-bar-addr">${pickup}→${delivery}</span>
                     <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
                 </div>`;
