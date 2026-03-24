@@ -809,6 +809,41 @@ async function loadDispatchCalendar() {
     } else {
         panel.innerHTML = `<h3 style="margin-bottom:8px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
     }
+
+    // モバイル: FAB + スライドパネルで未配車表示
+    if (isMobile()) {
+        // 既存FABを削除
+        document.querySelectorAll('.unassigned-fab, .unassigned-slide-panel').forEach(el => el.remove());
+        if (unassigned.length > 0) {
+            // FABボタン
+            const fab = document.createElement('button');
+            fab.className = 'unassigned-fab';
+            fab.innerHTML = `📦<span class="fab-badge">${unassigned.length}</span>`;
+            fab.onclick = () => {
+                const sp = document.querySelector('.unassigned-slide-panel');
+                if (sp) sp.classList.toggle('open');
+            };
+            document.body.appendChild(fab);
+
+            // スライドパネル
+            const sp = document.createElement('div');
+            sp.className = 'unassigned-slide-panel';
+            sp.innerHTML = `<span class="panel-handle"></span>
+                <h3 style="font-size:0.9rem;margin-bottom:8px">📦 未配車 ${unassigned.length}件</h3>
+                ${unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeMobileUnassigned();openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
+                    <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
+                    ${s.pickup_time ? `<span style="color:#1d4ed8;font-size:0.7rem;float:right">${s.pickup_time}→${s.delivery_time}</span>` : ''}
+                    <div style="font-size:0.65rem;color:#6b7280;margin-top:2px">${s.pickup_address} → ${s.delivery_address}</div>
+                    <div style="font-size:0.65rem;color:#6b7280">${s.cargo_description || ''} ${s.weight}kg ¥${s.price.toLocaleString()}</div>
+                </div>`).join('')}`;
+            document.body.appendChild(sp);
+        }
+    }
+}
+
+function closeMobileUnassigned() {
+    const sp = document.querySelector('.unassigned-slide-panel');
+    if (sp) sp.classList.remove('open');
 }
 
 // Requirement 1: ドライバー重複チェック（時間重複がある場合、重複先の車両番号を返す）

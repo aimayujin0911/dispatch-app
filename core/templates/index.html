@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=51">
+    <link rel="stylesheet" href="/static/css/style.css?v=52">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -50,7 +50,7 @@
             <h1 id="pageTitle">ダッシュボード</h1>
             <div class="topbar-right" style="display:flex;align-items:center;gap:12px">
                 <span id="currentUser" style="font-size:0.85rem"></span>
-                <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">📬 開発への依頼</button>
+                <button onclick="openFeedbackModal()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">📬 依頼</button>
                 <button onclick="logout()" style="background:none;border:1px solid #d1d5db;color:#64748b;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap">🚪 ログアウト</button>
             </div>
         </header>
@@ -382,7 +382,7 @@
     <div id="feedbackOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center">
         <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h3 style="margin:0;font-size:1.1rem">📬 開発への依頼</h3>
+                <h3 style="margin:0;font-size:1.1rem">📬 依頼</h3>
                 <button onclick="closeFeedbackModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b">&times;</button>
             </div>
             <form id="feedbackForm" onsubmit="submitFeedback(event)">
@@ -522,7 +522,7 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=51"></script>
+    <script src="/static/js/app.js?v=52"></script>
     <script src="/static/js/tenant-switcher.js?v=3"></script>
 </body>
 </html>
