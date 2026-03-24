@@ -724,7 +724,7 @@ async function loadDispatchCalendar() {
 
                 const barW = colW - 6 - indent;
                 const dc = getDriverColor(d.driver_id);
-                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
+                barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
                     <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${driverName}</span>
                     <span class="vg-bar-addr">${pickup}→${delivery}</span>
                     <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
@@ -903,13 +903,111 @@ async function loadDispatchCalendar() {
                 <button class="btn btn-sm btn-primary" onclick="closeMobileUnassigned();openQuickShipmentModal('${activeDayStr}')" style="font-size:0.65rem;padding:2px 8px">＋ 追加</button>
                 ${unassigned.length > 0 ? `<button class="btn btn-sm" onclick="closeMobileUnassigned();autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-size:0.65rem;padding:2px 8px">⚡ 自動配車</button>` : ''}
             </h3>
-            ${unassigned.length > 0 ? unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
+            ${unassigned.length > 0 ? unassigned.map(s => `<div class="m-unassigned-item" data-shipment-id="${s.id}" style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer;-webkit-user-select:none;user-select:none" onclick="openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})" ontouchstart="mUnassignedTouchStart(event,${s.id},'${(s.name||s.client_name).replace(/'/g,"\\'")}')">
                 <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
                 ${s.pickup_time ? `<span style="color:#1d4ed8;font-size:0.7rem;float:right">${s.pickup_time}→${s.delivery_time}</span>` : ''}
                 <div style="font-size:0.65rem;color:#6b7280;margin-top:2px">${s.pickup_address} → ${s.delivery_address}</div>
                 <div style="font-size:0.65rem;color:#6b7280">${s.cargo_description || ''} ${s.weight}kg ¥${s.price.toLocaleString()}</div>
             </div>`).join('') : '<p style="color:#9ca3af;font-size:0.8rem;text-align:center;margin-top:16px">未配車案件はありません ✅</p>'}`;
         document.body.appendChild(sp);
+    }
+}
+
+// 未配車アイテムからD&D
+let _mUnassignedDrag = null;
+function mUnassignedTouchStart(e, shipmentId, name) {
+    const touch = e.touches[0];
+    const startTime = Date.now();
+    const startPos = { x: touch.clientX, y: touch.clientY };
+    const item = e.target.closest('.m-unassigned-item');
+    let timer = setTimeout(() => {
+        timer = null;
+        e.preventDefault();
+        navigator.vibrate && navigator.vibrate(30);
+        // 未配車パネルを閉じて配車表を露出
+        closeMobileUnassigned();
+        // ゴーストバーを作成
+        const ghost = document.createElement('div');
+        ghost.className = 'vg-bar';
+        ghost.style.cssText = `position:fixed;left:${touch.clientX - 40}px;top:${touch.clientY - 15}px;width:80px;height:30px;background:#ea580c;color:#fff;border-radius:4px;z-index:200;font-size:0.6rem;padding:4px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;`;
+        ghost.textContent = name;
+        document.body.appendChild(ghost);
+        document.body.classList.add('no-select');
+        _mUnassignedDrag = { shipmentId, ghost, name };
+        // touchmove/touchend on document
+        document.addEventListener('touchmove', mUnassignedMove, { passive: false });
+        document.addEventListener('touchend', mUnassignedEnd);
+    }, 400);
+    const moveHandler = (ev) => {
+        const t = ev.touches[0];
+        if (Math.abs(t.clientX - startPos.x) > 8 || Math.abs(t.clientY - startPos.y) > 8) {
+            clearTimeout(timer); timer = null;
+            item.removeEventListener('touchmove', moveHandler);
+        }
+    };
+    item.addEventListener('touchmove', moveHandler, { passive: true });
+    item.addEventListener('touchend', () => { if (timer) clearTimeout(timer); item.removeEventListener('touchmove', moveHandler); }, { once: true });
+}
+function mUnassignedMove(e) {
+    if (!_mUnassignedDrag) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    _mUnassignedDrag.ghost.style.left = (touch.clientX - 40) + 'px';
+    _mUnassignedDrag.ghost.style.top = (touch.clientY - 15) + 'px';
+    // ドロップ先シャドウ
+    const grid = document.querySelector('.vertical-gantt');
+    if (grid) {
+        const old = grid.querySelector('.vg-drop-ghost');
+        if (old) old.remove();
+        const cellInfo = getCellFromTouch(touch.clientX, touch.clientY);
+        if (cellInfo && window._mGridInfo) {
+            const { timeColW, colW, rowH } = window._mGridInfo;
+            const gh = document.createElement('div');
+            gh.className = 'vg-drop-ghost';
+            gh.style.cssText = `position:absolute;left:${timeColW + cellInfo.colIdx * colW + 2}px;top:${cellInfo.rowIdx * rowH}px;width:${colW - 6}px;height:${rowH * 4}px;background:rgba(234,88,12,0.2);border:2px dashed #ea580c;border-radius:4px;pointer-events:none;z-index:5;`;
+            grid.appendChild(gh);
+        }
+    }
+}
+function mUnassignedEnd(e) {
+    document.removeEventListener('touchmove', mUnassignedMove);
+    document.removeEventListener('touchend', mUnassignedEnd);
+    document.body.classList.remove('no-select');
+    if (!_mUnassignedDrag) return;
+    _mUnassignedDrag.ghost.remove();
+    const grid = document.querySelector('.vertical-gantt');
+    if (grid) { const gh = grid.querySelector('.vg-drop-ghost'); if (gh) gh.remove(); }
+    const touch = e.changedTouches[0];
+    const cellInfo = getCellFromTouch(touch.clientX, touch.clientY);
+    if (cellInfo && cellInfo.vehicleId && !isNaN(cellInfo.hour)) {
+        // 新規配車を作成（楽観的UI）
+        createDispatchFromDrop(_mUnassignedDrag.shipmentId, cellInfo.vehicleId, cellInfo.hour);
+    }
+    _mUnassignedDrag = null;
+}
+async function createDispatchFromDrop(shipmentId, vehicleId, hour) {
+    const dayStr = _cache['_activeDayStr'] || document.querySelector('.m-cal-tab.active')?.textContent;
+    const days2 = [];
+    for (let i = 0; i < CAL_DAYS; i++) { const d = new Date(calendarDate); d.setDate(d.getDate() + i); days2.push(d); }
+    const activeDayStr2 = `${days2[selectedDayIndex].getFullYear()}-${String(days2[selectedDayIndex].getMonth()+1).padStart(2,'0')}-${String(days2[selectedDayIndex].getDate()).padStart(2,'0')}`;
+    const shipments = await cachedApiGet('/shipments');
+    const s = shipments.find(x => x.id === shipmentId);
+    const startTime = s?.pickup_time || `${String(hour).padStart(2,'0')}:00`;
+    const endTime = s?.delivery_time || `${String(Math.min(hour + 4, 23)).padStart(2,'0')}:00`;
+    try {
+        await apiPost('/dispatches', {
+            shipment_id: shipmentId,
+            vehicle_id: vehicleId,
+            date: activeDayStr2,
+            start_time: startTime,
+            end_time: endTime,
+        });
+        invalidateCache('/dispatches');
+        invalidateCache('/shipments');
+        loadDispatchCalendar();
+    } catch (e) {
+        alert('配車作成に失敗: ' + e.message);
+        loadDispatchCalendar();
     }
 }
 
@@ -1353,13 +1451,36 @@ async function applyMobileDrop(dispatchId, vehicleId, hour) {
             }
         }
 
-        await apiPut(`/dispatches/${dispatchId}`, {
+        // 楽観的UI: バーを即座にDOM上で移動
+        if (window._mGridInfo) {
+            const { timeColW, colW, rowH } = window._mGridInfo;
+            const grid = document.querySelector('.vertical-gantt');
+            const bar = grid?.querySelector(`.vg-bar[data-id="${dispatchId}"]`) ||
+                        grid?.querySelector(`[onclick*="showDispatchDetail(${dispatchId})"]`);
+            if (bar) {
+                const vIdx = window._mGridInfo.vehicles.findIndex(v => v.id === vehicleId);
+                if (vIdx >= 0) {
+                    const newTopPx = (hour * 60 - HOUR_START * 60) / 60 * rowH;
+                    bar.style.left = (timeColW + vIdx * colW + 2) + 'px';
+                    bar.style.top = newTopPx + 'px';
+                    bar.style.transform = '';
+                    bar.style.opacity = '1';
+                }
+            }
+        }
+
+        // バックグラウンドでAPI更新
+        apiPut(`/dispatches/${dispatchId}`, {
             vehicle_id: vehicleId,
             start_time: newStart,
             end_time: newEnd,
+        }).then(() => {
+            invalidateCache('/dispatches');
+            scheduleBgSync(3);
+        }).catch(e => {
+            alert('移動に失敗: ' + e.message);
+            loadDispatchCalendar();
         });
-        invalidateCache('/dispatches');
-        loadDispatchCalendar();
     } catch (e) {
         alert('移動に失敗: ' + e.message);
         loadDispatchCalendar();
