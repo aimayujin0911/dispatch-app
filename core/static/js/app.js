@@ -851,9 +851,8 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const overloadIcon = isOverload ? `<span style="color:#dc2626;font-weight:700;font-size:0.7rem" title="積載超過${capPct}%">🚨${capPct}%</span> ` : '';
             const presetTag = timeChanged ? `<span style="font-size:0.6rem;color:#b45309;background:#fef3c7;padding:0 3px;border-radius:2px;margin-left:2px" title="元の指定時間: ${d.pickup_time}〜${d.delivery_time}">指定${d.pickup_time}〜${d.delivery_time}</span>` : '';
             const startLabel = d.isMultiDay && dayStr !== d.date ? `${d.dayLabel}` : `${overloadIcon}${driverBadge} ${d.start_time} ${d.pickup_address || ''}${cargoShort}${presetTag}`;
-            const endLabel = d.isMultiDay && dayStr !== d.end_date ? '▶' : `→ ${d.delivery_address || ''} ${d.end_time}`;
-            html += `<span class="gantt-bar-start">${startLabel}</span>`;
-            html += `<span class="gantt-bar-end">${endLabel}</span>`;
+            const endLabel = d.isMultiDay && dayStr !== d.end_date ? ' ▶' : ` → ${d.delivery_address || ''} ${d.end_time}`;
+            html += `<span class="gantt-bar-text">${startLabel}${endLabel}</span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `</div>`;
         });
@@ -915,8 +914,7 @@ function buildPartnerRows(dayStr, dispatches, partners) {
 
             html += `<div class="gantt-bar" data-id="${d.id}" data-vehicle-id="${d.vehicle_id}" data-start="${d.start_time}" data-end="${d.end_time}" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:26px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${d.vehicle_id})" onclick="event.stopPropagation()" title="${pName}\n${d.start_time}-${d.end_time} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoShort}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
-            html += `<span class="gantt-bar-start">${d.start_time} ${d.pickup_address || ''}${cargoShort}</span>`;
-            html += `<span class="gantt-bar-end">→ ${d.delivery_address || ''} ${d.end_time}</span>`;
+            html += `<span class="gantt-bar-text">${d.start_time} ${d.pickup_address || ''}${cargoShort} → ${d.delivery_address || ''} ${d.end_time}</span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `</div>`;
         });
