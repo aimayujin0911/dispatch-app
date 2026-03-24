@@ -35,6 +35,19 @@ def seed_on_startup():
     logger.info(f"DB URL: {DATABASE_URL[:30]}...")
     db = SessionLocal()
     try:
+        # FORCE_RESEED: 環境変数が設定されていればDB全テーブルdrop→再seed
+        if os.environ.get("FORCE_RESEED") == "1":
+            logger.info("FORCE_RESEED=1 detected, dropping all tables...")
+            from models import Base
+            from database import engine
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
+            logger.info("Tables recreated, running seed...")
+            from seed_data import seed
+            seed()
+            logger.info("FORCE_RESEED completed!")
+            db.close()
+            return
         # マイグレーション前にモデルクエリすると新カラムでエラーになるため生SQL使用
         count = db.execute(text("SELECT count(*) FROM vehicles")).scalar()
         logger.info(f"Vehicle count: {count}")
