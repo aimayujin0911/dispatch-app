@@ -856,7 +856,8 @@ def seed():
 
 
 def seed_transia():
-    """トランシア（幸手）テナントのテストデータ"""
+    """トランシア（幸手）テナントのデータ投入（実データファイルから読み込み）"""
+    import pandas as pd
     from database import SessionLocal
     db = SessionLocal()
 
@@ -912,113 +913,278 @@ def seed_transia():
             dispatch_view_mode="matrix",
         )
         db.add(t_settings)
-    # === トランシア車両・ドライバーデータ（Excelから抽出） ===
-    # 1課〜5課のドライバー＋車両（車両番号、ドライバー名、車種、車番）
-    transia_data = [
-        # 1課（大型ドラム車）
-        {"dept": "1課", "num": "164", "driver": "島田", "type": "ウイング車", "cap": 13, "chassis": "2900G", "temp": "常温", "pg": False, "insp": "R7/12/10"},
-        {"dept": "1課", "num": "150", "driver": "浅見", "type": "ウイング車", "cap": 13, "chassis": "3100G", "temp": "常温", "pg": False, "insp": "R8/1/6"},
-        {"dept": "1課", "num": "116", "driver": "川畑", "type": "ウイング車", "cap": 13, "chassis": "3800", "temp": "常温", "pg": False, "insp": "R8/4/21"},
-        {"dept": "1課", "num": "211", "driver": "猪狩", "type": "ウイング車", "cap": 10, "chassis": "3000", "temp": "常温", "pg": False, "insp": "R8/6/16"},
-        {"dept": "1課", "num": "125", "driver": "迫", "type": "ウイング車", "cap": 10, "chassis": "3400", "temp": "常温", "pg": False, "insp": "R8/4/21"},
-        {"dept": "1課", "num": "157", "driver": "藤沼", "type": "ウイング車", "cap": 10, "chassis": "2200", "temp": "常温", "pg": False, "insp": "R8/4/29"},
-        {"dept": "1課", "num": "151", "driver": "松本", "type": "ウイング車", "cap": 13, "chassis": "2800G", "temp": "常温", "pg": False, "insp": "R8/9/29"},
-        {"dept": "1課", "num": "210", "driver": "志田", "type": "ウイング車", "cap": 13, "chassis": "3700", "temp": "常温", "pg": False, "insp": "R8/4/29"},
-        {"dept": "1課", "num": "251", "driver": "中島", "type": "ウイング車", "cap": 10, "chassis": "9000", "temp": "常温", "pg": False, "insp": "R7/10/27"},
-        {"dept": "1課", "num": "123", "driver": "塚本", "type": "ウイング車", "cap": 13, "chassis": "4400", "temp": "常温", "pg": False, "insp": "R7/10/11"},
-        {"dept": "1課", "num": "166", "driver": "杉山", "type": "ウイング車", "cap": 13, "chassis": "3500", "temp": "常温", "pg": False, "insp": "R8/3/17"},
-        {"dept": "1課", "num": "171", "driver": "齊藤", "type": "ウイング車", "cap": 13, "chassis": "1200", "temp": "常温", "pg": False, "insp": "R7/10/16"},
-        {"dept": "1課", "num": "215", "driver": "長谷川", "type": "ウイング車", "cap": 10, "chassis": "2100", "temp": "常温", "pg": False, "insp": "R8/4/26"},
-        {"dept": "1課", "num": "208", "driver": "毛塚", "type": "ウイング車", "cap": 10, "chassis": "1600", "temp": "常温", "pg": False, "insp": "R8/3/5"},
-        {"dept": "1課", "num": "172", "driver": "加藤", "type": "ウイング車", "cap": 13, "chassis": "3200", "temp": "常温", "pg": False, "insp": "R8/3/2"},
-        {"dept": "1課", "num": "197", "driver": "秦", "type": "ウイング車", "cap": 10, "chassis": "1900", "temp": "常温", "pg": False, "insp": "R8/3/30"},
-        {"dept": "1課", "num": "226", "driver": "柿沼", "type": "ウイング車", "cap": 10, "chassis": "3600", "temp": "常温", "pg": False, "insp": "R8/4/29"},
-        {"dept": "1課", "num": "262", "driver": "若山", "type": "ウイング車", "cap": 10, "chassis": "1700", "temp": "常温", "pg": False, "insp": "R8/3/12"},
-        {"dept": "1課", "num": "252", "driver": "葭川", "type": "ウイング車", "cap": 13, "chassis": "1100", "temp": "常温", "pg": False, "insp": "R8/9/29"},
-        # 2課（2t箱車）
-        {"dept": "2課", "num": "7200", "driver": "弘中", "type": "ウイング車", "cap": 3, "chassis": "7200", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "2課", "num": "4300", "driver": "井上", "type": "ウイング車", "cap": 3, "chassis": "4300", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "2課", "num": "6200", "driver": "山寺", "type": "バン", "cap": 2, "chassis": "6200", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "6300", "driver": "清水", "type": "バン", "cap": 2, "chassis": "6300", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "1300", "driver": "新井", "type": "バン", "cap": 2, "chassis": "1300", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "3900", "driver": "牧野", "type": "バン", "cap": 2, "chassis": "3900", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "4100", "driver": "川上", "type": "バン", "cap": 2, "chassis": "4100", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "6000", "driver": "松下", "type": "バン", "cap": 2, "chassis": "6000", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "5000", "driver": "田中", "type": "バン", "cap": 2, "chassis": "5000", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "2課", "num": "4700", "driver": "未配車", "type": "バン", "cap": 2, "chassis": "4700", "temp": "常温", "pg": False, "insp": ""},
-        # 3課（ユニック車）
-        {"dept": "3課", "num": "7000", "driver": "金子", "type": "ユニック車", "cap": 7, "chassis": "7000", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "8000", "driver": "阿部", "type": "ユニック車", "cap": 7, "chassis": "8000", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "875", "driver": "青田", "type": "ユニック車", "cap": 3, "chassis": "875", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "988", "driver": "山口", "type": "ユニック車", "cap": 3, "chassis": "988", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "1039", "driver": "渡辺", "type": "ユニック車", "cap": 3, "chassis": "1039", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "5800", "driver": "木村", "type": "ユニック車", "cap": 3, "chassis": "5800", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "3908", "driver": "小堀", "type": "ユニック車", "cap": 3, "chassis": "3908", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "3906", "driver": "柿沼", "type": "ユニック車", "cap": 3, "chassis": "3906", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "4600", "driver": "青木", "type": "平ボディ", "cap": 2, "chassis": "4600", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "3課", "num": "2300", "driver": "奥藤", "type": "平ボディ", "cap": 2, "chassis": "2300", "temp": "常温", "pg": False, "insp": ""},
-        # 4課（4tワイド）
-        {"dept": "4課", "num": "192", "driver": "中村", "type": "ウイング車", "cap": 4, "chassis": "192", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "4課", "num": "144", "driver": "細谷", "type": "ウイング車", "cap": 4, "chassis": "144", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "4課", "num": "234", "driver": "佐々木", "type": "ウイング車", "cap": 4, "chassis": "234", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "4課", "num": "221", "driver": "重文字", "type": "ウイング車", "cap": 4, "chassis": "221", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "4課", "num": "249", "driver": "舟生", "type": "ウイング車", "cap": 4, "chassis": "249", "temp": "常温", "pg": False, "insp": ""},
-        {"dept": "4課", "num": "260", "driver": "今成", "type": "ウイング車", "cap": 4, "chassis": "260", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "4課", "num": "269", "driver": "岡野", "type": "ウイング車", "cap": 4, "chassis": "269", "temp": "常温", "pg": True, "insp": ""},
-        {"dept": "4課", "num": "105", "driver": "新谷", "type": "ウイング車", "cap": 4, "chassis": "105", "temp": "常温", "pg": True, "insp": ""},
-        # 5課（チルド車）
-        {"dept": "5課", "num": "248", "driver": "佐藤", "type": "バン", "cap": 3, "chassis": "5200", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
-        {"dept": "5課", "num": "229", "driver": "茂木", "type": "バン", "cap": 3, "chassis": "5300", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
-        {"dept": "5課", "num": "272", "driver": "未配車", "type": "バン", "cap": 3, "chassis": "5400", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
-        {"dept": "5課", "num": "255", "driver": "未配車", "type": "バン", "cap": 3, "chassis": "5900", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-        {"dept": "5課", "num": "268", "driver": "朝来野", "type": "バン", "cap": 4, "chassis": "268", "temp": "冷蔵冷凍兼用", "pg": False, "insp": ""},
-        {"dept": "5課", "num": "278", "driver": "澤村", "type": "バン", "cap": 4, "chassis": "278", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-        {"dept": "5課", "num": "247", "driver": "山崎", "type": "バン", "cap": 4, "chassis": "247", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-        {"dept": "5課", "num": "270", "driver": "トレンティーノ", "type": "バン", "cap": 4, "chassis": "270", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-        {"dept": "5課", "num": "271", "driver": "岡安", "type": "バン", "cap": 4, "chassis": "271", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-        {"dept": "5課", "num": "273", "driver": "池谷", "type": "バン", "cap": 4, "chassis": "273", "temp": "冷蔵冷凍兼用", "pg": True, "insp": ""},
-    ]
 
-    # ドライバー作成（「未配車」は除外）
-    driver_map = {}  # name -> Driver
-    for d in transia_data:
-        dname = d["driver"]
-        if dname == "未配車" or dname in driver_map:
+    # === データファイルパス ===
+    data_dir = "C:/Users/yuuji/Claude/transia_data"
+    client_file = f"{data_dir}/取引先_20260324165912.xlsx"
+    vehicle_file = f"{data_dir}/車両一覧.xlsx"
+    employee_file = f"{data_dir}/jinjer_労働者名簿_15459_20260323 (1).csv"
+
+    # =============================================
+    # 1. 取引先データ（1,454件）
+    # =============================================
+    df_clients = pd.read_excel(client_file, engine="openpyxl")
+    client_count = 0
+    for _, row in df_clients.iterrows():
+        # 会社名の組み立て
+        houjinkaku = str(row["法人格"]) if pd.notna(row["法人格"]) else ""
+        settei = str(row["設定位置"]) if pd.notna(row["設定位置"]) else ""
+        kaisha = str(row["会社"]) if pd.notna(row["会社"]) else ""
+        shiten = str(row["支店/営業所"]) if pd.notna(row["支店/営業所"]) else ""
+
+        if settei == "前に入れる":
+            name = houjinkaku + kaisha
+        elif settei == "後ろに入れる":
+            name = kaisha + houjinkaku
+        else:
+            name = kaisha
+
+        if shiten:
+            name = name + " " + shiten
+
+        # 住所の組み立て（NaN部分はスキップ）
+        addr_parts = []
+        for col in ["都道府県", "市区", "町村", "番地"]:
+            val = row[col]
+            if pd.notna(val):
+                addr_parts.append(str(val))
+        address = "".join(addr_parts)
+
+        phone = str(row["電話番号"]) if pd.notna(row["電話番号"]) else ""
+        fax = str(row["FAX番号"]) if pd.notna(row["FAX番号"]) else ""
+        postal = str(row["郵便番号"]) if pd.notna(row["郵便番号"]) else ""
+
+        client = Client(
+            name=name,
+            address=address,
+            phone=phone,
+            fax=fax,
+            tenant_id="transia",
+        )
+        db.add(client)
+        client_count += 1
+
+    db.flush()
+
+    # =============================================
+    # 2. 車両データ（車両一覧.xlsx）
+    # =============================================
+    df_vehicles = pd.read_excel(vehicle_file, header=None, engine="openpyxl")
+
+    # 車種マッピング: Excelの略称 → アプリの車種名
+    type_map = {
+        "13ｔW": "ウイング車 13t",
+        "13ｔWG": "ウイング車 13t",
+        "10t箱ﾄﾞﾗﾑ": "バン 10t",
+        "3ｔﾜｲﾄﾞU": "ユニック車 3t",
+        "3ｔ標準U": "ユニック車 3t",
+        "7ｔユ": "ユニック車 7t",
+        "２ｔ平L": "平ボディ 2t",
+        "3ｔﾜｲﾄﾞG": "ウイング車 3t",
+        "3ｔﾜｲﾄﾞGﾘﾝﾎﾞｰ": "ウイング車 3t",
+        "2ｔ箱": "バン 2t",
+        "2ｔ箱S": "バン 2t",
+        "4ｔﾜｲﾄﾞW格": "ウイング車 4t",
+        "4ｔﾜｲﾄﾞW跳": "ウイング車 4t",
+        "4ｔﾜｲﾄﾞW": "ウイング車 4t",
+        "4tﾜｲﾄﾞＷ": "ウイング車 4t",
+        "4tﾜｲﾄﾞ箱": "バン 4t",
+        "4tﾜｲﾄﾞ箱跳": "バン 4t",
+        "3ｔﾜｲﾄﾞﾁﾙﾄﾞ": "バン 3t",
+        "3ｔ標準ﾁﾙﾄﾞ": "バン 3t",
+        "3ｔ標準ﾁﾙﾄﾞG": "バン 3t",
+        "4ｔﾜｲﾄﾞﾁﾙﾄﾞG": "バン 4t",
+        "4ｔﾜｲﾄﾞﾁﾙﾄﾞＧ": "バン 4t",
+        "ﾊｲｴｰｽ": "バン 1t",
+        "ｷｬﾗﾊﾞﾝ": "バン 1t",
+    }
+
+    # 温度帯: チルド系は冷蔵冷凍兼用
+    chilled_types = {"3ｔﾜｲﾄﾞﾁﾙﾄﾞ", "3ｔ標準ﾁﾙﾄﾞ", "3ｔ標準ﾁﾙﾄﾞG",
+                     "4ｔﾜｲﾄﾞﾁﾙﾄﾞG", "4ｔﾜｲﾄﾞﾁﾙﾄﾞＧ"}
+
+    import re
+
+    def extract_capacity(type_str):
+        """車種文字列からトン数を抽出"""
+        m = re.search(r'(\d+)[tｔ]', type_str)
+        if m:
+            return float(m.group(1))
+        if type_str in ("ﾊｲｴｰｽ", "ｷｬﾗﾊﾞﾝ"):
+            return 1.0
+        return 0.0
+
+    vehicle_records = []
+    for idx in range(len(df_vehicles)):
+        raw_type = df_vehicles.iloc[idx, 2]
+        raw_num = df_vehicles.iloc[idx, 3]
+        # 両方NaNならスキップ
+        if pd.isna(raw_type) and pd.isna(raw_num):
             continue
-        drv = Driver(name=dname, phone="", license_type="大型" if d["cap"] >= 7 else "中型" if d["cap"] >= 3 else "普通", status="待機中", tenant_id="transia", branch_id=t_branch.id)
-        db.add(drv)
-        db.flush()
-        driver_map[dname] = drv
-        # ドライバー用Userレコード
-        db.add(User(name=dname, email="", login_id=f"t_{dname}", password_hash="", role="driver", tenant_id="transia", branch_id=t_branch.id, driver_id=drv.id, is_active=True))
+        raw_type = str(raw_type) if pd.notna(raw_type) else ""
+        raw_num = str(raw_num) if pd.notna(raw_num) else ""
 
-    # 車両作成（ドライバー紐付け）
-    for d in transia_data:
-        drv = driver_map.get(d["driver"])
+        mapped_type = type_map.get(raw_type, raw_type)
+        # 車種名からベースタイプ抽出（"ウイング車 13t" → "ウイング車"）
+        base_type = mapped_type.split(" ")[0] if " " in mapped_type else mapped_type
+        capacity = extract_capacity(raw_type)
+        temp_zone = "冷蔵冷凍兼用" if raw_type in chilled_types else "常温"
+        # パワーゲート: "格"=格納ゲート, "跳"=跳ね上げゲート → True
+        has_pg = "格" in raw_type or "跳" in raw_type
+
         v = Vehicle(
-            number=f"春日部 {d['num']}", chassis_number=d["chassis"], type=d["type"],
-            capacity=d["cap"], status="通常", temperature_zone=d["temp"],
-            has_power_gate=d["pg"], inspection_expiry=d["insp"],
-            default_driver_id=drv.id if drv else None,
-            notes=d["dept"], tenant_id="transia", branch_id=t_branch.id,
+            number=raw_num,
+            type=base_type,
+            capacity=capacity,
+            status="通常",
+            temperature_zone=temp_zone,
+            has_power_gate=has_pg,
+            notes=raw_type,  # 元の車種略称をメモに保存
+            tenant_id="transia",
+            branch_id=t_branch.id,
         )
         db.add(v)
+        vehicle_records.append((raw_num, v))
 
-    # 荷主（配車表Excelから読み取れた荷主名のみ）
-    transia_clients = [
-        Client(name="DIC", address="", phone="", tenant_id="transia"),
-        Client(name="JPR", address="", phone="", tenant_id="transia"),
-        Client(name="丸紅", address="", phone="", tenant_id="transia"),
-        Client(name="原信", address="", phone="", tenant_id="transia"),
-        Client(name="ニチハ", address="", phone="", tenant_id="transia"),
-        Client(name="幸手物産", address="埼玉県幸手市", phone="", tenant_id="transia"),
-        Client(name="久喜倉庫", address="埼玉県久喜市", phone="", tenant_id="transia"),
+    db.flush()
+
+    # =============================================
+    # 3. 従業員データ（Jinjer CSV → ドライバー＋User）
+    # =============================================
+    df_employees = pd.read_csv(employee_file, encoding="shift-jis")
+    driver_map = {}  # 姓 -> [Driver, ...] （同姓対応のためリスト）
+    driver_fullname_map = {}  # フルネーム -> Driver
+
+    for _, row in df_employees.iterrows():
+        sei = str(row["職場氏名(氏)"]) if pd.notna(row["職場氏名(氏)"]) else ""
+        mei = str(row["職場氏名(名)"]) if pd.notna(row["職場氏名(名)"]) else ""
+        emp_no = str(row["社員番号"]) if pd.notna(row["社員番号"]) else ""
+        fullname = sei + " " + mei
+
+        drv = Driver(
+            name=fullname,
+            phone="",
+            license_type="大型",
+            status="待機中",
+            tenant_id="transia",
+            branch_id=t_branch.id,
+        )
+        db.add(drv)
+        db.flush()
+
+        driver_fullname_map[fullname] = drv
+        if sei not in driver_map:
+            driver_map[sei] = []
+        driver_map[sei].append(drv)
+
+        # ドライバー用Userレコード
+        db.add(User(
+            name=fullname,
+            email=None,
+            login_id=emp_no,
+            password_hash="",
+            role="driver",
+            tenant_id="transia",
+            branch_id=t_branch.id,
+            driver_id=drv.id,
+            is_active=True,
+        ))
+
+    db.flush()
+
+    # =============================================
+    # 4. 車両→ドライバー紐付け（配車表データ）
+    # =============================================
+    # 配車表から抽出済みの車両番号→ドライバー姓マッピング
+    transia_data = [
+        # 1課（大型ドラム車）
+        {"num": "164", "driver": "島田"},
+        {"num": "150", "driver": "浅見"},
+        {"num": "116", "driver": "川畑"},
+        {"num": "211", "driver": "猪狩"},
+        {"num": "125", "driver": "迫"},
+        {"num": "157", "driver": "藤沼"},
+        {"num": "151", "driver": "松本"},
+        {"num": "210", "driver": "志田"},
+        {"num": "251", "driver": "中島"},
+        {"num": "123", "driver": "塚本"},
+        {"num": "166", "driver": "杉山"},
+        {"num": "171", "driver": "齊藤"},
+        {"num": "215", "driver": "長谷川"},
+        {"num": "208", "driver": "毛塚"},
+        {"num": "172", "driver": "加藤"},
+        {"num": "197", "driver": "秦"},
+        {"num": "226", "driver": "柿沼"},
+        {"num": "262", "driver": "若山"},
+        {"num": "252", "driver": "葭川"},
+        # 2課（2t箱車）
+        {"num": "7200", "driver": "弘中"},
+        {"num": "4300", "driver": "井上"},
+        {"num": "6200", "driver": "山寺"},
+        {"num": "6300", "driver": "清水"},
+        {"num": "1300", "driver": "新井"},
+        {"num": "3900", "driver": "牧野"},
+        {"num": "4100", "driver": "川上"},
+        {"num": "6000", "driver": "松下"},
+        {"num": "5000", "driver": "田中"},
+        # 3課（ユニック車）
+        {"num": "7000", "driver": "金子"},
+        {"num": "8000", "driver": "阿部"},
+        {"num": "875", "driver": "青田"},
+        {"num": "988", "driver": "山口"},
+        {"num": "1039", "driver": "渡辺"},
+        {"num": "5800", "driver": "木村"},
+        {"num": "3908", "driver": "小堀"},
+        {"num": "3906", "driver": "柿沼"},
+        {"num": "4600", "driver": "青木"},
+        {"num": "2300", "driver": "奥藤"},
+        # 4課（4tワイド）
+        {"num": "192", "driver": "中村"},
+        {"num": "144", "driver": "細谷"},
+        {"num": "234", "driver": "佐々木"},
+        {"num": "221", "driver": "重文字"},
+        {"num": "249", "driver": "舟生"},
+        {"num": "260", "driver": "今成"},
+        {"num": "269", "driver": "岡野"},
+        {"num": "105", "driver": "新谷"},
+        # 5課（チルド車）
+        {"num": "248", "driver": "佐藤"},
+        {"num": "229", "driver": "茂木"},
+        {"num": "268", "driver": "朝来野"},
+        {"num": "278", "driver": "澤村"},
+        {"num": "247", "driver": "山崎"},
+        {"num": "270", "driver": "トレンティーノ"},
+        {"num": "271", "driver": "岡安"},
+        {"num": "273", "driver": "池谷"},
     ]
-    db.add_all(transia_clients)
+
+    matched_count = 0
+    for d in transia_data:
+        target_num = d["num"]
+        target_surname = d["driver"]
+
+        # 車両を探す: ナンバープレートに番号が含まれるもの
+        matched_vehicle = None
+        for raw_num, v in vehicle_records:
+            if target_num in raw_num:
+                matched_vehicle = v
+                break
+
+        # ドライバーを探す: 姓が一致するドライバー（同姓が複数いる場合は最初の未割当）
+        matched_driver = None
+        candidates = driver_map.get(target_surname, [])
+        for drv in candidates:
+            # まだ紐付いていないドライバーを優先
+            matched_driver = drv
+            break
+
+        if matched_vehicle and matched_driver:
+            matched_vehicle.default_driver_id = matched_driver.id
+            matched_count += 1
 
     db.commit()
     db.close()
-    print(f"トランシアテナントデータ投入完了! ドライバー{len(driver_map)}名, 車両{len(transia_data)}台")
+    print(f"トランシアテナントデータ投入完了! 取引先{client_count}件, 車両{len(vehicle_records)}台, ドライバー{len(driver_fullname_map)}名, 車両-ドライバー紐付け{matched_count}件")
 
 
 if __name__ == "__main__":
