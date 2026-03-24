@@ -1347,6 +1347,137 @@ body {
     .vg-vehicle-header { font-size: 0.55rem; }
 }
 
+/* ===== マトリクスビュー ===== */
+.matrix-wrapper {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+}
+.matrix-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 800px;
+    table-layout: fixed;
+}
+.matrix-table th {
+    position: sticky;
+    top: 0;
+    background: #ea580c;
+    color: #fff;
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #c2410c;
+    z-index: 2;
+    white-space: nowrap;
+}
+.matrix-date-header {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+}
+.matrix-vehicle-header {
+    min-width: 120px;
+}
+.matrix-driver-name {
+    font-size: 0.65rem;
+    font-weight: 400;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+.matrix-table td {
+    padding: 4px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+    min-height: 60px;
+    font-size: 0.7rem;
+}
+.matrix-date-cell {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    font-weight: 700;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    text-align: center;
+    z-index: 1;
+    border-right: 2px solid #e2e8f0;
+    font-size: 0.8rem;
+}
+.matrix-day-name {
+    font-size: 0.65rem;
+    color: #64748b;
+    font-weight: 400;
+}
+.matrix-cell {
+    min-height: 60px;
+    min-width: 120px;
+}
+.matrix-empty-cell {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.matrix-empty-cell:hover {
+    background: #fff7ed;
+}
+.matrix-dispatch-item {
+    padding: 3px 4px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+    border-left: 3px solid #94a3b8;
+    background: #f8fafc;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    line-height: 1.3;
+}
+.matrix-dispatch-item:hover {
+    background: #e2e8f0;
+}
+.matrix-dispatch-time {
+    font-weight: 700;
+    color: #1e40af;
+    font-size: 0.7rem;
+}
+.matrix-dispatch-route {
+    color: #334155;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.matrix-dispatch-client {
+    color: #64748b;
+    font-size: 0.6rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.matrix-dispatch-cargo {
+    color: #94a3b8;
+    font-size: 0.55rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.matrix-today-row td {
+    background: #fffbeb;
+}
+.matrix-today-row .matrix-date-cell {
+    background: #fef3c7;
+    color: #d97706;
+}
+.matrix-weekend-row td {
+    background: #faf5ff;
+}
+.matrix-weekend-row .matrix-date-cell {
+    background: #f3e8ff;
+    color: #7c3aed;
+}
+
 /* 印刷スタイル */
 @media print {
     .sidebar, .topbar, .cal-controls, .page-actions,

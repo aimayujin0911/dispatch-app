@@ -628,6 +628,13 @@ async function loadDispatchCalendar() {
 
     const calContainer = document.getElementById('dispatch-calendar');
 
+    // ===== マトリクスビュー（transia テナント用） =====
+    if (!isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix') {
+        await renderMatrixView(calContainer, dispatches, vehicles, shipments, partners, filteredVehicles, baseDate);
+        // 未配車パネルはマトリクスビューでも表示するため、ここではreturnしない
+        // → 未配車パネル処理は後続のコードで実行
+        // ただし gantt/mobile 部分はスキップ
+    } else
     // ===== モバイル: 縦ガントモード =====
     if (isMobile()) {
         const hasUndo = (_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr);
@@ -799,6 +806,7 @@ async function loadDispatchCalendar() {
                     <option value="">全車格</option>
                     ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                 </select>
+                ${(() => { const ui = JSON.parse(localStorage.getItem('user_info') || '{}'); return ui.tenant_id === 'transia' ? '<button class="btn btn-sm" onclick="toggleDispatchViewMode()" style="background:#ea580c;color:#fff;font-weight:600;margin-left:8px" title="マトリクス表示に切替">マトリクス表示</button>' : ''; })()}
             </div>
         </div>
         <div class="cal-legend" style="display:flex;gap:10px;padding:2px 8px;font-size:0.7rem;color:#64748b;align-items:center;flex-wrap:wrap">
@@ -926,6 +934,162 @@ async function loadDispatchCalendar() {
             </div>`).join('') : '<p style="color:#9ca3af;font-size:0.8rem;text-align:center;margin-top:16px">未配車案件はありません ✅</p>'}`;
         document.body.appendChild(sp);
     }
+}
+
+// ===== マトリクスビュー =====
+let _matrixWeekStart = null; // マトリクスビューの週開始日
+
+function toggleDispatchViewMode() {
+    const current = localStorage.getItem('dispatchViewMode') || 'gantt';
+    localStorage.setItem('dispatchViewMode', current === 'matrix' ? 'gantt' : 'matrix');
+    loadDispatchCalendar();
+}
+
+function matrixChangeWeek(dir) {
+    if (!_matrixWeekStart) _matrixWeekStart = new Date();
+    _matrixWeekStart.setDate(_matrixWeekStart.getDate() + dir * 7);
+    loadDispatchCalendar();
+}
+
+function matrixGoToday() {
+    _matrixWeekStart = new Date();
+    loadDispatchCalendar();
+}
+
+async function renderMatrixView(calContainer, dispatches, allVehicles, shipments, partners, filteredVehicles, baseDate) {
+    // 週の開始日（月曜始まり）
+    if (!_matrixWeekStart) {
+        _matrixWeekStart = new Date(baseDate);
+    }
+    const weekStart = new Date(_matrixWeekStart);
+    weekStart.setHours(0, 0, 0, 0);
+    // 月曜始まりに調整
+    const dow = weekStart.getDay();
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    weekStart.setDate(weekStart.getDate() + mondayOffset);
+
+    // 7日分の日付
+    const matrixDays = [];
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        matrixDays.push(d);
+    }
+    const matrixDayStrs = matrixDays.map(d => fmt(d));
+
+    // 7日分の配車データを取得
+    const weekEndStr = fmt(matrixDays[6]);
+    const weekStartStr = fmt(matrixDays[0]);
+    const allDispatches = await apiGet(`/dispatches?week_start=${weekStartStr}`);
+    // 日付範囲でフィルタ（APIがweek_startだけ受け取る場合、7日分以上返す可能性があるので念のため）
+    const weekDispatches = allDispatches.filter(d => d.date >= weekStartStr && d.date <= weekEndStr);
+
+    // ドライバー情報を取得
+    const drivers = await cachedApiGet('/drivers');
+    const driverMap = {};
+    drivers.forEach(d => { driverMap[d.id] = d; });
+
+    // 車両ごとのドライバー名を決定（default_driver_id または直近の配車のドライバー）
+    const vehicleDriverNames = {};
+    filteredVehicles.forEach(v => {
+        let driverName = '';
+        if (v.default_driver_id && driverMap[v.default_driver_id]) {
+            driverName = driverMap[v.default_driver_id].name;
+        } else {
+            // 直近の配車からドライバーを取得
+            const vDispatches = weekDispatches.filter(d => d.vehicle_id === v.id && d.driver_name);
+            if (vDispatches.length > 0) {
+                driverName = vDispatches[vDispatches.length - 1].driver_name;
+            }
+        }
+        vehicleDriverNames[v.id] = driverName;
+    });
+
+    // テナント判定（ビュー切替ボタン表示用）
+    const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+    const isTransia = userInfo.tenant_id === 'transia';
+
+    // 週のラベル
+    const weekLabel = `${matrixDays[0].getMonth() + 1}/${matrixDays[0].getDate()} 〜 ${matrixDays[6].getMonth() + 1}/${matrixDays[6].getDate()}`;
+
+    // コントロール部分
+    let controlsHtml = `
+        <div class="cal-controls" style="gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+                <button class="btn btn-sm" onclick="matrixChangeWeek(-1)" title="前週">◀ 前週</button>
+                <button class="btn btn-sm" onclick="matrixGoToday()">今週</button>
+                <button class="btn btn-sm" onclick="matrixChangeWeek(1)" title="翌週">翌週 ▶</button>
+                <span style="font-size:1.1rem;font-weight:700;margin:0 4px;color:var(--text-dark,#1e293b);white-space:nowrap">${matrixDays[0].getFullYear()}年 ${weekLabel}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-left:auto">
+                <button class="btn btn-sm" onclick="toggleDispatchViewMode()" style="background:#ea580c;color:#fff;font-weight:600">ガントに切替</button>
+            </div>
+        </div>`;
+
+    // テーブルヘッダー
+    let tableHtml = `<div class="matrix-wrapper"><table class="matrix-table"><thead><tr>
+        <th class="matrix-date-header">日付</th>`;
+
+    filteredVehicles.forEach(v => {
+        const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
+        const driverName = vehicleDriverNames[v.id] || '';
+        tableHtml += `<th class="matrix-vehicle-header"><div>${shortNum}</div><div class="matrix-driver-name">${driverName}</div></th>`;
+    });
+    tableHtml += `</tr></thead><tbody>`;
+
+    // 各日付×各車両のセルを構築
+    matrixDays.forEach((day, dayIdx) => {
+        const dayStr = matrixDayStrs[dayIdx];
+        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+        const isTodayFlag = isToday(day);
+        const rowClass = isTodayFlag ? 'matrix-today-row' : (isWeekend ? 'matrix-weekend-row' : '');
+
+        tableHtml += `<tr class="${rowClass}">`;
+        tableHtml += `<td class="matrix-date-cell">${day.getMonth() + 1}/${day.getDate()}<br><span class="matrix-day-name">${dayNames[day.getDay()]}</span></td>`;
+
+        filteredVehicles.forEach(v => {
+            // この車両・この日の配車を時間順で取得
+            const cellDispatches = weekDispatches
+                .filter(d => d.vehicle_id === v.id && d.date === dayStr)
+                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+
+            if (cellDispatches.length === 0) {
+                // 空セル：クリックで新規配車
+                tableHtml += `<td class="matrix-cell matrix-empty-cell" onclick="openQuickDispatchModal('${dayStr}','08:00','17:00',${v.id})"></td>`;
+            } else {
+                tableHtml += `<td class="matrix-cell">`;
+                cellDispatches.forEach(d => {
+                    const dc = getDriverColor(d.driver_id);
+                    const borderColor = dc ? dc.border : '#94a3b8';
+                    const pickup = (d.pickup_address || '').split(/[　 ]/).slice(0, 2).join('') || d.pickup_address || '';
+                    const delivery = (d.delivery_address || '').split(/[　 ]/).slice(0, 2).join('') || d.delivery_address || '';
+                    const pickupShort = pickup.length > 8 ? pickup.substring(0, 8) : pickup;
+                    const deliveryShort = delivery.length > 8 ? delivery.substring(0, 8) : delivery;
+                    const timeStr = d.start_time ? d.start_time.substring(0, 5) : '';
+                    const clientName = d.client_name || '';
+                    const cargo = d.cargo_description || '';
+
+                    tableHtml += `<div class="matrix-dispatch-item" style="border-left-color:${borderColor}" onclick="showDispatchDetail(${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
+                    tableHtml += `<div class="matrix-dispatch-time">${timeStr}</div>`;
+                    tableHtml += `<div class="matrix-dispatch-route">${pickupShort}→${deliveryShort}</div>`;
+                    if (clientName) {
+                        tableHtml += `<div class="matrix-dispatch-client">${clientName}</div>`;
+                    }
+                    if (cargo) {
+                        tableHtml += `<div class="matrix-dispatch-cargo">${cargo}</div>`;
+                    }
+                    tableHtml += `</div>`;
+                });
+                tableHtml += `</td>`;
+            }
+        });
+        tableHtml += `</tr>`;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+
+    calContainer.innerHTML = controlsHtml + tableHtml;
 }
 
 // 未配車アイテムからD&D
