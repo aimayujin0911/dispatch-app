@@ -1376,40 +1376,42 @@ body {
     border: 1px solid #c2410c;
     white-space: nowrap;
 }
-/* Vehicle column headers */
+/* Vehicle column headers — 4 rows: number, driver, type, chassis */
 .matrix-vehicle-col-header {
     background: #ea580c;
     color: #fff;
-    padding: 6px 6px;
+    padding: 4px 4px;
     font-size: 0.68rem;
     font-weight: 600;
     text-align: center;
     border: 1px solid #c2410c;
     white-space: nowrap;
-    min-width: 120px;
-    width: 120px;
+    min-width: 110px;
+    width: 110px;
     vertical-align: middle;
 }
 .matrix-vehicle-col-header .mvh-number {
     font-weight: 700;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     color: #fff;
+    line-height: 1.3;
+}
+.matrix-vehicle-col-header .mvh-driver-name {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
 }
 .matrix-vehicle-col-header .mvh-info {
-    font-size: 0.58rem;
-    color: rgba(255,255,255,0.8);
-    margin-top: 1px;
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.3;
 }
-.matrix-vehicle-col-header .mvh-driver {
-    display: inline-block;
-    font-size: 0.58rem;
-    font-weight: 600;
-    margin-top: 3px;
-    padding: 1px 5px;
-    border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.5);
-    color: #fff;
-    background: rgba(255,255,255,0.15);
+.matrix-vehicle-col-header .mvh-chassis {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.3;
+    font-family: monospace;
 }
 /* Corner header (日付) */
 .matrix-corner-header {
@@ -1418,9 +1420,9 @@ body {
     z-index: 12;
     background: #1e293b !important;
     color: #fff;
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
     border-color: #0f172a !important;
     font-size: 0.72rem;
 }
@@ -1432,17 +1434,30 @@ body {
 }
 .matrix-date-label {
     background: #fff;
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
     border-right: 2px solid #cbd5e1;
-    padding: 6px 8px;
+    padding: 4px 6px;
     font-weight: 700;
     font-size: 0.76rem;
     color: #1e293b;
     text-align: center;
     vertical-align: middle;
     border-bottom: 1px solid #e2e8f0;
+    height: 132px;
+}
+.matrix-date-num {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.matrix-date-dow {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
 }
 .matrix-today-label {
     background: #fef3c7 !important;
@@ -1452,8 +1467,14 @@ body {
     background: #fff7ed !important;
     color: #9a3412;
 }
+.matrix-saturday-label .matrix-date-dow {
+    color: #9a3412;
+}
 .matrix-sunday-label {
     background: #ffedd5 !important;
+    color: #c2410c;
+}
+.matrix-sunday-label .matrix-date-dow {
     color: #c2410c;
 }
 .matrix-table td {
@@ -1464,9 +1485,10 @@ body {
 }
 /* Transposed cell (date-row × vehicle-col) */
 .matrix-cell-t {
-    min-height: 54px;
-    min-width: 120px;
-    width: 120px;
+    min-height: 132px;
+    height: 132px;
+    min-width: 110px;
+    width: 110px;
     vertical-align: top;
     padding: 0 !important;
 }
@@ -1480,23 +1502,32 @@ body {
 .matrix-sunday-cell {
     background: #ffedd5;
 }
-/* Slots container */
+/* Slots container — 6 equal divisions per date row */
 .matrix-slots, .matrix-slots-empty {
     display: flex;
     flex-direction: column;
-    min-height: 54px;
+    height: 132px;
 }
 .matrix-slots-empty {
-    min-height: 54px;
+    height: 132px;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 21px,
+        #e5e7eb 21px,
+        #e5e7eb 22px
+    );
 }
 .matrix-slot {
     flex: 1;
-    min-height: 8px;
+    min-height: 22px;
+    height: 22px;
     padding: 0 2px;
     cursor: pointer;
+    overflow: hidden;
 }
 .matrix-slot-border {
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid #e5e7eb;
 }
 .matrix-empty-cell {
     cursor: pointer;
@@ -1511,15 +1542,14 @@ body {
     outline-offset: -2px;
 }
 .matrix-dispatch-item {
-    padding: 2px 3px;
-    margin-bottom: 1px;
-    border-radius: 3px;
-    border-left: 3px solid #94a3b8;
+    padding: 1px 2px;
+    border-radius: 2px;
+    border-left: 2px solid #94a3b8;
     background: #f8fafc;
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     cursor: pointer;
     transition: background 0.15s, opacity 0.15s;
-    line-height: 1.25;
+    line-height: 1.2;
     overflow: hidden;
 }
 .matrix-dispatch-item:hover {
@@ -1531,17 +1561,24 @@ body {
 .matrix-dispatch-item[draggable="true"]:active {
     cursor: grabbing;
 }
-.matrix-dispatch-time {
-    font-weight: 700;
-    color: #1e40af;
-    font-size: 0.6rem;
+.matrix-dispatch-route {
+    color: #334155;
+    font-size: 0.55rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+.matrix-dispatch-area {
+    color: #64748b;
+    font-size: 0.5rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.matrix-dispatch-route {
-    color: #334155;
-    font-size: 0.55rem;
+.matrix-dispatch-extra {
+    color: #94a3b8;
+    font-size: 0.5rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

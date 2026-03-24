@@ -1161,19 +1161,23 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
     // Each cell contains 6 time-period slots as thin horizontal dividers
     let tableHtml = `<div class="matrix-wrapper"><table class="matrix-table"><thead>`;
 
-    // ヘッダー行: 日付コーナー + 各車両
+    // ヘッダー行: 日付コーナー + 各車両 (4行: 番号, ドライバー名, 車種, 車台番号)
     tableHtml += `<tr class="matrix-header-row1"><th class="matrix-corner-header matrix-date-header-sticky">日付</th>`;
     filteredVehicles.forEach(v => {
         const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
-        const vType = v.vehicle_type || '';
+        const vType = v.vehicle_type || v.type || '';
         const cap = v.capacity ? v.capacity + 't' : '';
+        const typeLabel = vType + (cap ? cap : '');
         const driverName = vehicleDriverNames[v.id] || '';
-        const dc = getDriverColor(vehicleDriverIds[v.id]);
+        const chassisNum = v.chassis_number || '';
+        // 車台番号の末尾4桁を表示
+        const chassisShort = chassisNum.length > 4 ? chassisNum.slice(-4) : chassisNum;
 
         tableHtml += `<th class="matrix-vehicle-col-header" onclick="showVehicleTooltip(event, ${v.id})" style="cursor:pointer">`;
         tableHtml += `<div class="mvh-number">${shortNum}</div>`;
-        if (vType || cap) tableHtml += `<div class="mvh-info">${vType} ${cap}</div>`;
-        if (driverName) tableHtml += `<div class="mvh-driver" style="color:${dc.text};background:${dc.bg};border-color:${dc.border}">${driverName}</div>`;
+        tableHtml += `<div class="mvh-driver-name">${driverName || '&nbsp;'}</div>`;
+        if (typeLabel) tableHtml += `<div class="mvh-info">${typeLabel}</div>`;
+        if (chassisShort) tableHtml += `<div class="mvh-chassis">${chassisShort}</div>`;
         tableHtml += `</th>`;
     });
     tableHtml += `</tr></thead><tbody>`;
@@ -1193,12 +1197,12 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
 
         tableHtml += `<tr class="${rowCls}">`;
 
-        // 日付ラベル（sticky left）
+        // 日付ラベル（sticky left）— "1 月" format
         let dateCls = 'matrix-date-header-sticky matrix-date-label';
         if (isTodayFlag) dateCls += ' matrix-today-label';
         else if (isSun) dateCls += ' matrix-sunday-label';
         else if (isSat) dateCls += ' matrix-saturday-label';
-        const dayLabel = `${day.getMonth() + 1}/${day.getDate()}(${dayNames[dow]})`;
+        const dayLabel = `<span class="matrix-date-num">${day.getDate()}</span><span class="matrix-date-dow">${dayNames[dow]}</span>`;
         tableHtml += `<td class="${dateCls}">${dayLabel}</td>`;
 
         // 各車両のセル
@@ -1238,15 +1242,22 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                         const ddc = getDriverColor(d.driver_id);
                         const borderColor = ddc ? ddc.border : '#94a3b8';
                         const bgColor = ddc ? ddc.bg : '#f8fafc';
-                        const pickup = (d.pickup_address || '').split(/[　 ]/).slice(0, 2).join('') || d.pickup_address || '';
-                        const delivery = (d.delivery_address || '').split(/[　 ]/).slice(0, 2).join('') || d.delivery_address || '';
-                        const pickupShort = pickup.length > 6 ? pickup.substring(0, 6) : pickup;
-                        const deliveryShort = delivery.length > 6 ? delivery.substring(0, 6) : delivery;
-                        const timeStr = d.start_time ? d.start_time.substring(0, 5) : '';
+                        // Line 1: route (pickup～delivery)
+                        const pickup = (d.pickup_address || '').split(/[　 ]/)[0] || '';
+                        const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
+                        const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
+                        const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
+                        const routeLabel = pickupShort && deliveryShort ? `${pickupShort}～${deliveryShort}` : (pickupShort || deliveryShort || '');
+                        // Line 2: area/cargo (方面 or cargo description)
+                        const shipment = shipments.find(s => s.id === d.shipment_id);
+                        const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
+                        // Line 3: additional info (client name or vehicle count)
+                        const extraLabel = d.client_name || shipment?.client_name || '';
 
                         tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
-                        tableHtml += `<div class="matrix-dispatch-time">${timeStr}</div>`;
-                        tableHtml += `<div class="matrix-dispatch-route">${pickupShort}→${deliveryShort}</div>`;
+                        tableHtml += `<div class="matrix-dispatch-route">${routeLabel}</div>`;
+                        if (areaLabel) tableHtml += `<div class="matrix-dispatch-area">${areaLabel}</div>`;
+                        if (extraLabel) tableHtml += `<div class="matrix-dispatch-extra">${extraLabel}</div>`;
                         tableHtml += `</div>`;
                     });
                     tableHtml += `</div>`;
