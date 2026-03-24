@@ -637,10 +637,7 @@ async function loadDispatchCalendar() {
                 vgHtml += `<div class="vg-cell" data-vehicle-id="${v.id}" data-hour="${h}"></div>`;
             });
         }
-        vgHtml += `</div>`;
-
-        // バーを配置（position:absolute でセルの上に重ねる）
-        // グリッド全体をrelativeにして、バーをabsoluteで配置
+        // バーを配置（position:absolute でグリッド内に重ねる）
         // 各車両の配車をまとめる
         const vehicleDispatches = {};
         filteredVehicles.forEach((v, vi) => { vehicleDispatches[v.id] = { index: vi, dispatches: [] }; });
@@ -674,7 +671,7 @@ async function loadDispatchCalendar() {
             });
         });
 
-        vgHtml += barsHtml + `</div>`;
+        vgHtml += barsHtml + `</div></div>`;
 
         calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
 
@@ -1118,7 +1115,8 @@ function mTouchStart(e, dispatchId) {
             bar.style.zIndex = '50';
             bar.style.transform = 'scale(1.05)';
             bar.style.transition = 'transform 0.15s, box-shadow 0.15s';
-            // スクロール無効化
+            // スクロール・テキスト選択無効化
+            document.body.classList.add('no-select');
             const wrapper = document.querySelector('.vertical-gantt-wrapper');
             if (wrapper) wrapper.style.overflow = 'hidden';
         }
@@ -1150,14 +1148,35 @@ function mTouchMove(e) {
     const dy = touch.clientY - _mDrag.startY;
     _mDrag.bar.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
 
-    // ドロップ先のハイライト
+    // ドロップ先のシャドウプレビュー
     const wrapper = _mDrag.wrapper;
     if (wrapper) {
         wrapper.querySelectorAll('.vg-cell').forEach(c => c.style.background = '');
+        // 既存のゴーストシャドウを削除
+        const oldGhost = wrapper.querySelector('.vg-drop-ghost');
+        if (oldGhost) oldGhost.remove();
+
+        // バーを一時非表示にしてelementFromPointでセルを取得
+        _mDrag.bar.style.pointerEvents = 'none';
         const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        _mDrag.bar.style.pointerEvents = '';
         if (target) {
             const cell = target.closest('.vg-cell');
-            if (cell) cell.style.background = 'rgba(234,88,12,0.15)';
+            if (cell) {
+                const vid = cell.dataset.vehicleId;
+                const hour = parseInt(cell.dataset.hour);
+                // その車両列の全セルをハイライト（案件の時間分）
+                const barH = parseFloat(_mDrag.bar.style.height) || 40;
+                const grid = wrapper.querySelector('.vertical-gantt');
+                if (grid) {
+                    const ghost = document.createElement('div');
+                    ghost.className = 'vg-drop-ghost';
+                    const cellRect = cell.getBoundingClientRect();
+                    const gridRect = grid.getBoundingClientRect();
+                    ghost.style.cssText = `position:absolute;left:${cellRect.left - gridRect.left}px;top:${cellRect.top - gridRect.top + wrapper.scrollTop}px;width:${cellRect.width}px;height:${barH}px;background:rgba(234,88,12,0.2);border:2px dashed #ea580c;border-radius:4px;pointer-events:none;z-index:5;`;
+                    grid.appendChild(ghost);
+                }
+            }
         }
     }
 }
@@ -1189,13 +1208,16 @@ function mTouchEndDrag(e) {
     _mDrag.bar.style.transform = '';
     _mDrag.bar.style.transition = '';
 
-    // スクロール復元
+    // スクロール・テキスト選択復元
+    document.body.classList.remove('no-select');
     const wrapperEl = document.querySelector('.vertical-gantt-wrapper');
     if (wrapperEl) wrapperEl.style.overflow = '';
 
-    // セルハイライト解除
+    // セルハイライト解除 + ゴースト削除
     if (_mDrag.wrapper) {
         _mDrag.wrapper.querySelectorAll('.vg-cell').forEach(c => c.style.background = '');
+        const ghost = _mDrag.wrapper.querySelector('.vg-drop-ghost');
+        if (ghost) ghost.remove();
     }
 
     // ドロップ先を判定

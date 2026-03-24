@@ -1133,6 +1133,11 @@ body {
     .m-cal-controls { flex: 0 0 auto; }
 
     /* 縦ガントグリッド */
+    body.no-select, body.no-select * {
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+    }
     .vertical-gantt-wrapper {
         overflow-x: auto; overflow-y: auto;
         flex: 1 1 0;
