@@ -623,6 +623,7 @@ async function loadDispatchCalendar() {
                     <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
                     <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
                     <label class="m-cal-btn" style="position:relative;cursor:pointer">📅<input type="date" class="m-cal-date-input" value="${activeDayStr}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()"></label>
+                    <button class="m-cal-btn" onclick="document.getElementById('m-time-panel').classList.toggle('open')">🕐</button>
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
@@ -639,16 +640,16 @@ async function loadDispatchCalendar() {
                         ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                     </select>
                     ${filterType || filterCap ? `<button class="m-cal-btn" onclick="document.getElementById('cal-filter-type').value='';document.getElementById('cal-filter-cap').value='';loadDispatchCalendar()" style="font-size:0.6rem">✕ クリア</button>` : ''}
-                    <div style="width:100%;display:flex;align-items:center;gap:3px;margin-top:2px">
-                        <span style="font-size:0.6rem;color:#6b7280;flex-shrink:0">時間:</span>
-                        <select id="cal-hour-start" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
-                            ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
-                        </select>
-                        <span style="font-size:0.6rem">〜</span>
-                        <select id="cal-hour-end" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
-                            ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
-                        </select>
-                    </div>
+                </div>
+                <div id="m-time-panel" class="m-filter-panel">
+                    <span style="font-size:0.6rem;color:#6b7280;flex-shrink:0">表示時間:</span>
+                    <select id="cal-hour-start" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
+                        ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+                    </select>
+                    <span style="font-size:0.6rem">〜</span>
+                    <select id="cal-hour-end" class="m-cal-select" onchange="changeHourRange()" style="max-width:65px">
+                        ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
+                    </select>
                 </div>
             </div>`;
 
@@ -1397,6 +1398,11 @@ function showMobileActionSheet(dispatchId) {
     `;
     sheet.style.display = 'flex';
 }
+function toggleMobileMore() {
+    const menu = document.getElementById('mobileMoreMenu');
+    if (menu) menu.style.display = menu.style.display === 'none' ? '' : 'none';
+}
+
 function closeMobileActionSheet() {
     const sheet = document.getElementById('mobile-action-sheet');
     if (sheet) sheet.style.display = 'none';

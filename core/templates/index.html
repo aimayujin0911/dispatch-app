@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=68">
+    <link rel="stylesheet" href="/static/css/style.css?v=69">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -339,7 +339,24 @@
         <button data-page="dispatches" onclick="navigateTo('dispatches')"><span class="nav-emoji">📋</span><span>配車表</span></button>
         <button data-page="shipments" onclick="navigateTo('shipments')"><span class="nav-emoji">📦</span><span>案件</span></button>
         <button data-page="map" onclick="navigateTo('map')"><span class="nav-emoji">🗺️</span><span>地図</span></button>
+        <button onclick="toggleMobileMore()"><span class="nav-emoji">≡</span><span>その他</span></button>
     </nav>
+    <!-- その他メニュー -->
+    <div id="mobileMoreMenu" class="mobile-more-menu" style="display:none">
+        <div class="mobile-more-backdrop" onclick="toggleMobileMore()"></div>
+        <div class="mobile-more-panel">
+            <div class="mobile-more-header">メニュー<button onclick="toggleMobileMore()" style="float:right;border:none;background:none;font-size:1.2rem;cursor:pointer">✕</button></div>
+            <button onclick="navigateTo('drivers');toggleMobileMore()">🚛 ドライバー</button>
+            <button onclick="navigateTo('vehicles');toggleMobileMore()">🚗 車両管理</button>
+            <button onclick="navigateTo('clients');toggleMobileMore()">🏢 荷主管理</button>
+            <button onclick="navigateTo('billing');toggleMobileMore()">💰 請求</button>
+            <button onclick="navigateTo('accounting');toggleMobileMore()">📒 会計</button>
+            <button onclick="navigateTo('analytics');toggleMobileMore()">📊 分析</button>
+            <button onclick="navigateTo('settings');toggleMobileMore()">⚙️ 設定</button>
+            <button onclick="window.open('/feature-request','_blank');toggleMobileMore()" style="color:#f59e0b">💬 開発への依頼</button>
+            <button onclick="logout()" style="color:#dc2626">🚪 ログアウト</button>
+        </div>
+    </div>
 
     <!-- モバイルアクションシート -->
     <div id="mobile-action-sheet" class="mobile-action-sheet" style="display:none">
@@ -522,7 +539,7 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=68"></script>
+    <script src="/static/js/app.js?v=69"></script>
     <script src="/static/js/tenant-switcher.js?v=3"></script>
 </body>
 </html>
