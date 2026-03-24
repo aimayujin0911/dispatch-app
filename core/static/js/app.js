@@ -623,7 +623,6 @@ async function loadDispatchCalendar() {
                     <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
                     <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
                     <input type="date" class="m-cal-date" value="${activeDayStr}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()"">
-                    <button class="m-cal-btn m-cal-action" onclick="autoDispatch('${activeDayStr}')">⚡</button>
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
@@ -772,7 +771,6 @@ async function loadDispatchCalendar() {
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
                 <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
-                <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" title="未配車案件を自動で配車" style="background:#ea580c;color:#fff;font-weight:600">⚡ 自動配車</button>
                 <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" title="この日の配車をリセット（協力会社除く）" style="background:${dayDispatches.filter(d => !d.partner_id).length > 0 ? '#dc2626' : '#9ca3af'};color:#fff;font-weight:600" ${dayDispatches.filter(d => !d.partner_id).length === 0 ? 'disabled' : ''}>🔄 リセット</button>
                 ${(_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr) ? `<button class="btn btn-sm" onclick="${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch'}()" title="直前の操作を取り消し" style="background:#64748b;color:#fff">↩ 元に戻す (${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? _lastResetData.length : _lastAutoDispatchIds.length}件)</button>` : ''}
                 <select id="cal-hour-start" class="select" onchange="changeHourRange()" title="開始時刻" style="width:70px">
@@ -854,7 +852,10 @@ async function loadDispatchCalendar() {
     });
     const panel = document.getElementById('unassigned-panel');
     if (unassigned.length > 0) {
-        panel.innerHTML = `<h3 style="margin-bottom:12px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件) <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3>
+        panel.innerHTML = `<h3 style="margin-bottom:12px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} (${unassigned.length}件)
+            <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button>
+            <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-weight:600;font-size:0.75rem;padding:2px 10px">⚡ 自動配車</button>
+        </h3>
             <div class="unassigned-list">
                 ${unassigned.map(s => {
                     const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
@@ -880,7 +881,9 @@ async function loadDispatchCalendar() {
                 }).join('')}
             </div>`;
     } else {
-        panel.innerHTML = `<h3 style="margin-bottom:8px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
+        panel.innerHTML = `<h3 style="margin-bottom:8px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr}
+            <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button>
+        </h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません ✅</p>`;
     }
 
     // モバイル: FAB + スライドパネルで未配車表示（0件でも表示）
@@ -900,8 +903,9 @@ async function loadDispatchCalendar() {
         const sp = document.createElement('div');
         sp.className = 'unassigned-slide-panel';
         sp.innerHTML = `<span class="panel-handle"></span>
-            <h3 style="font-size:0.9rem;margin-bottom:8px">📦 未配車 ${unassigned.length}件
-                <button class="btn btn-sm btn-primary" onclick="closeMobileUnassigned();openQuickShipmentModal('${activeDayStr}')" style="font-size:0.65rem;padding:2px 8px;margin-left:8px">＋ 追加</button>
+            <h3 style="font-size:0.9rem;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">📦 未配車 ${unassigned.length}件
+                <button class="btn btn-sm btn-primary" onclick="closeMobileUnassigned();openQuickShipmentModal('${activeDayStr}')" style="font-size:0.65rem;padding:2px 8px">＋ 追加</button>
+                ${unassigned.length > 0 ? `<button class="btn btn-sm" onclick="closeMobileUnassigned();autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-size:0.65rem;padding:2px 8px">⚡ 自動配車</button>` : ''}
             </h3>
             ${unassigned.length > 0 ? unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeMobileUnassigned();openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
                 <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
@@ -2418,9 +2422,15 @@ async function autoDispatch(dayStr) {
         return aTime.localeCompare(bTime);
     });
 
+    const noTimeShipments = [];
     for (const s of unassigned) {
-        const startTime = s.pickup_time || '08:00';
-        const endTime = s.delivery_time || (minutesToTime(Math.min(timeToMinutes(startTime) + 240, HOUR_END * 60)));
+        // 時間指定なしの案件はスキップ
+        if (!s.pickup_time || !s.delivery_time) {
+            noTimeShipments.push(s);
+            continue;
+        }
+        const startTime = s.pickup_time;
+        const endTime = s.delivery_time;
         const weight = s.weight || 0;
         let assigned = false;
 
@@ -2547,7 +2557,10 @@ async function autoDispatch(dayStr) {
         if (!assigned) failed.push(s);
     }
 
-    if (assignments.length === 0) return alert('自動配車できる案件がありませんでした。\n（車両・ドライバーの空きや勤務時間が合わない可能性があります）');
+    // 時間指定なし案件をfailedに追加
+    noTimeShipments.forEach(s => failed.push(s));
+
+    if (assignments.length === 0) return alert(`自動配車できる案件がありませんでした。\n${noTimeShipments.length > 0 ? `（時間指定なし: ${noTimeShipments.length}件は自動配車対象外）\n` : ''}（車両・ドライバーの空きや勤務時間が合わない可能性があります）`);
 
     // プレビュー表示
     let previewHtml = `<div style="max-height:400px;overflow-y:auto">`;
