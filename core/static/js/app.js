@@ -1224,47 +1224,41 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             else if (isSun) cellCls += ' matrix-sunday-cell';
             else if (isSat) cellCls += ' matrix-saturday-cell';
 
-            const hasAny = dayDispatches.length > 0;
+            // All cells now render 6 individual clickable slots
+            tableHtml += `<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
+            tableHtml += `<div class="matrix-slots">`;
+            slots.forEach((slotArr, pIdx) => {
+                const period = MATRIX_PERIODS[pIdx];
+                const slotCls = pIdx > 0 ? ' matrix-slot-border' : '';
+                const isEmpty = slotArr.length === 0;
+                const emptyCls = isEmpty ? ' matrix-slot-empty' : '';
+                tableHtml += `<div class="matrix-slot${slotCls}${emptyCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${v.id},'${dayStr}',${pIdx})">`;
+                slotArr.forEach(d => {
+                    const ddc = getDriverColor(d.driver_id);
+                    const borderColor = ddc ? ddc.border : '#94a3b8';
+                    const bgColor = ddc ? ddc.bg : '#f8fafc';
+                    // Line 1: route (pickup～delivery)
+                    const pickup = (d.pickup_address || '').split(/[　 ]/)[0] || '';
+                    const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
+                    const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
+                    const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
+                    const routeLabel = pickupShort && deliveryShort ? `${pickupShort}～${deliveryShort}` : (pickupShort || deliveryShort || '');
+                    // Line 2: area/cargo (方面 or cargo description)
+                    const shipment = shipments.find(s => s.id === d.shipment_id);
+                    const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
+                    // Line 3: additional info (client name or vehicle count)
+                    const extraLabel = d.client_name || shipment?.client_name || '';
 
-            if (!hasAny) {
-                // 空セル — click to create
-                tableHtml += `<td class="${cellCls} matrix-empty-cell" onclick="openQuickDispatchModal('${dayStr}','08:00','17:00',${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
-                tableHtml += `<div class="matrix-slots-empty"></div>`;
-                tableHtml += `</td>`;
-            } else {
-                tableHtml += `<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
-                tableHtml += `<div class="matrix-slots">`;
-                slots.forEach((slotArr, pIdx) => {
-                    const period = MATRIX_PERIODS[pIdx];
-                    const slotCls = pIdx > 0 ? ' matrix-slot-border' : '';
-                    tableHtml += `<div class="matrix-slot${slotCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openQuickDispatchModal('${dayStr}','${String(period.startH).padStart(2,'0')}:00','${String(period.endH === 24 ? 23 : period.endH).padStart(2,'0')}:${period.endH === 24 ? '59' : '00'}',${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${v.id},'${dayStr}',${pIdx})">`;
-                    slotArr.forEach(d => {
-                        const ddc = getDriverColor(d.driver_id);
-                        const borderColor = ddc ? ddc.border : '#94a3b8';
-                        const bgColor = ddc ? ddc.bg : '#f8fafc';
-                        // Line 1: route (pickup～delivery)
-                        const pickup = (d.pickup_address || '').split(/[　 ]/)[0] || '';
-                        const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
-                        const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
-                        const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
-                        const routeLabel = pickupShort && deliveryShort ? `${pickupShort}～${deliveryShort}` : (pickupShort || deliveryShort || '');
-                        // Line 2: area/cargo (方面 or cargo description)
-                        const shipment = shipments.find(s => s.id === d.shipment_id);
-                        const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
-                        // Line 3: additional info (client name or vehicle count)
-                        const extraLabel = d.client_name || shipment?.client_name || '';
-
-                        tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();showDispatchDetail(${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
-                        tableHtml += `<div class="matrix-dispatch-route">${routeLabel}</div>`;
-                        if (areaLabel) tableHtml += `<div class="matrix-dispatch-area">${areaLabel}</div>`;
-                        if (extraLabel) tableHtml += `<div class="matrix-dispatch-extra">${extraLabel}</div>`;
-                        tableHtml += `</div>`;
-                    });
+                    tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${pIdx},${v.id},${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
+                    tableHtml += `<div class="matrix-dispatch-route">${routeLabel}</div>`;
+                    if (areaLabel) tableHtml += `<div class="matrix-dispatch-area">${areaLabel}</div>`;
+                    if (extraLabel) tableHtml += `<div class="matrix-dispatch-extra">${extraLabel}</div>`;
                     tableHtml += `</div>`;
                 });
                 tableHtml += `</div>`;
-                tableHtml += `</td>`;
-            }
+            });
+            tableHtml += `</div>`;
+            tableHtml += `</td>`;
         });
         tableHtml += `</tr>`;
     });
@@ -3619,6 +3613,145 @@ async function saveQuickDispatch() {
 }
 
 // ===== 配車詳細・編集 =====
+// ===== マトリクスセルスロット配車モーダル =====
+async function openMatrixSlotModal(dateStr, slotIdx, vehicleId, dispatchId) {
+    if (justDragged) { justDragged = false; return; }
+    const period = MATRIX_PERIODS[slotIdx];
+    const slotLabel = `${period.label} (${String(period.startH).padStart(2,'0')}:00-${period.endH === 24 ? '24:00' : String(period.endH).padStart(2,'0')+':00'})`;
+
+    const [vehicles, clients] = await Promise.all([
+        cachedApiGet('/vehicles'),
+        cachedApiGet('/clients')
+    ]);
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    const vehicleLabel = vehicle ? vehicle.number : `車両ID:${vehicleId}`;
+    const defaultDriverId = vehicle ? vehicle.default_driver_id : null;
+
+    // If editing existing dispatch, fetch its data
+    let existing = null;
+    if (dispatchId) {
+        const allDisp = await apiGet('/dispatches');
+        existing = allDisp.find(d => d.id === dispatchId);
+    }
+
+    const isEdit = !!existing;
+    const modalTitle = isEdit ? '配車編集' : '配車作成';
+    const clientOptions = clients.map(c => `<option value="${c.name}" ${existing && existing.client_name === c.name ? 'selected' : ''}>${c.name}</option>`).join('');
+
+    document.getElementById('modal-title').textContent = modalTitle;
+    document.getElementById('modal-body').innerHTML = `
+        <div style="margin-bottom:12px;padding:8px 12px;background:#fff7ed;border-radius:6px;font-size:0.85rem;color:#9a3412">
+            <strong>${vehicleLabel}</strong> / ${dateStr} / <strong>${slotLabel}</strong>
+        </div>
+        <div class="form-group">
+            <label>荷主名</label>
+            <select id="f-ms-client" style="width:100%">
+                <option value="">-- 選択 --</option>
+                ${clientOptions}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>積地</label>
+            <input type="text" id="f-ms-pickup" placeholder="東京都大田区..." value="${existing ? (existing.pickup_address || '') : ''}">
+        </div>
+        <div class="form-group">
+            <label>卸地</label>
+            <input type="text" id="f-ms-delivery" placeholder="神奈川県横浜市..." value="${existing ? (existing.delivery_address || '') : ''}">
+        </div>
+        <div class="form-group">
+            <label>備考</label>
+            <textarea id="f-ms-notes" rows="2">${existing ? (existing.notes || '') : ''}</textarea>
+        </div>
+        <div class="form-group">
+            <label>重量 (kg) ※任意</label>
+            <input type="number" id="f-ms-weight" placeholder="例: 1500" value="${existing && existing.weight ? existing.weight : ''}">
+        </div>
+        <input type="hidden" id="f-ms-date" value="${dateStr}">
+        <input type="hidden" id="f-ms-slot" value="${slotIdx}">
+        <input type="hidden" id="f-ms-vehicle-id" value="${vehicleId}">
+        <input type="hidden" id="f-ms-driver-id" value="${defaultDriverId || ''}">
+        <input type="hidden" id="f-ms-dispatch-id" value="${dispatchId || ''}">
+        <div class="form-actions">
+            <button class="btn" onclick="closeModal()">キャンセル</button>
+            ${isEdit ? `<button class="btn btn-danger" onclick="deleteDispatchFromSlotModal(${dispatchId})" style="margin-right:auto">削除</button>` : ''}
+            <button class="btn btn-primary" onclick="saveMatrixSlotDispatch()">保存</button>
+        </div>`;
+    showModal();
+}
+
+async function saveMatrixSlotDispatch() {
+    const dateStr = document.getElementById('f-ms-date').value;
+    const slotIdx = parseInt(document.getElementById('f-ms-slot').value);
+    const vehicleId = parseInt(document.getElementById('f-ms-vehicle-id').value);
+    const driverId = parseInt(document.getElementById('f-ms-driver-id').value) || null;
+    const dispatchId = parseInt(document.getElementById('f-ms-dispatch-id').value) || null;
+    const clientName = document.getElementById('f-ms-client').value;
+    const pickup = document.getElementById('f-ms-pickup').value;
+    const delivery = document.getElementById('f-ms-delivery').value;
+    const notes = document.getElementById('f-ms-notes').value;
+    const weight = parseFloat(document.getElementById('f-ms-weight').value) || 0;
+
+    if (!pickup && !delivery) return alert('積地または卸地を入力してください');
+
+    const period = MATRIX_PERIODS[slotIdx];
+    const startTime = String(period.startH).padStart(2, '0') + ':00';
+    const endTime = period.endH === 24 ? '23:59' : String(period.endH).padStart(2, '0') + ':00';
+
+    if (dispatchId) {
+        // Edit existing dispatch
+        const updateData = {
+            pickup_address: pickup,
+            delivery_address: delivery,
+            notes: notes,
+            client_name: clientName,
+            weight: weight,
+            start_time: startTime,
+            end_time: endTime
+        };
+        await apiPut(`/dispatches/${dispatchId}`, updateData);
+    } else {
+        // Create shipment first, then dispatch
+        const shipmentData = {
+            client_name: clientName,
+            pickup_address: pickup,
+            delivery_address: delivery,
+            pickup_date: dateStr,
+            delivery_date: dateStr,
+            cargo_description: notes ? notes.substring(0, 50) : '',
+            weight: weight,
+            price: 0,
+            status: '配車済'
+        };
+        const shipment = await apiPost('/shipments', shipmentData);
+        const shipmentId = shipment.id;
+
+        // Create dispatch
+        const dispatchData = {
+            vehicle_id: vehicleId,
+            driver_id: driverId,
+            shipment_id: shipmentId,
+            date: dateStr,
+            start_time: startTime,
+            end_time: endTime,
+            pickup_address: pickup,
+            delivery_address: delivery,
+            notes: notes,
+            client_name: clientName
+        };
+        await apiPost('/dispatches', dispatchData);
+    }
+
+    closeModal();
+    loadDispatchCalendar();
+}
+
+async function deleteDispatchFromSlotModal(dispatchId) {
+    if (!confirm('この配車を削除しますか？')) return;
+    await apiDelete(`/dispatches/${dispatchId}`);
+    closeModal();
+    loadDispatchCalendar();
+}
+
 function showMobileVehicleDetail(vehicleId) {
     // 既存の吹き出しを閉じる
     document.querySelectorAll('.vg-vehicle-tooltip').forEach(el => el.remove());

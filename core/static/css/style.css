@@ -1509,14 +1509,9 @@ body {
     height: 132px;
 }
 .matrix-slots-empty {
+    display: flex;
+    flex-direction: column;
     height: 132px;
-    background: repeating-linear-gradient(
-        to bottom,
-        transparent 0px,
-        transparent 21px,
-        #e5e7eb 21px,
-        #e5e7eb 22px
-    );
 }
 .matrix-slot {
     flex: 1;
@@ -1525,9 +1520,30 @@ body {
     padding: 0 2px;
     cursor: pointer;
     overflow: hidden;
+    position: relative;
+    transition: background 0.12s;
 }
 .matrix-slot-border {
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px dashed #cbd5e1;
+}
+.matrix-slot:hover {
+    background: rgba(234, 88, 12, 0.06);
+}
+/* "+" indicator on empty slots */
+.matrix-slot-empty:hover::after {
+    content: '+';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #ea580c;
+    opacity: 0.6;
+    pointer-events: none;
+}
+.matrix-slot-empty {
+    position: relative;
 }
 .matrix-empty-cell {
     cursor: pointer;
