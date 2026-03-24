@@ -10,6 +10,12 @@ let justDragged = false;
 let shipmentDragState = null;
 let _bgSyncTimer = null; // D&D後のバックグラウンド同期タイマー
 
+// ===== モバイル対応 =====
+function isMobile() { return window.innerWidth <= 768; }
+let _touchTimer = null;
+let _touchStartPos = null;
+let _touchStartTime = 0;
+
 // ===== ジオコーディング＆距離計算 =====
 const _geocodeCache = {}; // 住所 → {lat, lng}
 
@@ -215,6 +221,10 @@ function navigateTo(page) {
     if (window.innerWidth <= 768) {
         document.getElementById('sidebar').classList.remove('open');
     }
+    // ボトムナビのアクティブ更新
+    document.querySelectorAll('.mobile-bottom-nav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.page === page);
+    });
 }
 
 // ===== サイドバー開閉 =====
@@ -579,6 +589,102 @@ async function loadDispatchCalendar() {
     const activeDateLabel = `${activeDayDate.getFullYear()}年${activeDayDate.getMonth() + 1}月${activeDayDate.getDate()}日(${dayNames[activeDayDate.getDay()]})`;
 
     const calContainer = document.getElementById('dispatch-calendar');
+
+    // ===== モバイル: 縦ガントモード =====
+    if (isMobile()) {
+        const mobileControlsHtml = `
+            <div class="cal-controls">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <button class="btn btn-sm" onclick="changeDays(-1)">◀</button>
+                    <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
+                    <button class="btn btn-sm" onclick="changeDays(1)">▶</button>
+                    <span style="font-size:0.9rem;font-weight:700">${activeDateLabel}</span>
+                </div>
+                <div class="cal-day-tabs" style="display:flex;gap:2px">
+                    ${days.map((d, i) => `<button class="cal-day-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth() + 1)}/${d.getDate()}(${dayNames[d.getDay()]})</button>`).join('')}
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <button class="btn btn-sm" onclick="autoDispatch('${activeDayStr}')" style="background:#ea580c;color:#fff;font-weight:600;font-size:0.7rem">⚡自動配車</button>
+                    <button class="btn btn-sm" onclick="resetDispatches('${activeDayStr}')" style="background:${dayDispatches.filter(d => !d.partner_id).length > 0 ? '#dc2626' : '#9ca3af'};color:#fff;font-size:0.7rem" ${dayDispatches.filter(d => !d.partner_id).length === 0 ? 'disabled' : ''}>🔄リセット</button>
+                    ${(_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr) ? `<button class="btn btn-sm" onclick="${_lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch'}()" style="background:#64748b;color:#fff;font-size:0.7rem">↩戻す</button>` : ''}
+                </div>
+            </div>`;
+
+        // 縦ガントHTML生成
+        const totalMin = HOUR_COUNT * 60;
+        const rowH = 40; // 1時間あたりの高さ(px)
+        const colW = 120; // 車両列の幅(px)
+        let vgHtml = `<div class="vertical-gantt-wrapper">
+            <div class="vertical-gantt" style="grid-template-columns:50px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:40px repeat(${HOUR_COUNT}, ${rowH}px)">`;
+
+        // コーナーセル
+        vgHtml += `<div class="vg-corner">時刻</div>`;
+        // 車両ヘッダー
+        filteredVehicles.forEach(v => {
+            const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
+            vgHtml += `<div class="vg-vehicle-header" title="${v.number}\n${v.type} ${v.capacity}t">${shortNum}<br><span style="font-size:0.5rem;opacity:0.7">${v.type} ${v.capacity}t</span></div>`;
+        });
+
+        // 時間行×車両列
+        for (let h = HOUR_START; h < HOUR_START + HOUR_COUNT; h++) {
+            const hLabel = h >= 24 ? `翌${String(h - 24).padStart(2, '0')}` : String(h).padStart(2, '0');
+            vgHtml += `<div class="vg-time-label">${hLabel}</div>`;
+            filteredVehicles.forEach(v => {
+                vgHtml += `<div class="vg-cell" data-vehicle-id="${v.id}" data-hour="${h}"></div>`;
+            });
+        }
+        vgHtml += `</div>`;
+
+        // バーを配置（position:absolute でセルの上に重ねる）
+        // グリッド全体をrelativeにして、バーをabsoluteで配置
+        // 各車両の配車をまとめる
+        const vehicleDispatches = {};
+        filteredVehicles.forEach((v, vi) => { vehicleDispatches[v.id] = { index: vi, dispatches: [] }; });
+        dayDispatches2.forEach(d => {
+            if (vehicleDispatches[d.vehicle_id]) {
+                vehicleDispatches[d.vehicle_id].dispatches.push(d);
+            }
+        });
+
+        // バーのHTML（グリッド内にabsolute配置）
+        let barsHtml = '';
+        Object.entries(vehicleDispatches).forEach(([vid, vdata]) => {
+            vdata.dispatches.forEach(d => {
+                const startMin = timeToMinutes(d.start_time);
+                const endMin = timeToMinutes(d.end_time);
+                const topPct = ((startMin - HOUR_START * 60) / totalMin) * 100;
+                const heightPct = ((endMin - startMin) / totalMin) * 100;
+                const leftPx = 50 + vdata.index * colW + 3;
+                const wc = getWeightColor(d.weight, d.vehicle_capacity);
+                const driverName = d.driver_name || '';
+                const pickup = (d.pickup_address || '').substring(0, 6);
+                const delivery = (d.delivery_address || '').substring(0, 6);
+                const topPx = 40 + (startMin - HOUR_START * 60) / 60 * rowH;
+                const heightPx = (endMin - startMin) / 60 * rowH;
+
+                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${leftPx}px;width:${colW - 6}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
+                    <span class="vg-bar-driver">${driverName}</span>
+                    <span class="vg-bar-addr">${pickup}→${delivery}</span>
+                    <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
+                </div>`;
+            });
+        });
+
+        // vertical-gantt-wrapperの中にバーを配置するため、gridをrelativeに
+        vgHtml = vgHtml.replace('class="vertical-gantt"', 'class="vertical-gantt" style="position:relative;grid-template-columns:50px repeat(' + filteredVehicles.length + ', ' + colW + 'px);grid-template-rows:40px repeat(' + HOUR_COUNT + ', ' + rowH + 'px)"');
+        vgHtml += barsHtml + `</div>`;
+
+        calContainer.innerHTML = mobileControlsHtml + vgHtml;
+
+        // スクロール位置復元
+        const vWrapper = document.querySelector('.vertical-gantt-wrapper');
+        if (vWrapper) { vWrapper.scrollTop = savedScrollTop; vWrapper.scrollLeft = savedScrollLeft; }
+
+        // 未配車パネルはデスクトップと同じ処理（この後で実行される）
+        // モバイル時はガント後のインジケーターは省略
+        // 未配車パネル処理に進む
+    } else {
+    // ===== デスクトップ: 通常の横ガント =====
     calContainer.innerHTML = `
         <div class="cal-controls" style="gap:8px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
@@ -666,6 +772,7 @@ async function loadDispatchCalendar() {
         newWrapper.scrollTop = savedScrollTop;
         newWrapper.scrollLeft = savedScrollLeft;
     }
+    } // end of desktop gantt else block
 
     // 【機能3】未配車案件パネル（その日に該当する案件のみ表示）
     const unassigned = shipments.filter(s => {
@@ -934,7 +1041,48 @@ function printDispatchTable() {
 }
 
 // ===== ガントバー ドラッグ＆ドロップ（車両＋時間移動） =====
+// モバイルタッチハンドラ
+function mTouchStart(e, dispatchId) {
+    _touchStartTime = Date.now();
+    _touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    _touchTimer = setTimeout(() => {
+        // ロングプレス → アクションシート表示
+        showMobileActionSheet(dispatchId);
+        _touchTimer = null;
+    }, 500);
+}
+function mTouchEnd(e, dispatchId) {
+    if (_touchTimer) {
+        clearTimeout(_touchTimer);
+        _touchTimer = null;
+        const elapsed = Date.now() - _touchStartTime;
+        if (elapsed < 300) {
+            // 短いタップ → 詳細表示
+            showDispatchDetail(dispatchId);
+        }
+    }
+}
+function showMobileActionSheet(dispatchId) {
+    const sheet = document.getElementById('mobile-action-sheet');
+    if (!sheet) return;
+    const body = document.getElementById('action-sheet-body');
+    body.innerHTML = `
+        <div style="text-align:center;font-weight:700;margin-bottom:12px;color:#475569">配車操作</div>
+        <button onclick="closeMobileActionSheet();showDispatchDetail(${dispatchId})">📋 詳細を表示</button>
+        <button onclick="closeMobileActionSheet();openEditDispatchModal(${dispatchId})">✏️ 編集</button>
+        <button onclick="closeMobileActionSheet();generateTransportRequest(${dispatchId})">📄 輸送依頼書</button>
+        <button onclick="closeMobileActionSheet();generateVehicleNotification(${dispatchId})">🚛 車番連絡票</button>
+        <button class="action-sheet-cancel" onclick="closeMobileActionSheet()">キャンセル</button>
+    `;
+    sheet.style.display = 'flex';
+}
+function closeMobileActionSheet() {
+    const sheet = document.getElementById('mobile-action-sheet');
+    if (sheet) sheet.style.display = 'none';
+}
+
 function startGanttDrag(e, dispatchId, vehicleId) {
+    if (isMobile()) return; // モバイルではD&D無効
     if (e.target.classList.contains('gantt-bar-resize')) return;
     e.preventDefault();
     cancelBgSync(); // ドラッグ中のバックグラウンド同期を防止
@@ -2137,6 +2285,7 @@ async function createTransportRequestFromShipmentAndShow(shipmentId, partnerId) 
 
 // ===== ガントバーリサイズ =====
 function startGanttResize(e, dispatchId, edge, startTime, endTime) {
+    if (isMobile()) return;
     const timeline = e.target.closest('.gantt-timeline');
     resizeState = {
         id: dispatchId, edge: edge, startX: e.clientX,

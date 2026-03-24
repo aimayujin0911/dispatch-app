@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=50">
+    <link rel="stylesheet" href="/static/css/style.css?v=51">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -333,6 +333,20 @@
 
     </main>
 
+    <!-- モバイルボトムナビ -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <button data-page="dashboard" onclick="navigateTo('dashboard')"><span class="nav-emoji">📊</span><span>ホーム</span></button>
+        <button data-page="dispatches" onclick="navigateTo('dispatches')"><span class="nav-emoji">📋</span><span>配車表</span></button>
+        <button data-page="shipments" onclick="navigateTo('shipments')"><span class="nav-emoji">📦</span><span>案件</span></button>
+        <button data-page="map" onclick="navigateTo('map')"><span class="nav-emoji">🗺️</span><span>地図</span></button>
+    </nav>
+
+    <!-- モバイルアクションシート -->
+    <div id="mobile-action-sheet" class="mobile-action-sheet" style="display:none">
+        <div class="action-sheet-backdrop" onclick="closeMobileActionSheet()"></div>
+        <div class="action-sheet-content" id="action-sheet-body"></div>
+    </div>
+
     <!-- モーダル -->
     <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
         <div class="modal" onclick="event.stopPropagation()">
@@ -508,7 +522,7 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=50"></script>
+    <script src="/static/js/app.js?v=51"></script>
     <script src="/static/js/tenant-switcher.js?v=3"></script>
 </body>
 </html>
