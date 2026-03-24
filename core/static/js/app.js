@@ -1753,7 +1753,30 @@ async function saveQuickShipment(dayStr) {
     }
 }
 
+function showAutoDispatchLoading(show, msg = '自動配車を計算中...') {
+    let overlay = document.getElementById('auto-dispatch-loading');
+    if (show) {
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'auto-dispatch-loading';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+            overlay.innerHTML = `<div style="background:#fff;padding:32px 48px;border-radius:12px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3)">
+                <div style="width:48px;height:48px;border:4px solid #e5e7eb;border-top:4px solid #ea580c;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>
+                <div id="auto-dispatch-msg" style="font-size:1rem;font-weight:600;color:#1e293b">${msg}</div>
+            </div>`;
+            document.body.appendChild(overlay);
+        } else {
+            overlay.style.display = 'flex';
+            const m = document.getElementById('auto-dispatch-msg');
+            if (m) m.textContent = msg;
+        }
+    } else if (overlay) {
+        overlay.remove();
+    }
+}
+
 async function autoDispatch(dayStr) {
+    showAutoDispatchLoading(true, 'データを読み込み中...');
     const [shipments, drivers, vehicles, existingDispatches] = await Promise.all([
         cachedApiGet('/shipments'),
         cachedApiGet('/drivers'),
@@ -1766,7 +1789,7 @@ async function autoDispatch(dayStr) {
 
     // 未配車案件（その日に該当するもの）
     const unassigned = shipments.filter(s => s.status === '未配車' && isShipmentForDate(s, dayStr));
-    if (unassigned.length === 0) return alert('未配車の案件がありません');
+    if (unassigned.length === 0) { showAutoDispatchLoading(false); return alert('未配車の案件がありません'); }
 
     // 稼働中の車両（整備中除外）
     const activeVehicles = vehicles.filter(v => v.status !== '整備中');
@@ -1833,12 +1856,18 @@ async function autoDispatch(dayStr) {
     unassigned.forEach(s => { if (s.pickup_address) allAddresses.add(s.pickup_address); if (s.delivery_address) allAddresses.add(s.delivery_address); });
     existingDispatches.forEach(d => { if (d.delivery_address) allAddresses.add(d.delivery_address); if (d.pickup_address) allAddresses.add(d.pickup_address); });
     // キャッシュにないものだけ順次取得（レート制限対応）
-    for (const addr of allAddresses) {
-        if (!_geocodeCache[addr]) {
+    const uncached = [...allAddresses].filter(a => !_geocodeCache[a]);
+    if (uncached.length > 0) {
+        showAutoDispatchLoading(true, `座標を取得中... (0/${uncached.length})`);
+        let i = 0;
+        for (const addr of uncached) {
+            i++;
+            showAutoDispatchLoading(true, `座標を取得中... (${i}/${uncached.length})`);
             await geocodeAddress(addr);
             await new Promise(r => setTimeout(r, 1100)); // Nominatim 1req/sec
         }
     }
+    showAutoDispatchLoading(true, '最適な配車を計算中...');
 
     // Haversineベースの移動時間チェック
     function checkTravelGap(fromDeliveryAddr, toPickupAddr, gapMinutes) {
@@ -2037,6 +2066,7 @@ async function autoDispatch(dayStr) {
     }
     previewHtml += `</div>`;
 
+    showAutoDispatchLoading(false);
     document.getElementById('modal-title').textContent = '⚡ 自動配車プレビュー';
     document.getElementById('modal-body').innerHTML = previewHtml + `
         <div class="form-actions" style="margin-top:16px">

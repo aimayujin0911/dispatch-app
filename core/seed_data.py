@@ -97,6 +97,13 @@ def seed():
         Vehicle(number="品川 480 は 9999", chassis_number="IJK-9990011", type="軽貨物", capacity=0.35, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2024-06", inspection_expiry="2028-06-01"),
         # 整備中（冷蔵冷凍兼用）
         Vehicle(number="横浜 100 ま 6666", chassis_number="LMN-6667788", type="バン", capacity=4, status="整備中", temperature_zone="冷蔵冷凍兼用", has_power_gate=True, notes="冷凍機修理中", first_registration="2020-02", inspection_expiry="2026-06-15"),
+        # 追加車両（倍増用）
+        Vehicle(number="練馬 100 わ 1122", chassis_number="NOP-1122334", type="ウイング車", capacity=10, status="通常", temperature_zone="常温", has_power_gate=True, first_registration="2022-09", inspection_expiry="2027-09-15"),
+        Vehicle(number="足立 200 れ 3344", chassis_number="QRS-3344556", type="バン", capacity=4, status="通常", temperature_zone="冷蔵", has_power_gate=True, first_registration="2023-02", inspection_expiry="2027-02-20"),
+        Vehicle(number="世田谷 300 そ 5566", chassis_number="TUV-5566778", type="平ボディ", capacity=4, status="通常", temperature_zone="常温", has_power_gate=True, first_registration="2021-05", inspection_expiry="2026-11-10"),
+        Vehicle(number="杉並 400 ね 7788", chassis_number="WXY-7788990", type="トレーラー", capacity=20, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2022-11", inspection_expiry="2027-05-30"),
+        Vehicle(number="板橋 100 む 9900", chassis_number="ZAB-9900112", type="ウイング車", capacity=13, status="通常", temperature_zone="冷凍", has_power_gate=True, first_registration="2023-08", inspection_expiry="2027-08-20", notes="-20℃対応"),
+        Vehicle(number="葛飾 600 ほ 2233", chassis_number="CDE-2233445", type="バン", capacity=2, status="通常", temperature_zone="常温", has_power_gate=False, first_registration="2024-03", inspection_expiry="2028-03-10"),
     ]
     db.add_all(vehicles)
     db.flush()
@@ -118,6 +125,19 @@ def seed():
         Driver(name="加藤 大輔", phone="090-0123-4567", email="kato@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=9.0, work_start="04:00", work_end="13:00"),
         Driver(name="吉田 裕子", phone="090-1111-2222", email="yoshida@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="けん引", status="運行中", paid_leave_balance=7.0, work_start="06:00", work_end="15:00"),
         Driver(name="松本 剛", phone="090-3333-4444", email="matsumoto@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="待機中", paid_leave_balance=10.0, work_start="08:00", work_end="17:00"),
+        # 追加ドライバー（倍増用）
+        Driver(name="斎藤 拓也", phone="090-4444-5555", email="saito@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=8.0, work_start="05:00", work_end="14:00"),
+        Driver(name="木村 隆", phone="090-5555-6666", email="kimura@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="待機中", paid_leave_balance=11.0, work_start="06:00", work_end="15:00"),
+        Driver(name="林 正樹", phone="090-6666-7777", email="hayashi@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="運行中", paid_leave_balance=9.0, work_start="07:00", work_end="16:00"),
+        Driver(name="清水 誠", phone="090-7777-8888", email="shimizu@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=10.0, work_start="04:00", work_end="13:00"),
+        Driver(name="森 由美", phone="090-8888-9999", email="mori@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="待機中", paid_leave_balance=12.0, work_start="08:00", work_end="17:00"),
+        Driver(name="池田 勇気", phone="090-9999-0000", email="ikeda@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=7.0, work_start="05:00", work_end="14:00"),
+        Driver(name="橋本 浩二", phone="090-1122-3344", email="hashimoto@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="けん引", status="運行中", paid_leave_balance=8.0, work_start="06:00", work_end="15:00"),
+        Driver(name="藤田 美穂", phone="090-2233-4455", email="fujita@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="待機中", paid_leave_balance=10.0, work_start="07:00", work_end="16:00"),
+        Driver(name="岡田 竜也", phone="090-3344-5566", email="okada@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=9.0, work_start="03:00", work_end="12:00"),
+        Driver(name="後藤 明日香", phone="090-4455-6677", email="goto@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="待機中", paid_leave_balance=11.0, work_start="06:00", work_end="15:00"),
+        Driver(name="長谷川 優", phone="090-5566-7788", email="hasegawa@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="中型", status="運行中", paid_leave_balance=8.0, work_start="08:00", work_end="17:00"),
+        Driver(name="石田 康平", phone="090-6677-8899", email="ishida@sample-unyu.co.jp", password_hash=h("pass1234"), license_type="大型", status="運行中", paid_leave_balance=10.0, work_start="05:00", work_end="14:00"),
     ]
     db.add_all(drivers)
     db.flush()

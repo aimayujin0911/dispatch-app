@@ -3,6 +3,7 @@
     padding: 0;
     box-sizing: border-box;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 :root {
     --primary: #ea580c;
@@ -755,7 +756,7 @@ body {
     transition: box-shadow 0.15s;
     z-index: 2;
     min-width: 20px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .gantt-bar:hover {
