@@ -1115,10 +1115,21 @@ body {
     .gantt-bar-resize { display: none; }
     .cal-legend { display: none; }
 
+    /* 配車表ページ: 配車表だけスクロール */
+    #page-dispatches.active {
+        display: flex !important;
+        flex-direction: column;
+        height: calc(100vh - 44px - 56px); /* topbar + bottom nav */
+        overflow: hidden;
+        padding-bottom: 0;
+    }
+    .m-cal-controls { flex: 0 0 auto; }
+
     /* 縦ガントグリッド */
     .vertical-gantt-wrapper {
         overflow-x: auto; overflow-y: auto;
-        max-height: calc(100vh - 160px);
+        flex: 1 1 0;
+        max-height: none;
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--border);
         border-radius: 8px;
