@@ -2376,16 +2376,17 @@ async function autoDispatch(dayStr) {
             const existingDriverId = vehicleDriverMap[v.id];
 
             if (existingDriverId) {
-                // 混載時は同じ車両のドライバーを必ず使う（時間重複OK）
+                // 同じ車両には同じドライバーを必ず使う
                 const d = activeDrivers.find(dr => dr.id === existingDriverId);
                 if (d && canDrive(d.license_type, v.capacity)) {
                     if (consolidated) {
                         // 混載: ドライバー固定（時間重複チェック不要、同じ車に同乗）
                         bestDriver = d;
                     } else {
+                        // 同じ車両なら勤務時間内であればドライバー固定（時間重複は許容）
                         const ws = d.work_start || '08:00';
                         const we = d.work_end || '17:00';
-                        if (startTime >= ws && endTime <= we && !hasTimeConflict(driverSlots[d.id] || [], startTime, endTime)) {
+                        if (startTime >= ws && endTime <= we) {
                             bestDriver = d;
                         }
                     }
