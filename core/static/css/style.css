@@ -1087,7 +1087,8 @@ body {
     .nav-item { min-height: 48px; }
     .data-table td { padding: 10px 8px; }
     .page { padding: 8px 10px; }
-    .topbar { padding: 6px 10px; gap: 6px; flex-wrap: nowrap; }
+    .topbar { padding: 6px 10px; gap: 6px; flex-wrap: nowrap; position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+    .content { padding-top: 44px; }
     .topbar h1 { font-size: 0.85rem; flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .topbar-right { gap: 4px; flex: 0 0 auto; }
     .topbar-user { display: none; }
@@ -1119,9 +1120,10 @@ body {
     #page-dispatches.active {
         display: flex !important;
         flex-direction: column;
-        height: calc(100vh - 44px - 56px); /* topbar + bottom nav */
+        height: calc(100vh - 44px - 56px); /* fixed topbar + bottom nav */
         overflow: hidden;
         padding-bottom: 0;
+        margin-top: 0;
     }
     .m-cal-controls { flex: 0 0 auto; }
 
