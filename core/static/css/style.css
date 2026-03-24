@@ -1109,6 +1109,7 @@ body {
     .m-cal-tab { border: none; background: #f1f5f9; border-radius: 4px; padding: 4px 6px; font-size: 0.7rem; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
     .m-cal-tab.active { background: var(--primary); color: #fff; }
     .m-cal-tab.today { box-shadow: inset 0 -2px 0 #ea580c; }
+    .m-cal-select { border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 4px; font-size: 0.65rem; min-height: 24px; background: #fff; flex: 1; max-width: 100px; }
 
     /* ガントチャート: 横→縦モード */
     .gantt-grid { min-width: unset !important; }
@@ -1199,23 +1200,30 @@ body {
         min-height: 40px;
     }
     .vg-bar {
-        position: absolute; left: 3px; right: 3px;
+        position: absolute; left: 2px; right: 2px;
         border-radius: 4px;
         font-size: 0.55rem; font-weight: 600;
-        padding: 2px 3px;
+        padding: 3px 4px;
         overflow: hidden;
-        z-index: 1;
+        z-index: 2;
         -webkit-user-select: none;
         user-select: none;
         -webkit-touch-callout: none;
         touch-action: none;
         cursor: pointer;
-        z-index: 2;
         display: flex; flex-direction: column;
         line-height: 1.2;
+        border-bottom: 2px solid rgba(0,0,0,0.15);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
-    .vg-bar-driver { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .vg-bar-addr { font-size: 0.5rem; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vg-bar-driver {
+        font-weight: 700; font-size: 0.6rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        background: rgba(255,255,255,0.6); border-radius: 2px;
+        padding: 0 3px; margin-bottom: 1px;
+        display: inline-block; width: fit-content;
+    }
+    .vg-bar-addr { font-size: 0.5rem; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* コントロール折りたたみ */
     .cal-controls { flex-direction: column; gap: 6px; padding: 6px; }

@@ -606,6 +606,17 @@ async function loadDispatchCalendar() {
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
+                <div class="m-cal-row" style="margin-top:2px">
+                    <select id="cal-filter-type" class="m-cal-select" onchange="loadDispatchCalendar()">
+                        <option value="">全車種</option>
+                        ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                    <select id="cal-filter-cap" class="m-cal-select" onchange="loadDispatchCalendar()">
+                        <option value="">全積載</option>
+                        ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
+                    </select>
+                    <span style="font-size:0.65rem;color:#6b7280;margin-left:auto">${filteredVehicles.length}台</span>
+                </div>
             </div>`;
 
         // 縦ガントHTML生成
@@ -621,7 +632,9 @@ async function loadDispatchCalendar() {
             <div class="vg-corner" style="width:${timeColW}px;min-width:${timeColW}px;flex-shrink:0;">時刻</div>`;
         filteredVehicles.forEach(v => {
             const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
-            headerHtml += `<div class="vg-vehicle-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;" title="${v.number}\n${v.type} ${v.capacity}t">${shortNum}<br><span style="font-size:0.5rem;opacity:0.7">${v.type} ${v.capacity}t</span></div>`;
+            const tzIcon = (v.temperature_zone === '冷蔵' || v.temperature_zone === '冷凍') ? '❄' : (v.temperature_zone === '冷蔵冷凍兼用' ? '❄' : '');
+            const pgIcon = v.has_power_gate ? 'PG' : '';
+            headerHtml += `<div class="vg-vehicle-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;" onclick="showMobileVehicleDetail(${v.id})">${shortNum}<br><span style="font-size:0.45rem;opacity:0.7">${v.type} ${v.capacity}t ${tzIcon}${pgIcon}</span></div>`;
         });
         headerHtml += `</div>`;
 
@@ -817,34 +830,33 @@ async function loadDispatchCalendar() {
         panel.innerHTML = `<h3 style="margin-bottom:8px;display:flex;align-items:center;gap:12px">📦 未配車案件 - ${activeDayStr} <button class="btn btn-sm btn-primary" onclick="openQuickShipmentModal('${activeDayStr}')" style="font-size:0.75rem;padding:2px 10px">＋ 案件追加</button></h3><p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません</p>`;
     }
 
-    // モバイル: FAB + スライドパネルで未配車表示
+    // モバイル: FAB + スライドパネルで未配車表示（0件でも表示）
     if (isMobile()) {
-        // 既存FABを削除
         document.querySelectorAll('.unassigned-fab, .unassigned-slide-panel').forEach(el => el.remove());
-        if (unassigned.length > 0) {
-            // FABボタン
-            const fab = document.createElement('button');
-            fab.className = 'unassigned-fab';
-            fab.innerHTML = `📦<span class="fab-badge">${unassigned.length}</span>`;
-            fab.onclick = () => {
-                const sp = document.querySelector('.unassigned-slide-panel');
-                if (sp) sp.classList.toggle('open');
-            };
-            document.body.appendChild(fab);
+        const fab = document.createElement('button');
+        fab.className = 'unassigned-fab';
+        fab.innerHTML = unassigned.length > 0
+            ? `📦<span class="fab-badge">${unassigned.length}</span>`
+            : `📦`;
+        fab.onclick = () => {
+            const sp = document.querySelector('.unassigned-slide-panel');
+            if (sp) sp.classList.toggle('open');
+        };
+        document.body.appendChild(fab);
 
-            // スライドパネル
-            const sp = document.createElement('div');
-            sp.className = 'unassigned-slide-panel';
-            sp.innerHTML = `<span class="panel-handle"></span>
-                <h3 style="font-size:0.9rem;margin-bottom:8px">📦 未配車 ${unassigned.length}件</h3>
-                ${unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeMobileUnassigned();openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
-                    <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
-                    ${s.pickup_time ? `<span style="color:#1d4ed8;font-size:0.7rem;float:right">${s.pickup_time}→${s.delivery_time}</span>` : ''}
-                    <div style="font-size:0.65rem;color:#6b7280;margin-top:2px">${s.pickup_address} → ${s.delivery_address}</div>
-                    <div style="font-size:0.65rem;color:#6b7280">${s.cargo_description || ''} ${s.weight}kg ¥${s.price.toLocaleString()}</div>
-                </div>`).join('')}`;
-            document.body.appendChild(sp);
-        }
+        const sp = document.createElement('div');
+        sp.className = 'unassigned-slide-panel';
+        sp.innerHTML = `<span class="panel-handle"></span>
+            <h3 style="font-size:0.9rem;margin-bottom:8px">📦 未配車 ${unassigned.length}件
+                <button class="btn btn-sm btn-primary" onclick="closeMobileUnassigned();openQuickShipmentModal('${activeDayStr}')" style="font-size:0.65rem;padding:2px 8px;margin-left:8px">＋ 追加</button>
+            </h3>
+            ${unassigned.length > 0 ? unassigned.map(s => `<div style="padding:8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeMobileUnassigned();openQuickDispatchModal('${activeDayStr}','08:00','17:00',null,${s.id})">
+                <strong style="font-size:0.8rem">${s.name || s.client_name}</strong>
+                ${s.pickup_time ? `<span style="color:#1d4ed8;font-size:0.7rem;float:right">${s.pickup_time}→${s.delivery_time}</span>` : ''}
+                <div style="font-size:0.65rem;color:#6b7280;margin-top:2px">${s.pickup_address} → ${s.delivery_address}</div>
+                <div style="font-size:0.65rem;color:#6b7280">${s.cargo_description || ''} ${s.weight}kg ¥${s.price.toLocaleString()}</div>
+            </div>`).join('') : '<p style="color:#9ca3af;font-size:0.8rem;text-align:center;margin-top:16px">未配車案件はありません ✅</p>'}`;
+        document.body.appendChild(sp);
     }
 }
 
@@ -1254,6 +1266,23 @@ async function applyMobileDrop(dispatchId, vehicleId, hour) {
         const newEndMin = newStartMin + duration;
         const newStart = `${String(Math.floor(newStartMin / 60)).padStart(2, '0')}:${String(newStartMin % 60).padStart(2, '0')}`;
         const newEnd = `${String(Math.floor(newEndMin / 60)).padStart(2, '0')}:${String(newEndMin % 60).padStart(2, '0')}`;
+
+        // 時間変更がある場合、指定時間からの変更か確認
+        const timeChanged = newStart !== d.start_time || newEnd !== d.end_time;
+        if (timeChanged && d.shipment_id) {
+            const allShipments = await cachedApiGet('/shipments');
+            const shipment = allShipments.find(s => s.id === d.shipment_id);
+            if (shipment && shipment.pickup_time && shipment.delivery_time) {
+                const backToPreset = newStart === shipment.pickup_time && newEnd === shipment.delivery_time;
+                if (!backToPreset) {
+                    const confirmed = await showConfirm(
+                        `⚠️ 指定時間: ${shipment.pickup_time}〜${shipment.delivery_time}\n\n` +
+                        `変更後: ${newStart}〜${newEnd}\n\n指定時間外に変更しますか？`
+                    );
+                    if (!confirmed) { loadDispatchCalendar(); return; }
+                }
+            }
+        }
 
         await apiPut(`/dispatches/${dispatchId}`, {
             vehicle_id: vehicleId,
@@ -2935,6 +2964,31 @@ async function saveQuickDispatch() {
 }
 
 // ===== 配車詳細・編集 =====
+async function showMobileVehicleDetail(vehicleId) {
+    const vehicles = await cachedApiGet('/vehicles');
+    const v = vehicles.find(x => x.id === vehicleId);
+    if (!v) return;
+    const tzLabel = v.temperature_zone || '常温';
+    const pgLabel = v.has_power_gate ? 'あり' : 'なし';
+    document.getElementById('modal-title').textContent = '🚛 車両詳細';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="font-size:0.9rem;line-height:1.8">
+            <p><strong>車番:</strong> ${v.number}</p>
+            <p><strong>車台番号:</strong> ${v.chassis_number || '-'}</p>
+            <p><strong>車種:</strong> ${v.type}</p>
+            <p><strong>積載量:</strong> ${v.capacity}t</p>
+            <p><strong>温度帯:</strong> ${tzLabel}</p>
+            <p><strong>パワーゲート:</strong> ${pgLabel}</p>
+            <p><strong>ステータス:</strong> ${v.status}</p>
+            ${v.inspection_expiry ? `<p><strong>車検期限:</strong> ${v.inspection_expiry}</p>` : ''}
+            ${v.notes ? `<p><strong>備考:</strong> ${v.notes}</p>` : ''}
+        </div>
+        <div class="form-actions" style="margin-top:12px">
+            <button class="btn" onclick="closeModal()">閉じる</button>
+        </div>`;
+    showModal();
+}
+
 async function showDispatchDetail(id) {
     const dispatches = await apiGet('/dispatches');
     const d = dispatches.find(x => x.id === id);
