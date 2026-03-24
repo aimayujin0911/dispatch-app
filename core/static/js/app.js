@@ -599,25 +599,23 @@ async function loadDispatchCalendar() {
             <div class="m-cal-controls">
                 <div class="m-cal-row">
                     <button class="m-cal-btn" onclick="changeDays(-1)">◀</button>
-                    <span class="m-cal-date">${(baseDate.getMonth()+1)}/${baseDate.getDate()}(${dayNames[baseDate.getDay()]})</span>
+                    ${days.map((d, i) => `<button class="m-cal-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth()+1)}/${d.getDate()}</button>`).join('')}
                     <button class="m-cal-btn" onclick="changeDays(1)">▶</button>
                     <button class="m-cal-btn" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
                     <button class="m-cal-btn m-cal-action" onclick="autoDispatch('${activeDayStr}')">⚡</button>
                     <button class="m-cal-btn" onclick="resetDispatches('${activeDayStr}')" style="${hasDispatches ? '' : 'opacity:0.4;pointer-events:none'}">🔄</button>
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
-                <div class="m-cal-tabs">
-                    ${days.map((d, i) => `<button class="m-cal-tab ${i === selectedDayIndex ? 'active' : ''} ${isToday(d) ? 'today' : ''}" onclick="selectedDayIndex=${i};loadDispatchCalendar()">${(d.getMonth()+1)}/${d.getDate()}</button>`).join('')}
-                </div>
             </div>`;
 
         // 縦ガントHTML生成
         const totalMin = HOUR_COUNT * 60;
         const rowH = 40; // 1時間あたりの高さ(px)
-        // 画面幅に合わせて列幅を自動計算（時刻列40px + 車両列×N = 画面幅）
         const screenW = window.innerWidth;
-        const timeColW = 40;
-        const colW = Math.max(70, Math.floor((screenW - timeColW) / Math.min(filteredVehicles.length, 4)));
+        const timeColW = 36;
+        // 画面幅に4列収まるように列幅計算。5台以上は横スクロール
+        const visibleCols = Math.min(filteredVehicles.length, 4);
+        const colW = Math.floor((screenW - timeColW) / visibleCols);
         let vgHtml = `<div class="vertical-gantt-wrapper">
             <div class="vertical-gantt" style="grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:40px repeat(${HOUR_COUNT}, ${rowH}px)">`;
 
