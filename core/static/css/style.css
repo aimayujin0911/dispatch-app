@@ -1110,6 +1110,8 @@ body {
     .m-cal-tab.active { background: var(--primary); color: #fff; }
     .m-cal-tab.today { box-shadow: inset 0 -2px 0 #ea580c; }
     .m-cal-select { border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 4px; font-size: 0.65rem; min-height: 24px; background: #fff; flex: 1; max-width: 100px; }
+    .m-filter-panel { display: none; gap: 4px; padding: 4px 6px; align-items: center; flex-wrap: wrap; }
+    .m-filter-panel.open { display: flex; }
 
     /* ガントチャート: 横→縦モード */
     .gantt-grid { min-width: unset !important; }

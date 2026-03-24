@@ -607,6 +607,9 @@ async function loadDispatchCalendar() {
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px">
+                    <button class="m-cal-btn" onclick="document.getElementById('m-filter-panel').classList.toggle('open')" style="${filterType || filterCap ? 'color:#ea580c;font-weight:700' : ''}">🔍 ${filteredVehicles.length}台</button>
+                </div>
+                <div id="m-filter-panel" class="m-filter-panel ${filterType || filterCap ? 'open' : ''}">
                     <select id="cal-filter-type" class="m-cal-select" onchange="loadDispatchCalendar()">
                         <option value="">全車種</option>
                         ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
@@ -615,7 +618,7 @@ async function loadDispatchCalendar() {
                         <option value="">全積載</option>
                         ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                     </select>
-                    <span style="font-size:0.65rem;color:#6b7280;margin-left:auto">${filteredVehicles.length}台</span>
+                    ${filterType || filterCap ? `<button class="m-cal-btn" onclick="document.getElementById('cal-filter-type').value='';document.getElementById('cal-filter-cap').value='';loadDispatchCalendar()" style="font-size:0.6rem">✕ クリア</button>` : ''}
                 </div>
             </div>`;
 
@@ -663,12 +666,27 @@ async function loadDispatchCalendar() {
         // バーのHTML（グリッド内にabsolute配置）
         let barsHtml = '';
         Object.entries(vehicleDispatches).forEach(([vid, vdata]) => {
+            // 時間重複を検出してインデント計算
+            const sorted = [...vdata.dispatches].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+            const lanes = {}; // dispatchId → lane (0 = no overlap, 1+ = overlapping)
+            sorted.forEach((d, i) => {
+                let lane = 0;
+                for (let j = 0; j < i; j++) {
+                    const prev = sorted[j];
+                    if (timeToMinutes(d.start_time) < timeToMinutes(prev.end_time) && timeToMinutes(d.end_time) > timeToMinutes(prev.start_time)) {
+                        lane = Math.max(lane, (lanes[prev.id] || 0) + 1);
+                    }
+                }
+                lanes[d.id] = lane;
+            });
+
             vdata.dispatches.forEach(d => {
                 const startMin = timeToMinutes(d.start_time);
                 const endMin = timeToMinutes(d.end_time);
                 const topPct = ((startMin - HOUR_START * 60) / totalMin) * 100;
                 const heightPct = ((endMin - startMin) / totalMin) * 100;
-                const leftPx = timeColW + vdata.index * colW + 2;
+                const indent = (lanes[d.id] || 0) * 8; // 重複時に左から8pxずつインデント
+                const leftPx = timeColW + vdata.index * colW + 2 + indent;
                 const wc = getWeightColor(d.weight, d.vehicle_capacity);
                 const driverName = d.driver_name || '';
                 const pickup = (d.pickup_address || '').substring(0, 6);
@@ -676,7 +694,8 @@ async function loadDispatchCalendar() {
                 const topPx = (startMin - HOUR_START * 60) / 60 * rowH;
                 const heightPx = (endMin - startMin) / 60 * rowH;
 
-                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${leftPx}px;width:${colW - 6}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
+                const barW = colW - 6 - indent;
+                barsHtml += `<div class="vg-bar" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
                     <span class="vg-bar-driver">${driverName}</span>
                     <span class="vg-bar-addr">${pickup}→${delivery}</span>
                     <span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>
@@ -1169,9 +1188,9 @@ function mTouchMove(e) {
         if (oldGhost) oldGhost.remove();
 
         // バーを一時非表示にしてelementFromPointでセルを取得
-        _mDrag.bar.style.pointerEvents = 'none';
+        _mDrag.bar.style.display = 'none';
         const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        _mDrag.bar.style.pointerEvents = '';
+        _mDrag.bar.style.display = '';
         if (target) {
             const cell = target.closest('.vg-cell');
             if (cell) {
@@ -1232,9 +1251,11 @@ function mTouchEndDrag(e) {
         if (ghost) ghost.remove();
     }
 
-    // ドロップ先を判定
+    // ドロップ先を判定（バーを一時非表示にしてセルを取得）
     const touch = e.changedTouches[0];
+    _mDrag.bar.style.display = 'none';
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    _mDrag.bar.style.display = '';
     if (target) {
         const cell = target.closest('.vg-cell');
         if (cell) {
@@ -2964,29 +2985,36 @@ async function saveQuickDispatch() {
 }
 
 // ===== 配車詳細・編集 =====
-async function showMobileVehicleDetail(vehicleId) {
-    const vehicles = await cachedApiGet('/vehicles');
+function showMobileVehicleDetail(vehicleId) {
+    // 既存の吹き出しを閉じる
+    document.querySelectorAll('.vg-vehicle-tooltip').forEach(el => el.remove());
+    const vehicles = _cache['/vehicles']?.data || [];
     const v = vehicles.find(x => x.id === vehicleId);
     if (!v) return;
-    const tzLabel = v.temperature_zone || '常温';
-    const pgLabel = v.has_power_gate ? 'あり' : 'なし';
-    document.getElementById('modal-title').textContent = '🚛 車両詳細';
-    document.getElementById('modal-body').innerHTML = `
-        <div style="font-size:0.9rem;line-height:1.8">
-            <p><strong>車番:</strong> ${v.number}</p>
-            <p><strong>車台番号:</strong> ${v.chassis_number || '-'}</p>
-            <p><strong>車種:</strong> ${v.type}</p>
-            <p><strong>積載量:</strong> ${v.capacity}t</p>
-            <p><strong>温度帯:</strong> ${tzLabel}</p>
-            <p><strong>パワーゲート:</strong> ${pgLabel}</p>
-            <p><strong>ステータス:</strong> ${v.status}</p>
-            ${v.inspection_expiry ? `<p><strong>車検期限:</strong> ${v.inspection_expiry}</p>` : ''}
-            ${v.notes ? `<p><strong>備考:</strong> ${v.notes}</p>` : ''}
-        </div>
-        <div class="form-actions" style="margin-top:12px">
-            <button class="btn" onclick="closeModal()">閉じる</button>
+    const header = event.target.closest('.vg-vehicle-header');
+    if (!header) return;
+    const rect = header.getBoundingClientRect();
+    const tz = v.temperature_zone || '常温';
+    const pg = v.has_power_gate ? '✅' : '−';
+    const tip = document.createElement('div');
+    tip.className = 'vg-vehicle-tooltip';
+    tip.innerHTML = `
+        <div style="font-size:0.7rem;line-height:1.6">
+            <strong>${v.number}</strong><br>
+            ${v.type} / ${v.capacity}t<br>
+            温度: ${tz} / PG: ${pg}<br>
+            ${v.status}
+            ${v.notes ? `<br><span style="color:#6b7280">${v.notes}</span>` : ''}
         </div>`;
-    showModal();
+    tip.style.cssText = `position:fixed;left:${Math.min(rect.left, window.innerWidth - 180)}px;top:${rect.bottom + 4}px;z-index:100;background:#1e293b;color:#fff;padding:8px 12px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:180px;`;
+    document.body.appendChild(tip);
+    // 3秒後 or タップで閉じる
+    setTimeout(() => tip.remove(), 3000);
+    tip.onclick = () => tip.remove();
+    document.addEventListener('touchstart', function closeTip() {
+        tip.remove();
+        document.removeEventListener('touchstart', closeTip);
+    }, { once: true });
 }
 
 async function showDispatchDetail(id) {
