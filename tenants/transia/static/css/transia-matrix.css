@@ -525,3 +525,12 @@
         font-size: 0.42rem;
     }
 }
+
+/* 楽観的UI更新: 保存中の仮配車アイテム点滅アニメーション */
+@keyframes matrix-optimistic-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.85; }
+}
+.matrix-dispatch-abs[style*="opacity:0.7"] {
+    animation: matrix-optimistic-pulse 1.2s ease-in-out infinite;
+}

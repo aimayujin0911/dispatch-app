@@ -95,8 +95,9 @@ function toggleDispatchViewMode() {
 
 function matrixChangeMonth(dir) {
     if (!window._matrixMonthStart) window._matrixMonthStart = new Date();
-    window._matrixMonthStart.setMonth(window._matrixMonthStart.getMonth() + dir);
+    // setDate(1)を先に呼ぶ: 31日→2月のように日数オーバーフローで月がズレるのを防止
     window._matrixMonthStart.setDate(1);
+    window._matrixMonthStart.setMonth(window._matrixMonthStart.getMonth() + dir);
     // 月変更時: 未配車パネルの日付もその月の1日にリセット
     window._matrixUnassignedDate = fmt(window._matrixMonthStart);
     window._matrixScrollReset = true;
@@ -601,9 +602,24 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
             };
             if (driverId) postData.driver_id = driverId;
 
-            await apiPost('/dispatches', postData);
-            invalidateCache();
-            loadDispatchCalendar();
+            // 楽観的UI更新: API応答を待たずにUIを即座に更新
+            const tempItem = _matrixInsertOptimisticItem(cell, targetPeriodIdx, shipment, newStart, newEnd);
+
+            // APIをバックグラウンドで実行
+            apiPost('/dispatches', postData).then(() => {
+                invalidateCache();
+                loadDispatchCalendar();
+            }).catch(err => {
+                console.error('Matrix D&D dispatch failed:', err);
+                // 失敗時: 仮アイテムを削除してエラー表示
+                if (tempItem && tempItem.parentNode) tempItem.remove();
+                if (typeof showToast === 'function') {
+                    showToast('配車作成に失敗しました: ' + (err.message || err), 'error');
+                } else {
+                    alert('配車作成に失敗しました: ' + (err.message || err));
+                }
+                loadDispatchCalendar();
+            });
         } catch (err) {
             console.error('Matrix D&D dispatch failed:', err);
             alert('配車作成に失敗しました: ' + (err.message || err));
@@ -617,19 +633,62 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
     window._matrixDragData = null;
     // 同じセルならスキップ
     if (vehicleId === targetVehicleId && dateStr === targetDateStr && periodIdx === targetPeriodIdx) return;
-    try {
-        await apiPut('/dispatches/' + dispatchId, {
-            vehicle_id: targetVehicleId,
-            date: targetDateStr,
-            start_time: newStart,
-            end_time: newEnd,
-        });
+
+    // ドロップ先のスロット時刻を算出
+    const targetPeriod = MATRIX_PERIODS[targetPeriodIdx];
+    const moveStart = String(targetPeriod.startH).padStart(2, '0') + ':00';
+    const moveEndH = targetPeriod.endH === 24 ? 23 : targetPeriod.endH;
+    const moveEnd = String(moveEndH).padStart(2, '0') + (targetPeriod.endH === 24 ? ':59' : ':00');
+
+    // 楽観的UI更新: 元の配車アイテムを半透明にしてローディング表示
+    const draggedItem = document.querySelector(`.matrix-dispatch-item[data-dispatch-id="${dispatchId}"]`);
+    if (draggedItem) draggedItem.style.opacity = '0.3';
+    const tempItem = _matrixInsertOptimisticItem(cell, targetPeriodIdx, null, moveStart, moveEnd);
+
+    apiPut('/dispatches/' + dispatchId, {
+        vehicle_id: targetVehicleId,
+        date: targetDateStr,
+        start_time: moveStart,
+        end_time: moveEnd,
+    }).then(() => {
         invalidateCache();
         loadDispatchCalendar();
-    } catch (err) {
+    }).catch(err => {
         console.error('Matrix D&D update failed:', err);
+        // 失敗時: 仮アイテムを削除、元アイテムを復元
+        if (tempItem && tempItem.parentNode) tempItem.remove();
+        if (draggedItem) draggedItem.style.opacity = '1';
+        if (typeof showToast === 'function') {
+            showToast('配車移動に失敗しました: ' + (err.message || err), 'error');
+        }
         loadDispatchCalendar();
-    }
+    });
+}
+
+// 楽観的UI更新: ドロップ先セルに仮の配車アイテムを即座に挿入
+function _matrixInsertOptimisticItem(cell, periodIdx, shipment, startTime, endTime) {
+    if (!cell) return null;
+    const slotsContainer = cell.querySelector('.matrix-slots');
+    if (!slotsContainer) return null;
+
+    const CELL_H = 132, SLOT_H = CELL_H / 6;
+    const startH = parseInt(startTime.split(':')[0]);
+    const endH = parseInt(endTime.split(':')[0]) || (startH + 4);
+    const spanSlots = Math.max(1, Math.ceil((endH - startH) / 2));
+    const topPx = Math.round(periodIdx * SLOT_H);
+    const heightPx = Math.max(Math.round(spanSlots * SLOT_H) - 1, SLOT_H - 1);
+
+    const label = shipment
+        ? (shipment.name || shipment.client_name || '配車中...')
+        : '移動中...';
+
+    const item = document.createElement('div');
+    item.className = 'matrix-dispatch-item matrix-dispatch-abs';
+    item.style.cssText = `top:${topPx}px;height:${heightPx}px;border-left-color:#f97316;background:#fff7ed;opacity:0.7`;
+    item.innerHTML = `<div class="matrix-dispatch-route" style="color:#ea580c">${label}</div>
+        <div class="matrix-dispatch-area" style="color:#f97316">⏳ 保存中...</div>`;
+    slotsContainer.appendChild(item);
+    return item;
 }
 
 // ===== メインのマトリクスビュー描画 =====
@@ -806,13 +865,15 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
         dateParts.push(`<div class="${dateCls}"><span class="matrix-date-num">${day.getDate()}</span><span class="matrix-date-dow">${dayNames[dow]}</span></div>`);
 
         // 初回描画範囲外はプレースホルダー行（空セル、高さだけ確保）
+        // D&Dハンドラは最初から設定（30・31日目でもドロップ可能にする）
         const isDeferred = dayIdx < initialStart || dayIdx >= initialEnd;
         if (isDeferred) {
             tableParts.push(`<tr class="${rowCls}" data-lazy-day="${dayIdx}">`);
             for (let vi = 0; vi < filteredVehicles.length; vi++) {
-                tableParts.push(`<td class="${cellCls}" style="position:relative"><div class="matrix-slots">`);
+                const vId = filteredVehicles[vi].id;
+                tableParts.push(`<td class="${cellCls}" style="position:relative" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${vId},'${dayStr}',2)"><div class="matrix-slots">`);
                 for (let pIdx = 0; pIdx < 6; pIdx++) {
-                    tableParts.push(`<div class="matrix-slot${pIdx > 0 ? ' matrix-slot-border' : ''} matrix-slot-empty"></div>`);
+                    tableParts.push(`<div class="matrix-slot${pIdx > 0 ? ' matrix-slot-border' : ''} matrix-slot-empty" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${vId})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${vId},'${dayStr}',${pIdx})"></div>`);
                 }
                 tableParts.push('</div></td>');
             }
@@ -983,7 +1044,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                     // セル内容を展開
                     _matrixFillRow(row, dayIdx);
                 });
-            }, { root: wrapper, rootMargin: '200px 0px' }); // 200px先読み
+            }, { root: wrapper, rootMargin: '600px 0px' }); // 600px先読み（30-31日目も確実に展開）
             lazyRows.forEach(r => lazyObserver.observe(r));
         }
     }
