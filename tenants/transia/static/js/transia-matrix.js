@@ -22,18 +22,18 @@ window._matrixScrollReset = false;    // 月変更時のスクロールリセッ
 window._matrixSavedScrollTop = 0;     // スクロール位置保存
 window._matrixSavedScrollLeft = 0;    // スクロール位置保存
 
-// 時間帯定義
+// 時間帯定義: 1マス=2時間、8時開始（8-20時の業務時間帯）
 const MATRIX_PERIODS = [
-    { label: '深夜', startH: 0, endH: 4 },
-    { label: '早朝', startH: 4, endH: 8 },
-    { label: '午前', startH: 8, endH: 12 },
-    { label: '午後', startH: 12, endH: 16 },
-    { label: '夕方', startH: 16, endH: 20 },
-    { label: '夜間', startH: 20, endH: 24 },
+    { startH: 8, endH: 10 },
+    { startH: 10, endH: 12 },
+    { startH: 12, endH: 14 },
+    { startH: 14, endH: 16 },
+    { startH: 16, endH: 18 },
+    { startH: 18, endH: 20 },
 ];
 
 function getTimePeriodIndex(timeStr) {
-    if (!timeStr) return 2; // デフォルト午前
+    if (!timeStr) return 0; // デフォルト8時（スロット0）
     const h = parseInt(timeStr.split(':')[0], 10);
     for (let i = 0; i < MATRIX_PERIODS.length; i++) {
         if (h >= MATRIX_PERIODS[i].startH && h < MATRIX_PERIODS[i].endH) return i;
@@ -477,12 +477,12 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
     if (cell) cell.classList.remove('matrix-drop-target');
     if (!window._matrixDragData) return;
 
-    // 新しい時間帯に合わせてstart_time/end_timeを算出（デフォルト2スロット=8時間）
+    // 新しい時間帯に合わせてstart_time/end_timeを算出（デフォルト2スロット=4時間）
     const p = MATRIX_PERIODS[targetPeriodIdx];
     const nextP = MATRIX_PERIODS[Math.min(targetPeriodIdx + 1, 5)];
     const defaultEndH = (targetPeriodIdx < 5) ? nextP.endH : p.endH;
     const newStart = String(p.startH).padStart(2, '0') + ':00';
-    const newEnd = String(defaultEndH === 24 ? 23 : defaultEndH).padStart(2, '0') + (defaultEndH === 24 ? ':59' : ':00');
+    const newEnd = String(defaultEndH).padStart(2, '0') + ':00';
 
     // 未配車案件のドロップ → 新規配車作成
     if (window._matrixDragData.isUnassigned) {
