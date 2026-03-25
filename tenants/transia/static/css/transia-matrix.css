@@ -329,6 +329,14 @@
     outline: 2px dashed #ea580c;
     outline-offset: -2px;
 }
+/* スロット単位のD&Dハイライト */
+.matrix-slot.matrix-drop-target {
+    background: #ffedd5 !important;
+    outline: 2px dashed #f97316;
+    outline-offset: -1px;
+    position: relative;
+    z-index: 1;
+}
 .matrix-dispatch-item {
     padding: 1px 2px;
     border-radius: 2px;

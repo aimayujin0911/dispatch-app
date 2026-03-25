@@ -450,15 +450,25 @@ function matrixUnassignedDragEnd(e) {
 
 function matrixDragOver(e) {
     e.preventDefault();
-    // 未配車案件(copy)と既存配車移動(move)の両方に対応
     e.dataTransfer.dropEffect = (window._matrixDragData && window._matrixDragData.isUnassigned) ? 'copy' : 'move';
-    const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
-    if (cell) cell.classList.add('matrix-drop-target');
+    // スロット単位でハイライト
+    const slot = e.target.closest('.matrix-slot');
+    if (slot) {
+        slot.classList.add('matrix-drop-target');
+    } else {
+        const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
+        if (cell) cell.classList.add('matrix-drop-target');
+    }
 }
 
 function matrixDragLeave(e) {
-    const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
-    if (cell) cell.classList.remove('matrix-drop-target');
+    const slot = e.target.closest('.matrix-slot');
+    if (slot) {
+        slot.classList.remove('matrix-drop-target');
+    } else {
+        const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
+        if (cell) cell.classList.remove('matrix-drop-target');
+    }
 }
 
 async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
@@ -477,22 +487,41 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
         const shipmentId = window._matrixDragData.shipmentId;
         window._matrixDragData = null;
         try {
-            // 車両のデフォルトドライバーを取得
+            // 車両のデフォルトドライバーを取得（なくても配車可能）
             const vehicles = await cachedApiGet('/vehicles');
             const vehicle = vehicles.find(v => v.id === targetVehicleId);
             const driverId = vehicle ? vehicle.default_driver_id : null;
-            if (!driverId) {
-                alert('この車両にはデフォルトドライバーが設定されていません。配車画面から手動で割り当ててください。');
-                return;
+
+            // 時系列チェック: 同じ車両・同日の既存配車と比較
+            const existingDispatches = (await cachedApiGet('/dispatches?week_start=' + targetDateStr))
+                .filter(d => d.vehicle_id === targetVehicleId && d.date === targetDateStr)
+                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+
+            if (existingDispatches.length > 0) {
+                // 新しい配車のスロットが既存配車より時間的に前なのに後のスロットに入る、またはその逆
+                const newStartMinutes = p.startH * 60;
+                const hasTimeConflict = existingDispatches.some(d => {
+                    const dStart = parseInt(d.start_time?.split(':')[0] || '0') * 60;
+                    // 既存が新しいスロットより後の時間帯にあるのに、既存のstart_timeが新スロットのstartHより前
+                    return (dStart < newStartMinutes && parseInt(d.start_time?.split(':')[0] || '0') >= p.endH) ||
+                           (dStart >= p.endH * 60 && parseInt(d.start_time?.split(':')[0] || '0') < p.startH);
+                });
+                if (hasTimeConflict) {
+                    const proceed = confirm(`⚠️ 時系列の注意\n\nこの車両には同日に既存の配車があり、時間の前後が逆になる可能性があります。\n\n配車先: ${newStart}〜${newEnd}\n\n続行しますか？`);
+                    if (!proceed) return;
+                }
             }
-            await apiPost('/dispatches', {
+
+            const postData = {
                 shipment_id: shipmentId,
                 vehicle_id: targetVehicleId,
-                driver_id: driverId,
                 date: targetDateStr,
                 start_time: newStart,
                 end_time: newEnd,
-            });
+            };
+            if (driverId) postData.driver_id = driverId;
+
+            await apiPost('/dispatches', postData);
             invalidateCache();
             loadDispatchCalendar();
         } catch (err) {
