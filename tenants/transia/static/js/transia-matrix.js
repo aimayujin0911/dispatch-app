@@ -580,13 +580,35 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
     const rangeEndStr = fmt(matrixDays[NUM_DAYS - 1]);
     const allDispatches = await apiGet(`/dispatches?date_from=${rangeStartStr}&date_to=${rangeEndStr}`);
     const rangeDispatches = allDispatches.filter(d => d.date >= rangeStartStr && d.date <= rangeEndStr);
+    // キャッシュに月間配車データを保存（未配車パネル等で再利用）
+    _cache['_lastDispatches'] = { data: rangeDispatches, ts: Date.now() };
+
+    // ===== パフォーマンス最適化: ルックアップ用インデックス構築 =====
+    // shipmentMap: shipment_id → shipment（O(1)検索、inner loopの.find()を除去）
+    const shipmentMap = {};
+    for (let i = 0; i < shipments.length; i++) {
+        shipmentMap[shipments[i].id] = shipments[i];
+    }
+
+    // dispatchIndex: "vehicleId-dateStr" → 配車リスト（O(1)セル検索、inner loopの.filter()を除去）
+    const dispatchIndex = {};
+    for (let i = 0; i < rangeDispatches.length; i++) {
+        const d = rangeDispatches[i];
+        const key = d.vehicle_id + '-' + d.date;
+        if (!dispatchIndex[key]) dispatchIndex[key] = [];
+        dispatchIndex[key].push(d);
+    }
+    // 各セルの配車リストをstart_timeでソート
+    for (const key in dispatchIndex) {
+        dispatchIndex[key].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+    }
 
     // ドライバー情報を取得
     const drivers = await cachedApiGet('/drivers');
     const driverMap = {};
     drivers.forEach(d => { driverMap[d.id] = d; });
 
-    // 車両ごとのドライバー名を決定
+    // 車両ごとのドライバー名を決定（dispatchIndexを活用）
     const vehicleDriverNames = {};
     const vehicleDriverIds = {};
     filteredVehicles.forEach(v => {
@@ -596,10 +618,19 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             driverName = driverMap[v.default_driver_id].name;
             driverId = v.default_driver_id;
         } else {
-            const vDispatches = rangeDispatches.filter(d => d.vehicle_id === v.id && d.driver_name);
-            if (vDispatches.length > 0) {
-                driverName = vDispatches[vDispatches.length - 1].driver_name;
-                driverId = vDispatches[vDispatches.length - 1].driver_id;
+            // dispatchIndexから該当車両の配車を探す（最新日付の最後の配車を使用）
+            for (let di = matrixDayStrs.length - 1; di >= 0; di--) {
+                const dList = dispatchIndex[v.id + '-' + matrixDayStrs[di]];
+                if (dList) {
+                    for (let j = dList.length - 1; j >= 0; j--) {
+                        if (dList[j].driver_name) {
+                            driverName = dList[j].driver_name;
+                            driverId = dList[j].driver_id;
+                            break;
+                        }
+                    }
+                    if (driverName) break;
+                }
             }
         }
         vehicleDriverNames[v.id] = driverName;
@@ -639,17 +670,14 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             </div>
         </div>`;
 
-    // テーブル構築 — 日付列を分離した2パネルレイアウト
+    // ===== テーブル構築（配列ベースで高速化） =====
     // 左: 固定の日付列、右: 横スクロール可能な車両×日付テーブル
+    const dateParts = ['<div class="matrix-date-panel"><div class="matrix-corner-header">日付</div><div class="matrix-date-body">'];
+    const tableParts = ['<div class="matrix-wrapper"><table class="matrix-table"><thead><tr class="matrix-header-row1">'];
 
-    // === 左パネル: 日付列 ===
-    // 左パネル: divベース（テーブルのサブピクセルborder蓄積ズレを回避）
-    let dateColHtml = `<div class="matrix-date-panel"><div class="matrix-corner-header">日付</div><div class="matrix-date-body">`;
-
-    // === 右パネル: メインテーブル（日付列なし）===
-    let tableHtml = `<div class="matrix-wrapper"><table class="matrix-table"><thead>`;
-    tableHtml += `<tr class="matrix-header-row1">`;
-    filteredVehicles.forEach(v => {
+    // ヘッダー行1: 車両番号
+    for (let vi = 0; vi < filteredVehicles.length; vi++) {
+        const v = filteredVehicles[vi];
         const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
         const vType = v.vehicle_type || v.type || '';
         const cap = v.capacity ? v.capacity + 't' : '';
@@ -657,74 +685,65 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
         const chassisNum = v.chassis_number || '';
         const chassisShort = chassisNum.length > 4 ? chassisNum.slice(-4) : chassisNum;
 
-        tableHtml += `<th class="matrix-vehicle-col-header" onmouseenter="showVehicleTooltip(event, ${v.id})" onmouseleave="hideVehicleTooltip()" style="cursor:pointer">`;
-        tableHtml += `<div class="mvh-number">${shortNum}</div>`;
-        if (typeLabel) tableHtml += `<div class="mvh-info">${typeLabel}</div>`;
-        if (chassisShort) tableHtml += `<div class="mvh-chassis">${chassisShort}</div>`;
-        tableHtml += `</th>`;
-    });
-    tableHtml += `</tr>`;
-    tableHtml += `<tr class="matrix-header-row2">`;
-    filteredVehicles.forEach(v => {
+        tableParts.push(`<th class="matrix-vehicle-col-header" onmouseenter="showVehicleTooltip(event,${v.id})" onmouseleave="hideVehicleTooltip()" style="cursor:pointer"><div class="mvh-number">${shortNum}</div>`);
+        if (typeLabel) tableParts.push(`<div class="mvh-info">${typeLabel}</div>`);
+        if (chassisShort) tableParts.push(`<div class="mvh-chassis">${chassisShort}</div>`);
+        tableParts.push('</th>');
+    }
+    tableParts.push('</tr><tr class="matrix-header-row2">');
+
+    // ヘッダー行2: ドライバー名
+    for (let vi = 0; vi < filteredVehicles.length; vi++) {
+        const v = filteredVehicles[vi];
         const driverName = vehicleDriverNames[v.id] || '';
         const driverId = vehicleDriverIds[v.id] || '';
-        tableHtml += `<th class="matrix-driver-cell" data-vehicle-id="${v.id}" data-driver-id="${driverId}" onclick="openDriverDropdown(event, ${v.id})" title="クリックでドライバー変更">${driverName || '&nbsp;'}</th>`;
-    });
-    tableHtml += `</tr></thead><tbody>`;
+        tableParts.push(`<th class="matrix-driver-cell" data-vehicle-id="${v.id}" data-driver-id="${driverId}" onclick="openDriverDropdown(event,${v.id})" title="クリックでドライバー変更">${driverName || '&nbsp;'}</th>`);
+    }
+    tableParts.push('</tr></thead><tbody>');
 
-    // 各日付の行
-    matrixDays.forEach((day, dayIdx) => {
+    // 各日付の行（forループで高速化）
+    for (let dayIdx = 0; dayIdx < NUM_DAYS; dayIdx++) {
+        const day = matrixDays[dayIdx];
         const dayStr = matrixDayStrs[dayIdx];
         const dow = day.getDay();
         const isSat = dow === 6;
         const isSun = dow === 0;
         const isTodayFlag = isToday(day);
 
-        let rowCls = 'matrix-date-row';
-        if (isTodayFlag) rowCls += ' matrix-today-row';
-        else if (isSun) rowCls += ' matrix-sunday-row';
-        else if (isSat) rowCls += ' matrix-saturday-row';
+        // クラス名を事前計算（条件分岐を1回に集約）
+        const rowCls = isTodayFlag ? 'matrix-date-row matrix-today-row' : isSun ? 'matrix-date-row matrix-sunday-row' : isSat ? 'matrix-date-row matrix-saturday-row' : 'matrix-date-row';
+        const dateCls = isTodayFlag ? 'matrix-date-label matrix-today-label' : isSun ? 'matrix-date-label matrix-sunday-label' : isSat ? 'matrix-date-label matrix-saturday-label' : 'matrix-date-label';
+        const cellCls = isTodayFlag ? 'matrix-cell-t matrix-today-cell' : isSun ? 'matrix-cell-t matrix-sunday-cell' : isSat ? 'matrix-cell-t matrix-saturday-cell' : 'matrix-cell-t';
 
         // 左パネル: 日付ラベル
-        let dateCls = 'matrix-date-label';
-        if (isTodayFlag) dateCls += ' matrix-today-label';
-        else if (isSun) dateCls += ' matrix-sunday-label';
-        else if (isSat) dateCls += ' matrix-saturday-label';
-        const dayLabel = `<span class="matrix-date-num">${day.getDate()}</span><span class="matrix-date-dow">${dayNames[dow]}</span>`;
-        dateColHtml += `<div class="${dateCls}">${dayLabel}</div>`;
+        dateParts.push(`<div class="${dateCls}"><span class="matrix-date-num">${day.getDate()}</span><span class="matrix-date-dow">${dayNames[dow]}</span></div>`);
 
         // 右パネル: データ行
-        tableHtml += `<tr class="${rowCls}">`;
+        tableParts.push(`<tr class="${rowCls}">`);
 
         // 各車両のセル
-        filteredVehicles.forEach(v => {
-            // この車両・この日付の全配車を取得
-            const dayDispatches = rangeDispatches
-                .filter(d => d.vehicle_id === v.id && d.date === dayStr)
-                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+        for (let vi = 0; vi < filteredVehicles.length; vi++) {
+            const v = filteredVehicles[vi];
+            const vId = v.id;
+            // dispatchIndexからO(1)でこの車両・日付の配車を取得（.filter()不要）
+            const dayDispatches = dispatchIndex[vId + '-' + dayStr] || [];
 
             // 6スロットに振り分け
             const slots = [[], [], [], [], [], []];
-            dayDispatches.forEach(d => {
-                const pIdx = getTimePeriodIndex(d.start_time);
-                slots[pIdx].push(d);
-            });
+            for (let di = 0; di < dayDispatches.length; di++) {
+                slots[getTimePeriodIndex(dayDispatches[di].start_time)].push(dayDispatches[di]);
+            }
 
-            let cellCls = 'matrix-cell-t';
-            if (isTodayFlag) cellCls += ' matrix-today-cell';
-            else if (isSun) cellCls += ' matrix-sunday-cell';
-            else if (isSat) cellCls += ' matrix-saturday-cell';
+            tableParts.push(`<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${vId},'${dayStr}',2)"><div class="matrix-slots">`);
 
-            // All cells now render 6 individual clickable slots
-            tableHtml += `<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${v.id},'${dayStr}',2)">`;
-            tableHtml += `<div class="matrix-slots">`;
-            slots.forEach((slotArr, pIdx) => {
-                const period = MATRIX_PERIODS[pIdx];
+            for (let pIdx = 0; pIdx < 6; pIdx++) {
+                const slotArr = slots[pIdx];
                 const slotCls = pIdx > 0 ? ' matrix-slot-border' : '';
-                const isEmpty = slotArr.length === 0;
-                const emptyCls = isEmpty ? ' matrix-slot-empty' : '';
-                tableHtml += `<div class="matrix-slot${slotCls}${emptyCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${v.id})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${v.id},'${dayStr}',${pIdx})">`;
-                slotArr.forEach(d => {
+                const emptyCls = slotArr.length === 0 ? ' matrix-slot-empty' : '';
+                tableParts.push(`<div class="matrix-slot${slotCls}${emptyCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${vId})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${vId},'${dayStr}',${pIdx})">`);
+
+                for (let si = 0; si < slotArr.length; si++) {
+                    const d = slotArr[si];
                     const ddc = getDriverColor(d.driver_id);
                     const borderColor = ddc ? ddc.border : '#94a3b8';
                     const bgColor = ddc ? ddc.bg : '#f8fafc';
@@ -733,29 +752,29 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                     const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
                     const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
                     const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
-                    const routeLabel = pickupShort && deliveryShort ? `${pickupShort}～${deliveryShort}` : (pickupShort || deliveryShort || '');
-                    // Line 2: area/cargo (方面 or cargo description)
-                    const shipment = shipments.find(s => s.id === d.shipment_id);
+                    const routeLabel = pickupShort && deliveryShort ? pickupShort + '～' + deliveryShort : (pickupShort || deliveryShort || '');
+                    // Line 2: area/cargo — shipmentMapでO(1)検索（.find()を除去）
+                    const shipment = shipmentMap[d.shipment_id];
                     const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
-                    // Line 3: additional info (client name or vehicle count)
-                    const extraLabel = d.client_name || shipment?.client_name || '';
+                    // Line 3: additional info
+                    const extraLabel = d.client_name || (shipment ? shipment.client_name : '') || '';
 
-                    tableHtml += `<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${v.id},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${pIdx},${v.id},${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">`;
-                    tableHtml += `<div class="matrix-dispatch-route">${routeLabel}</div>`;
-                    if (areaLabel) tableHtml += `<div class="matrix-dispatch-area">${areaLabel}</div>`;
-                    if (extraLabel) tableHtml += `<div class="matrix-dispatch-extra">${extraLabel}</div>`;
-                    tableHtml += `</div>`;
-                });
-                tableHtml += `</div>`;
-            });
-            tableHtml += `</div>`;
-            tableHtml += `</td>`;
-        });
-        tableHtml += `</tr>`;
-    });
+                    tableParts.push(`<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${vId},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${pIdx},${vId},${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address || ''}→${d.delivery_address || ''}"><div class="matrix-dispatch-route">${routeLabel}</div>`);
+                    if (areaLabel) tableParts.push(`<div class="matrix-dispatch-area">${areaLabel}</div>`);
+                    if (extraLabel) tableParts.push(`<div class="matrix-dispatch-extra">${extraLabel}</div>`);
+                    tableParts.push('</div>');
+                }
+                tableParts.push('</div>');
+            }
+            tableParts.push('</div></td>');
+        }
+        tableParts.push('</tr>');
+    }
 
-    tableHtml += `</tbody></table></div>`;
-    dateColHtml += `</div></div>`;
+    tableParts.push('</tbody></table></div>');
+    dateParts.push('</div></div>');
+    const tableHtml = tableParts.join('');
+    const dateColHtml = dateParts.join('');
 
     // 2パネルレイアウトで組み立て（未配車パネル用divも追加）
     const layoutHtml = `<div class="matrix-layout">${dateColHtml}${tableHtml}</div>`;
@@ -831,8 +850,8 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             if (dateBody) dateBody.scrollTop = wrapper.scrollTop;
         });
 
-        // 未配車パネルを描画
-        renderMatrixUnassignedPanel(shipments, dispatches);
+        // 未配車パネルを描画（rangeDispatchesは月範囲の配車データ）
+        renderMatrixUnassignedPanel(shipments, rangeDispatches);
     }
 }
 
@@ -851,11 +870,19 @@ async function openMatrixSlotModal(dateStr, slotIdx, vehicleId, dispatchId) {
     const vehicleLabel = vehicle ? vehicle.number : `車両ID:${vehicleId}`;
     const defaultDriverId = vehicle ? vehicle.default_driver_id : null;
 
-    // If editing existing dispatch, fetch its data
+    // If editing existing dispatch, fetch its data (キャッシュ優先で高速化)
     let existing = null;
     if (dispatchId) {
-        const allDisp = await apiGet('/dispatches');
-        existing = allDisp.find(d => d.id === dispatchId);
+        // まずキャッシュ済みの月間配車データから検索
+        const cachedDisp = _cache['_lastDispatches']?.data;
+        if (cachedDisp) {
+            existing = cachedDisp.find(d => d.id === dispatchId);
+        }
+        // キャッシュにない場合のみAPI呼び出し
+        if (!existing) {
+            const allDisp = await apiGet('/dispatches');
+            existing = allDisp.find(d => d.id === dispatchId);
+        }
     }
 
     const isEdit = !!existing;
@@ -865,7 +892,7 @@ async function openMatrixSlotModal(dateStr, slotIdx, vehicleId, dispatchId) {
     document.getElementById('modal-title').textContent = modalTitle;
     document.getElementById('modal-body').innerHTML = `
         <div style="margin-bottom:12px;padding:8px 12px;background:#fff7ed;border-radius:6px;font-size:0.85rem;color:#9a3412">
-            <strong>${vehicleLabel}</strong> / ${dateStr} / <strong>${slotLabel}</strong>
+            <strong>${vehicleLabel}</strong> / ${dateStr}
         </div>
         <div class="form-group">
             <label>荷主名</label>
