@@ -572,8 +572,10 @@ async function loadDispatchCalendar() {
     const baseDate = new Date(calendarDate);
     baseDate.setHours(0, 0, 0, 0);
 
+    // マトリクスビューでは月範囲の配車を別途取得するため、週の配車取得をスキップ
+    const isMatrixMode = !isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView;
     const [dispatches, vehicles, shipments, partners] = await Promise.all([
-        apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
+        isMatrixMode ? Promise.resolve([]) : apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         cachedApiGet('/vehicles'),
         cachedApiGet('/shipments'),
         cachedApiGet('/partners'),
@@ -582,7 +584,7 @@ async function loadDispatchCalendar() {
     _cache['/vehicles'] = { data: vehicles, ts: Date.now() };
     _cache['/shipments'] = { data: shipments, ts: Date.now() };
     _cache['/partners'] = { data: partners, ts: Date.now() };
-    _cache['_lastDispatches'] = { data: dispatches, ts: Date.now() };
+    if (!isMatrixMode) _cache['_lastDispatches'] = { data: dispatches, ts: Date.now() };
 
     const days = [];
     const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
