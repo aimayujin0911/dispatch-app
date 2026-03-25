@@ -593,8 +593,8 @@ async function loadDispatchCalendar() {
     }
     const dayStrs = days.map(d => fmt(d));
 
-    const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
-    const capacities = [...new Set(vehicles.map(v => v.capacity))].sort((a, b) => a - b);
+    const vehicleTypes = [...new Set(vehicles.map(v => v.type))].filter(t => t);
+    const capacities = [...new Set(vehicles.map(v => v.capacity))].filter(c => c > 0).sort((a, b) => a - b);
     // PC版フィルター（単一選択、後方互換）
     const filterType = document.getElementById('cal-filter-type')?.value || '';
     const filterCap = document.getElementById('cal-filter-cap')?.value || '';
@@ -763,10 +763,10 @@ async function loadDispatchCalendar() {
 
                 const barW = colW - 6 - indent;
                 const dc = getDriverColor(d.driver_id);
-                barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${isOverload ? '#fee2e2' : wc.bg};color:${isOverload ? '#991b1b' : wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${overloadStyle}${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}${isOverload ? '\n🚨積載超過'+capPct+'%' : ''}">
+                barsHtml += `<div class="vg-bar" data-id="${d.id}" style="background:${isOverload ? '#fee2e2' : wc.bg};color:${isOverload ? '#991b1b' : wc.text};border-left:3px solid ${dc.border};left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;${overloadStyle}${indent > 0 ? 'opacity:0.9;' : ''}" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${driverName}\n${formatHour(d.start_time)}-${formatHour(d.end_time)}\n${d.pickup_address}→${d.delivery_address}${isOverload ? '\n🚨積載超過'+capPct+'%' : ''}">
                     <span class="vg-bar-driver" style="background:${dc.bg};color:${dc.text};border:1px solid ${dc.border}">${overloadIcon}${driverName}</span>
                     ${heightPx >= 40 ? `<span class="vg-bar-addr">${pickup}→${delivery}</span>` : ''}
-                    ${heightPx >= 55 ? `<span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>` : ''}
+                    ${heightPx >= 55 ? `<span class="vg-bar-addr" style="font-size:0.45rem">${formatHour(d.start_time)}-${formatHour(d.end_time)}</span>` : ''}
                 </div>`;
             });
         });
@@ -1246,7 +1246,7 @@ function buildGanttRows(dayStr, dispatches, vehicles) {
             const weightStyle = isOverload ? overloadBg : `background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};`;
             const overloadWarn = isOverload ? `\n🚨 積載超過: ${capPct}% (${d.weight}kg / ${d.vehicle_capacity * 1000}kg)` : '';
             const presetTooltip = timeChanged ? `\n📋 元の指定時間: ${d.pickup_time}〜${d.delivery_time}` : '';
-            html += `<div class="gantt-bar${multiDayClass}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="${weightStyle}left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;${overloadStyle}${conflictStyle}" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${driverLabel}\n${d.start_time}-${d.end_time} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoInfo}${weightInfo}${capBadge}${multiDayTag}${presetTooltip}${driverConflict ? '\n⚠ このドライバーは同日に別車両にも配車されています' : ''}${overloadWarn}">`;
+            html += `<div class="gantt-bar${multiDayClass}" data-id="${d.id}" data-vehicle-id="${v.id}" data-start="${d.start_time}" data-end="${d.end_time}" style="${weightStyle}left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:${barH}px;${overloadStyle}${conflictStyle}" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${v.id})" onclick="event.stopPropagation()" title="${driverLabel}\n${formatHour(d.start_time)}-${formatHour(d.end_time)} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoInfo}${weightInfo}${capBadge}${multiDayTag}${presetTooltip}${driverConflict ? '\n⚠ このドライバーは同日に別車両にも配車されています' : ''}${overloadWarn}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             // ドライバー名 + 積み地→降ろし地（時間非表示、均等切り詰め）
             const overloadIcon = isOverload ? `<span style="color:#dc2626;font-weight:700;font-size:0.7rem" title="積載超過${capPct}%">🚨${capPct}%</span> ` : '';
@@ -1318,7 +1318,7 @@ function buildPartnerRows(dayStr, dispatches, partners) {
             const top = lane * 32 + 4;
             const cargoShort = d.cargo_description ? ` [${d.cargo_description}]` : '';
 
-            html += `<div class="gantt-bar" data-id="${d.id}" data-vehicle-id="${d.vehicle_id}" data-start="${d.start_time}" data-end="${d.end_time}" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:26px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${d.vehicle_id})" onclick="event.stopPropagation()" title="${pName}\n${d.start_time}-${d.end_time} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoShort}">`;
+            html += `<div class="gantt-bar" data-id="${d.id}" data-vehicle-id="${d.vehicle_id}" data-start="${d.start_time}" data-end="${d.end_time}" style="background:${wc.bg};color:${wc.text};border-left:3px solid ${wc.border};left:${Math.max(left, 0)}%;width:${Math.min(width, 100 - left)}%;top:${top}px;bottom:auto;height:26px;" onmousedown="event.stopPropagation();startGanttDrag(event, ${d.id}, ${d.vehicle_id})" onclick="event.stopPropagation()" title="${pName}\n${formatHour(d.start_time)}-${formatHour(d.end_time)} ${d.pickup_address || ''} → ${d.delivery_address || ''}${cargoShort}">`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-left" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'left', '${d.start_time}', '${d.end_time}')"></div>`;
             html += `<span class="gantt-bar-text"><span class="bar-addr-pickup">${d.pickup_address || ''}</span>→<span class="bar-addr-delivery">${d.delivery_address || ''}</span></span>`;
             html += `<div class="gantt-bar-resize gantt-bar-resize-right" onmousedown="event.stopPropagation();event.preventDefault();startGanttResize(event, ${d.id}, 'right', '${d.start_time}', '${d.end_time}')"></div>`;
@@ -1531,7 +1531,7 @@ async function applyMobileDrop(dispatchId, vehicleId, hour) {
                 if (!backToPreset) {
                     const confirmed = await showConfirm(
                         `⚠️ 指定時間: ${shipment.pickup_time}〜${shipment.delivery_time}\n\n` +
-                        `変更後: ${newStart}〜${newEnd}\n\n指定時間外に変更しますか？`
+                        `変更後: ${formatHour(newStart)}〜${formatHour(newEnd)}\n\n指定時間外に変更しますか？`
                     );
                     if (!confirmed) { loadDispatchCalendar(); return; }
                 }
@@ -1615,8 +1615,8 @@ function showMobileActionSheet(dispatchId) {
 }
 function showMobileFilterModal() {
     const vehicles = _cache['/vehicles']?.data || [];
-    const vehicleTypes = [...new Set(vehicles.map(v => v.type))];
-    const capacities = [...new Set(vehicles.map(v => v.capacity))].sort((a, b) => a - b);
+    const vehicleTypes = [...new Set(vehicles.map(v => v.type))].filter(t => t);
+    const capacities = [...new Set(vehicles.map(v => v.capacity))].filter(c => c > 0).sort((a, b) => a - b);
     document.getElementById('modal-title').textContent = '絞り込み';
     document.getElementById('modal-body').innerHTML = `
         <div style="margin-bottom:12px">
@@ -1690,10 +1690,14 @@ async function mobileChangeTime(dispatchId) {
     const dispatches = await cachedApiGet('/dispatches');
     const d = dispatches.find(x => x.id === dispatchId);
     if (!d) return;
-    const newStart = prompt('開始時間を入力 (例: 08:00)', d.start_time);
-    if (!newStart) return;
-    const newEnd = prompt('終了時間を入力 (例: 12:00)', d.end_time);
-    if (!newEnd) return;
+    const curStartH = parseInt(d.start_time.split(':')[0], 10);
+    const curEndH = parseInt(d.end_time.split(':')[0], 10);
+    const newStartH = prompt(`開始時間を入力 (0〜23の数字、現在: ${curStartH}時)`, curStartH);
+    if (newStartH === null) return;
+    const newEndH = prompt(`終了時間を入力 (0〜23の数字、現在: ${curEndH}時)`, curEndH);
+    if (newEndH === null) return;
+    const newStart = String(parseInt(newStartH, 10) || 0).padStart(2, '0') + ':00';
+    const newEnd = String(parseInt(newEndH, 10) || 0).padStart(2, '0') + ':00';
     try {
         await apiPut(`/dispatches/${dispatchId}`, { start_time: newStart, end_time: newEnd });
         invalidateCache('/dispatches');
@@ -1743,7 +1747,7 @@ function removeGhost() {
 function calcDragTime(dx) {
     const totalMin = HOUR_COUNT * 60;
     const pxPerMin = dragState.timelineWidth / totalMin;
-    const step = 15;
+    const step = 60;
     const deltaMins = Math.round(dx / pxPerMin / step) * step;
     let newStartMin = timeToMinutes(dragState.origStart) + deltaMins;
     newStartMin = Math.max(HOUR_START * 60, Math.min(newStartMin, HOUR_END * 60 - dragState.duration));
@@ -1757,7 +1761,7 @@ function updateGhostPosition(ghost, newStartMin, newEndMin) {
     const width = ((newEndMin - newStartMin) / totalMin) * 100;
     ghost.style.left = Math.max(left, 0) + '%';
     ghost.style.width = Math.min(width, 100 - left) + '%';
-    ghost.innerHTML = `<span class="gantt-ghost-label">${minutesToTime(newStartMin)} - ${minutesToTime(newEndMin)}</span>`;
+    ghost.innerHTML = `<span class="gantt-ghost-label">${formatHour(minutesToTime(newStartMin))} - ${formatHour(minutesToTime(newEndMin))}</span>`;
 }
 
 function onGanttDragMove(e) {
@@ -1870,7 +1874,7 @@ async function onGanttDragEnd(e) {
                     const barStart = timeChanged ? newStart : origStart;
                     const barEnd = timeChanged ? newEnd : origEnd;
                     if (barStart < ws || barEnd > we) {
-                        if (!await showConfirm(`⚠ ${driver.name}の勤務時間は${ws}〜${we}ですが、この案件（${barStart}〜${barEnd}）は時間外にかかります。割り当てますか？`)) {
+                        if (!await showConfirm(`⚠ ${driver.name}の勤務時間は${formatHour(ws)}〜${formatHour(we)}ですが、この案件（${formatHour(barStart)}〜${formatHour(barEnd)}）は時間外にかかります。割り当てますか？`)) {
                             loadDispatchCalendar();
                             return;
                         }
@@ -2005,7 +2009,7 @@ function onShipmentDragMove(e) {
         const pct = relX / rect.width;
         const totalMin = HOUR_COUNT * 60;
         const mins = HOUR_START * 60 + pct * totalMin;
-        const snapped = Math.round(mins / 15) * 15;
+        const snapped = Math.round(mins / 60) * 60;
         const startMin = Math.max(HOUR_START * 60, Math.min(snapped, HOUR_END * 60 - 60));
         shipmentDragState.dropTime = minutesToTime(startMin);
 
@@ -2022,7 +2026,7 @@ function onShipmentDragMove(e) {
         const width = (60 / totalMin) * 100; // デフォルト1時間幅
         shipmentDragState.ghost.style.left = left + '%';
         shipmentDragState.ghost.style.width = width + '%';
-        shipmentDragState.ghost.innerHTML = `<span class="gantt-ghost-label">${shipmentDragState.dropTime} ${shipmentDragState.clientName}</span>`;
+        shipmentDragState.ghost.innerHTML = `<span class="gantt-ghost-label">${formatHour(shipmentDragState.dropTime)} ${shipmentDragState.clientName}</span>`;
     } else {
         shipmentDragState.targetVehicleId = null;
         if (shipmentDragState.ghost) { shipmentDragState.ghost.remove(); shipmentDragState.ghost = null; }
@@ -2094,7 +2098,7 @@ async function onShipmentDragEnd(e) {
     document.getElementById('modal-body').innerHTML = `
         <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;font-size:0.85rem">
             <div><strong>日付:</strong> ${dayStr}</div>
-            <div><strong>時間:</strong> ${startTime} 〜 ${endTime}</div>
+            <div><strong>時間:</strong> ${formatHour(startTime)} 〜 ${formatHour(endTime)}</div>
             ${shipment ? `<div><strong>荷主:</strong> ${shipment.client_name}</div>
             <div><strong>荷物:</strong> ${shipment.cargo_description || '-'} ${shipment.weight ? shipment.weight + 'kg' : ''}</div>
             <div><strong>区間:</strong> ${shipment.pickup_address || '-'} → ${shipment.delivery_address || '-'}</div>` : ''}
@@ -2113,7 +2117,7 @@ async function onShipmentDragEnd(e) {
                         const outOfHours = startTime < ws || endTime > we;
                         const warn = busy ? `⚠ [${busy.join(',')}] ` : '';
                         const offWarn = outOfHours ? '🕐時間外 ' : '';
-                        return `<option value="${d.id}" ${d.id == autoDriverId ? 'selected' : ''} data-ws="${ws}" data-we="${we}">${offWarn}${warn}${d.name} (${d.license_type}) ${ws}〜${we}</option>`;
+                        return `<option value="${d.id}" ${d.id == autoDriverId ? 'selected' : ''} data-ws="${ws}" data-we="${we}">${offWarn}${warn}${d.name} (${d.license_type}) ${formatHour(ws)}〜${formatHour(we)}</option>`;
                     }).join('')}
                 </select>
                 <div id="driver-work-warn"></div>
@@ -2129,11 +2133,15 @@ async function onShipmentDragEnd(e) {
         <div class="form-row">
             <div class="form-group">
                 <label>開始時刻</label>
-                <input type="time" id="f-sd-start" value="${startTime}" ${hasPresetTimes ? `data-preset="${shipment.pickup_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
+                <select id="f-sd-start" ${hasPresetTimes ? `data-preset="${shipment.pickup_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
+                    ${hourSelectOptions(startTime)}
+                </select>
             </div>
             <div class="form-group">
                 <label>終了時刻</label>
-                <input type="time" id="f-sd-end" value="${endTime}" ${hasPresetTimes ? `data-preset="${shipment.delivery_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
+                <select id="f-sd-end" ${hasPresetTimes ? `data-preset="${shipment.delivery_time}" onchange="warnTimeChange(this,'${shipment.pickup_time}','${shipment.delivery_time}')"` : ''}>
+                    ${hourSelectOptions(endTime)}
+                </select>
             </div>
         </div>
         <div class="form-actions">
@@ -2153,7 +2161,7 @@ function checkDriverWorkTime(sel, startTime, endTime) {
     const we = opt.dataset.we;
     if (ws && we && (startTime < ws || endTime > we)) {
         const warnDiv = document.getElementById('driver-work-warn');
-        if (warnDiv) warnDiv.innerHTML = `<div style="padding:6px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:0.8rem;color:#991b1b;margin-top:4px">⚠ このドライバーの勤務時間（${ws}〜${we}）外です</div>`;
+        if (warnDiv) warnDiv.innerHTML = `<div style="padding:6px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:0.8rem;color:#991b1b;margin-top:4px">⚠ このドライバーの勤務時間（${formatHour(ws)}〜${formatHour(we)}）外です</div>`;
     } else {
         const warnDiv = document.getElementById('driver-work-warn');
         if (warnDiv) warnDiv.innerHTML = '';
@@ -2377,7 +2385,7 @@ async function checkQuickShipmentFeasibility(dayStr) {
         panel.innerHTML = `<div style="color:#16a34a;font-weight:700">✅ 配車可能</div>
             <div style="font-size:0.85rem;margin-top:4px">
                 🚚 ${result.vehicle.number}（${result.vehicle.vehicle_type} ${result.vehicle.capacity}t）<br>
-                👤 ${result.driver.name}（${result.driver.work_start || '08:00'}〜${result.driver.work_end || '17:00'}）
+                👤 ${result.driver.name}（${formatHour(result.driver.work_start || '08:00')}〜${formatHour(result.driver.work_end || '17:00')}）
             </div>`;
     } else {
         // リセット判定: 協力会社案件以外を除外して再チェック
@@ -2834,7 +2842,7 @@ async function autoDispatch(dayStr) {
         previewHtml += `<tr style="border-bottom:1px solid #e5e7eb">
             <td style="padding:4px 6px">${a.consolidated ? '📦 ' : ''}${a.shipment.client_name} ${a.shipment.cargo_description || ''}${a.consolidated ? ' <span style="color:#ea580c;font-size:0.7rem">(積合)</span>' : ''}</td>
             <td style="padding:4px 6px;text-align:center;font-size:0.72rem">${pickup}→${delivery}</td>
-            <td style="padding:4px 6px;text-align:center">${a.startTime}〜${a.endTime}</td>
+            <td style="padding:4px 6px;text-align:center">${formatHour(a.startTime)}〜${formatHour(a.endTime)}</td>
             <td style="padding:4px 6px;text-align:center">${a.vehicle.number}</td>
             <td style="padding:4px 6px;text-align:center">${a.driver.name}</td>
         </tr>`;
@@ -2930,7 +2938,7 @@ function onGanttResizeMove(e) {
     const dx = e.clientX - resizeState.startX;
     const totalMin = HOUR_COUNT * 60;
     const pxPerMin = resizeState.timelineWidth / totalMin;
-    const step = 15;
+    const step = 60;
     const deltaMins = Math.round(dx / pxPerMin / step) * step;
 
     if (resizeState.edge === 'right') {
@@ -2955,8 +2963,8 @@ function onGanttResizeMove(e) {
         bar.style.width = Math.min(width, 100 - left) + '%';
         const startEl = bar.querySelector('.gantt-bar-start');
         const endEl = bar.querySelector('.gantt-bar-end');
-        if (startEl) startEl.textContent = resizeState.newStart;
-        if (endEl) endEl.textContent = resizeState.newEnd;
+        if (startEl) startEl.textContent = formatHour(resizeState.newStart);
+        if (endEl) endEl.textContent = formatHour(resizeState.newEnd);
     }
 }
 
@@ -3102,16 +3110,30 @@ function toggleShowAllUnassigned() {
 
 function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
-    return h * 60 + m;
+    return h * 60 + (m || 0);
 }
 
 function minutesToTime(mins) {
     mins = Math.max(0, Math.min(mins, 24 * 60));
     const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    // 24:00は23:59として保存（DB String(5)制約）
-    if (h >= 24) return '23:59';
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    // 時間単位に丸める（常にHH:00形式）
+    if (h >= 24) return '23:00';
+    return String(h).padStart(2, '0') + ':00';
+}
+
+// "07:00" → "7時", "17:00" → "17時" のように表示用フォーマット
+function formatHour(t) {
+    if (!t) return '-';
+    const h = parseInt(t.split(':')[0], 10);
+    return h + '時';
+}
+
+// 時間選択用<select>のoptions HTMLを生成（0時〜23時）
+function hourSelectOptions(selectedValue) {
+    const selH = selectedValue ? parseInt(selectedValue.split(':')[0], 10) : -1;
+    return Array.from({length: 24}, (_, h) =>
+        `<option value="${String(h).padStart(2, '0')}:00" ${h === selH ? 'selected' : ''}>${h}時</option>`
+    ).join('');
 }
 
 function calcDuration(start, end) {
@@ -3134,7 +3156,7 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
             qdBusyMap[x.driver_id].push(x.vehicle_number || `車両${x.vehicle_id}`);
         }
     });
-    const driverLabel = (d, warn) => `${warn}${d.name} (${d.license_type}) ${d.work_start || '08:00'}〜${d.work_end || '17:00'}`;
+    const driverLabel = (d, warn) => `${warn}${d.name} (${d.license_type}) ${formatHour(d.work_start || '08:00')}〜${formatHour(d.work_end || '17:00')}`;
     // 出発時刻時点で出勤中のドライバーのみ表示
     const onDutyDrivers = drivers.filter(d => {
         if (d.status === '非番') return false;
@@ -3160,11 +3182,15 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
         <div class="form-row">
             <div class="form-group">
                 <label>開始時刻</label>
-                <input type="time" id="f-qd-start" value="${startTime}" onchange="filterDriversByTime()">
+                <select id="f-qd-start" onchange="filterDriversByTime()">
+                    ${hourSelectOptions(startTime)}
+                </select>
             </div>
             <div class="form-group">
                 <label>終了時刻</label>
-                <input type="time" id="f-qd-end" value="${endTime}">
+                <select id="f-qd-end">
+                    ${hourSelectOptions(endTime)}
+                </select>
             </div>
         </div>
         <div class="form-group">
@@ -3179,11 +3205,11 @@ async function openQuickDispatchModal(date, startTime, endTime, preselectedVehic
                 <label>ドライバー（自社）</label>
                 <select id="f-qd-driver" onchange="if(this.value)document.getElementById('f-qd-partner').value=''">
                     <option value="">-- 選択 --</option>
-                    <optgroup label="出勤中（${startTime}時点）" id="f-qd-driver-onduty">
-                        ${onDutyDrivers.map(d => { const w = qdBusyMap[d.id] ? `⚠[${qdBusyMap[d.id].join(',')}] ` : ''; return `<option value="${d.id}">${w}${d.name} (${d.license_type}) ${d.work_start}〜${d.work_end}</option>`; }).join('')}
+                    <optgroup label="出勤中（${formatHour(startTime)}時点）" id="f-qd-driver-onduty">
+                        ${onDutyDrivers.map(d => { const w = qdBusyMap[d.id] ? `⚠[${qdBusyMap[d.id].join(',')}] ` : ''; return `<option value="${d.id}">${w}${d.name} (${d.license_type}) ${formatHour(d.work_start)}〜${formatHour(d.work_end)}</option>`; }).join('')}
                     </optgroup>
                     <optgroup label="その他（出勤時間外）">
-                        ${allNonOffDrivers.filter(d => !onDutyDrivers.find(od => od.id === d.id)).map(d => { const w = qdBusyMap[d.id] ? `⚠[${qdBusyMap[d.id].join(',')}] ` : ''; return `<option value="${d.id}" style="color:#94a3b8">${w}${d.name} (${d.license_type}) ${d.work_start}〜${d.work_end} ※時間外</option>`; }).join('')}
+                        ${allNonOffDrivers.filter(d => !onDutyDrivers.find(od => od.id === d.id)).map(d => { const w = qdBusyMap[d.id] ? `⚠[${qdBusyMap[d.id].join(',')}] ` : ''; return `<option value="${d.id}" style="color:#94a3b8">${w}${d.name} (${d.license_type}) ${formatHour(d.work_start)}〜${formatHour(d.work_end)} ※時間外</option>`; }).join('')}
                     </optgroup>
                 </select>
             </div>
@@ -3240,11 +3266,11 @@ async function filterDriversByTime() {
     const onDuty = drivers.filter(d => d.status !== '非番' && startTime >= (d.work_start || '08:00') && startTime < (d.work_end || '17:00'));
     const offDuty = drivers.filter(d => d.status !== '非番' && !onDuty.find(od => od.id === d.id));
     sel.innerHTML = `<option value="">-- 選択 --</option>
-        <optgroup label="出勤中（${startTime}時点）">
-            ${onDuty.map(d => `<option value="${d.id}" ${d.id == currentVal ? 'selected' : ''}>${d.name} (${d.license_type}) ${d.work_start}〜${d.work_end}</option>`).join('')}
+        <optgroup label="出勤中（${formatHour(startTime)}時点）">
+            ${onDuty.map(d => `<option value="${d.id}" ${d.id == currentVal ? 'selected' : ''}>${d.name} (${d.license_type}) ${formatHour(d.work_start)}〜${formatHour(d.work_end)}</option>`).join('')}
         </optgroup>
         <optgroup label="その他（出勤時間外）">
-            ${offDuty.map(d => `<option value="${d.id}" ${d.id == currentVal ? 'selected' : ''} style="color:#94a3b8">${d.name} (${d.license_type}) ${d.work_start}〜${d.work_end} ※時間外</option>`).join('')}
+            ${offDuty.map(d => `<option value="${d.id}" ${d.id == currentVal ? 'selected' : ''} style="color:#94a3b8">${d.name} (${d.license_type}) ${formatHour(d.work_start)}〜${formatHour(d.work_end)} ※時間外</option>`).join('')}
         </optgroup>`;
 }
 
@@ -3355,7 +3381,7 @@ async function showDispatchDetail(id) {
     document.getElementById('modal-body').innerHTML = `
         <div style="display:grid;gap:12px">
             <div><strong>日付:</strong> ${d.date}</div>
-            <div><strong>時間:</strong> ${d.start_time} 〜 ${d.end_time}</div>
+            <div><strong>時間:</strong> ${formatHour(d.start_time)} 〜 ${formatHour(d.end_time)}</div>
             ${presetTimeInfo}
             <div><strong>車両:</strong> ${d.vehicle_number}</div>
             <div><strong>ドライバー:</strong> ${d.driver_name}</div>
@@ -3458,25 +3484,25 @@ async function printDispatchInstruction(id) {
             </tr>
             <tr>
                 <td style="text-align:center;font-weight:600">出庫</td>
-                <td class="time-col">${d.start_time || '-'}</td>
+                <td class="time-col">${formatHour(d.start_time)}</td>
                 <td class="place-col">営業所出発</td>
                 <td>出庫前点検実施</td>
             </tr>
             <tr>
                 <td style="text-align:center;font-weight:600">積込</td>
-                <td class="time-col">${d.start_time || '-'}</td>
+                <td class="time-col">${formatHour(d.start_time)}</td>
                 <td class="place-col">${d.pickup_address || '-'}${d.client_name ? ' (' + d.client_name + ')' : ''}</td>
                 <td>${d.cargo_description || '-'}</td>
             </tr>
             <tr>
                 <td style="text-align:center;font-weight:600">荷卸</td>
-                <td class="time-col">${d.end_time || '-'}</td>
+                <td class="time-col">${formatHour(d.end_time)}</td>
                 <td class="place-col">${d.delivery_address || '-'}</td>
                 <td>-</td>
             </tr>
             <tr>
                 <td style="text-align:center;font-weight:600">帰庫</td>
-                <td class="time-col">${d.end_time || '-'}</td>
+                <td class="time-col">${formatHour(d.end_time)}</td>
                 <td class="place-col">営業所帰着</td>
                 <td>帰庫後点呼実施</td>
             </tr>
@@ -3552,11 +3578,15 @@ async function editDispatch(id) {
         <div class="form-row">
             <div class="form-group">
                 <label>開始時刻</label>
-                <input type="time" id="f-ed-start" value="${d.start_time}">
+                <select id="f-ed-start">
+                    ${hourSelectOptions(d.start_time)}
+                </select>
             </div>
             <div class="form-group">
                 <label>終了時刻</label>
-                <input type="time" id="f-ed-end" value="${d.end_time}">
+                <select id="f-ed-end">
+                    ${hourSelectOptions(d.end_time)}
+                </select>
             </div>
         </div>
         <div class="form-group">
@@ -3571,7 +3601,7 @@ async function editDispatch(id) {
                 ${availableDrivers.map(dr => {
                     const busy = busyDriverMap[dr.id];
                     const warn = busy ? `⚠ [${busy.join(',')}]` : '';
-                    return `<option value="${dr.id}" ${dr.id === d.driver_id ? 'selected' : ''}>${warn}${dr.name} (${dr.license_type}) ${dr.work_start || '08:00'}〜${dr.work_end || '17:00'}</option>`;
+                    return `<option value="${dr.id}" ${dr.id === d.driver_id ? 'selected' : ''}>${warn}${dr.name} (${dr.license_type}) ${formatHour(dr.work_start || '08:00')}〜${formatHour(dr.work_end || '17:00')}</option>`;
                 }).join('')}
             </select>
         </div>
@@ -4543,7 +4573,7 @@ async function loadMapMarkers() {
         if (pickupCoords) {
             const icon = L.divIcon({ className: 'map-icon', html: `<div style="background:${vColor};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">積</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
             const m = L.marker(pickupCoords, { icon }).addTo(map)
-                .bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong><br>${d.driver_name}<br>📦 ${d.pickup_address}<br>${d.start_time}〜${d.end_time}<br>${statusBadgeHtml(d.status)}`);
+                .bindPopup(`<strong style="color:${vColor}">${d.vehicle_number}</strong><br>${d.driver_name}<br>📦 ${d.pickup_address}<br>${formatHour(d.start_time)}〜${formatHour(d.end_time)}<br>${statusBadgeHtml(d.status)}`);
             mapMarkers.push(m);
             bounds.push(pickupCoords);
         }
@@ -4857,8 +4887,8 @@ async function loadReports() {
         <tr>
             <td>${r.date}</td>
             <td>${r.driver_name}</td>
-            <td>${r.start_time || '-'}</td>
-            <td>${r.end_time || '-'}</td>
+            <td>${formatHour(r.start_time)}</td>
+            <td>${formatHour(r.end_time)}</td>
             <td>${r.distance_km}</td>
             <td>${r.fuel_liters}</td>
             <td>${r.notes || '-'}</td>
@@ -5518,7 +5548,7 @@ async function showDocSendOptions(docType, dispatchId) {
         <div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:0.85rem">
             <div><strong>案件:</strong> ${d.client_name || '-'} / ${d.cargo_description || '-'}</div>
             <div><strong>区間:</strong> ${routeInfo}</div>
-            <div><strong>日時:</strong> ${d.date} ${d.start_time}〜${d.end_time}</div>
+            <div><strong>日時:</strong> ${d.date} ${formatHour(d.start_time)}〜${formatHour(d.end_time)}</div>
             ${recipientEmail ? `<div style="margin-top:6px"><strong>送付先:</strong> ${recipientName} &lt;${recipientEmail}&gt;</div>` : ''}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
