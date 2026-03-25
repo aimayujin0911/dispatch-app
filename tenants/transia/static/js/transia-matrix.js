@@ -471,46 +471,112 @@ function matrixDragLeave(e) {
     }
 }
 
+// 動的スロット: セル内の既存配車から、ドロップ先スロットの時刻を算出
+function calcSlotTime(existingDispatches, targetSlotIdx) {
+    // 既存配車をスロット位置順にマップ
+    // 各配車は ceil(duration/2) スロット占有
+    let nextFreeTime = 8; // デフォルト開始8時
+    let slotCursor = 0;
+
+    const sorted = [...existingDispatches].sort((a, b) => (a.start_time || '08:00').localeCompare(b.start_time || '08:00'));
+    for (const d of sorted) {
+        const dStartH = parseInt((d.start_time || '08:00').split(':')[0]);
+        const dEndH = parseInt((d.end_time || '12:00').split(':')[0]) || (dStartH + 4);
+        const dSlots = Math.max(1, Math.ceil((dEndH - dStartH) / 2));
+
+        // この配車の前に空きスロットがある場合
+        if (dStartH > nextFreeTime) {
+            const gapSlots = Math.ceil((dStartH - nextFreeTime) / 2);
+            if (slotCursor + gapSlots > targetSlotIdx) {
+                // ターゲットはこの空きの中
+                return nextFreeTime + (targetSlotIdx - slotCursor) * 2;
+            }
+            slotCursor += gapSlots;
+        }
+
+        // この配車が占有するスロット
+        if (slotCursor + dSlots > targetSlotIdx) {
+            // ターゲットはこの配車の占有内（既に埋まっている）
+            return null;
+        }
+        slotCursor += dSlots;
+        nextFreeTime = dEndH;
+    }
+
+    // 残りの空きスロット
+    return nextFreeTime + (targetSlotIdx - slotCursor) * 2;
+}
+
 async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
     e.preventDefault();
     const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
     if (cell) cell.classList.remove('matrix-drop-target');
     if (!window._matrixDragData) return;
 
-    // 新しい時間帯に合わせてstart_time/end_timeを算出（デフォルト2スロット=4時間）
-    const p = MATRIX_PERIODS[targetPeriodIdx];
-    const nextP = MATRIX_PERIODS[Math.min(targetPeriodIdx + 1, 5)];
-    const defaultEndH = (targetPeriodIdx < 5) ? nextP.endH : p.endH;
-    const newStart = String(p.startH).padStart(2, '0') + ':00';
-    const newEnd = String(defaultEndH).padStart(2, '0') + ':00';
-
     // 未配車案件のドロップ → 新規配車作成
     if (window._matrixDragData.isUnassigned) {
         const shipmentId = window._matrixDragData.shipmentId;
         window._matrixDragData = null;
         try {
-            // 車両のデフォルトドライバーを取得（なくても配車可能）
             const vehicles = await cachedApiGet('/vehicles');
             const vehicle = vehicles.find(v => v.id === targetVehicleId);
             const driverId = vehicle ? vehicle.default_driver_id : null;
 
-            // 時系列チェック: 同じ車両・同日の既存配車と比較
-            const existingDispatches = (await cachedApiGet('/dispatches?week_start=' + targetDateStr))
-                .filter(d => d.vehicle_id === targetVehicleId && d.date === targetDateStr)
-                .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+            // 同セルの既存配車を取得
+            const ld = window._matrixLazyData;
+            const existingDispatches = ld?.dispatchIndex?.[targetVehicleId + '-' + targetDateStr] || [];
 
+            // 案件自身の時刻情報を確認
+            const shipments = await cachedApiGet('/shipments');
+            const shipment = shipments.find(s => s.id === shipmentId);
+            let startH, endH;
+
+            if (shipment?.pickup_time && shipment.pickup_time !== '00:00') {
+                // 案件に時刻指定あり → その時刻を使用
+                startH = parseInt(shipment.pickup_time.split(':')[0]);
+                endH = shipment.delivery_time ? parseInt(shipment.delivery_time.split(':')[0]) : (startH + 4);
+            } else {
+                // 時刻指定なし → スロット位置から動的に算出
+                const slotTime = calcSlotTime(existingDispatches, targetPeriodIdx);
+                if (slotTime === null) {
+                    alert('このスロットは既に配車で埋まっています。別のスロットにドロップしてください。');
+                    return;
+                }
+                startH = slotTime;
+                endH = startH + 4; // デフォルト2スロット=4時間
+            }
+            if (endH > 24) endH = 24;
+            const newStart = String(startH).padStart(2, '0') + ':00';
+            const newEnd = String(endH === 24 ? 23 : endH).padStart(2, '0') + (endH === 24 ? ':59' : ':00');
+
+            // 時系列チェック: 既存配車との前後関係
             if (existingDispatches.length > 0) {
-                // 新しい配車のスロットが既存配車より時間的に前なのに後のスロットに入る、またはその逆
-                const newStartMinutes = p.startH * 60;
-                const hasTimeConflict = existingDispatches.some(d => {
-                    const dStart = parseInt(d.start_time?.split(':')[0] || '0') * 60;
-                    // 既存が新しいスロットより後の時間帯にあるのに、既存のstart_timeが新スロットのstartHより前
-                    return (dStart < newStartMinutes && parseInt(d.start_time?.split(':')[0] || '0') >= p.endH) ||
-                           (dStart >= p.endH * 60 && parseInt(d.start_time?.split(':')[0] || '0') < p.startH);
+                const sorted = [...existingDispatches].sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+                // 新しい配車の位置（スロット順）で、時刻が前後逆になるケースを検出
+                const prevDispatch = sorted.filter(d => {
+                    const dIdx = getTimePeriodIndex(d.start_time);
+                    return dIdx < targetPeriodIdx;
+                }).pop();
+                const nextDispatch = sorted.find(d => {
+                    const dIdx = getTimePeriodIndex(d.start_time);
+                    return dIdx > targetPeriodIdx;
                 });
-                if (hasTimeConflict) {
-                    const proceed = confirm(`⚠️ 時系列の注意\n\nこの車両には同日に既存の配車があり、時間の前後が逆になる可能性があります。\n\n配車先: ${newStart}〜${newEnd}\n\n続行しますか？`);
-                    if (!proceed) return;
+
+                let conflict = false;
+                let conflictMsg = '';
+                if (prevDispatch && parseInt((prevDispatch.start_time || '0').split(':')[0]) > startH) {
+                    conflict = true;
+                    conflictMsg = `上のスロットに${prevDispatch.start_time}開始の配車がありますが、今回の配車は${newStart}開始です。`;
+                }
+                if (nextDispatch && parseInt((nextDispatch.start_time || '0').split(':')[0]) < startH) {
+                    conflict = true;
+                    conflictMsg = `下のスロットに${nextDispatch.start_time}開始の配車がありますが、今回の配車は${newStart}開始です。`;
+                }
+
+                if (conflict) {
+                    const action = confirm(`⚠️ 時間の前後が逆になっています\n\n${conflictMsg}\n\n正しい前後関係に並べ替えますか？\n\n[OK] → 時刻順に並べ替え\n[キャンセル] → 未配車に戻す`);
+                    if (!action) return; // 未配車に戻す（配車作成しない）
+                    // OK → 配車を作成してからリロード（時刻順で自動再配置）
                 }
             }
 
@@ -527,7 +593,7 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
             invalidateCache();
             loadDispatchCalendar();
         } catch (err) {
-            console.error('Matrix D&D unassigned dispatch failed:', err);
+            console.error('Matrix D&D dispatch failed:', err);
             alert('配車作成に失敗しました: ' + (err.message || err));
             loadDispatchCalendar();
         }
@@ -767,16 +833,19 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                 tableParts.push(`<div class="matrix-slot${slotCls} matrix-slot-empty" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${vId})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${vId},'${dayStr}',${pIdx})"></div>`);
             }
 
-            // 配車アイテムをスロット位置ベースで絶対配置（ざっくり前後関係）
+            // 配車アイテムを動的スロット位置で絶対配置
+            // 各配車は ceil(duration/2h) スロットを占有、時刻順に上から配置
             const CELL_H = 132;
-            const SLOT_H = CELL_H / 6; // 1スロット = 22px
+            const SLOT_H = CELL_H / 6;
+            let slotCursor = 0; // 次に使えるスロット位置
             for (let di = 0; di < dayDispatches.length; di++) {
                 const d = dayDispatches[di];
-                const dStartIdx = getTimePeriodIndex(d.start_time);
-                const dEndIdx = getTimePeriodIndex(d.end_time || d.start_time);
-                const spanSlots = Math.max(1, dEndIdx - dStartIdx + 1);
-                const topPx = Math.round(dStartIdx * SLOT_H);
-                const heightPx = Math.round(spanSlots * SLOT_H) - 1;
+                const dStartH = parseInt((d.start_time || '08:00').split(':')[0]);
+                const dEndH = parseInt((d.end_time || '12:00').split(':')[0]) || (dStartH + 4);
+                const spanSlots = Math.max(1, Math.ceil((dEndH - dStartH) / 2));
+                const topPx = Math.round(slotCursor * SLOT_H);
+                const heightPx = Math.max(Math.round(spanSlots * SLOT_H) - 1, SLOT_H - 1);
+                slotCursor += spanSlots; // 次の配車のスロット開始位置
 
                 const ddc = getDriverColor(d.driver_id);
                 const borderColor = ddc ? ddc.border : '#94a3b8';
@@ -938,14 +1007,16 @@ function _matrixFillRow(row, dayIdx) {
         cell.setAttribute('ondragleave', 'matrixDragLeave(event)');
         cell.setAttribute('ondrop', `matrixDrop(event,${vId},'${dayStr}',2)`);
 
-        // 配車アイテムを追加
+        // 配車アイテムを追加（動的スロット: 時刻順に上から配置）
+        let lazyCursor = 0;
         for (let di = 0; di < dayDispatches.length; di++) {
             const d = dayDispatches[di];
-            const dStartIdx = getTimePeriodIndex(d.start_time);
-            const dEndIdx = getTimePeriodIndex(d.end_time || d.start_time);
-            const spanSlots = Math.max(1, dEndIdx - dStartIdx + 1);
-            const topPx = Math.round(dStartIdx * SLOT_H);
-            const heightPx = Math.round(spanSlots * SLOT_H) - 1;
+            const dStartH = parseInt((d.start_time || '08:00').split(':')[0]);
+            const dEndH = parseInt((d.end_time || '12:00').split(':')[0]) || (dStartH + 4);
+            const spanSlots = Math.max(1, Math.ceil((dEndH - dStartH) / 2));
+            const topPx = Math.round(lazyCursor * SLOT_H);
+            const heightPx = Math.max(Math.round(spanSlots * SLOT_H) - 1, SLOT_H - 1);
+            lazyCursor += spanSlots;
             const ddc = getDriverColor(d.driver_id);
             const borderColor = ddc ? ddc.border : '#94a3b8';
             const bgColor = ddc ? ddc.bg : '#f8fafc';
