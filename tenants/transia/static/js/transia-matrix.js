@@ -526,9 +526,20 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
             const ld = window._matrixLazyData;
             const existingDispatches = ld?.dispatchIndex?.[targetVehicleId + '-' + targetDateStr] || [];
 
-            // 案件自身の時刻情報を確認
+            // 案件情報を取得
             const shipments = await cachedApiGet('/shipments');
             const shipment = shipments.find(s => s.id === shipmentId);
+
+            // 日付チェック: 案件に指定日がある場合、配車先の日付と一致するか確認
+            if (shipment) {
+                const sDate = shipment.pickup_date || shipment.delivery_date;
+                if (sDate && sDate !== '2025-12-31' && sDate !== targetDateStr) {
+                    const ok = confirm(`⚠️ 日付が異なります\n\n案件の指定日: ${sDate}\n配車先の日付: ${targetDateStr}\n\nこのまま配車しますか？`);
+                    if (!ok) return;
+                }
+            }
+
+            // 案件自身の時刻情報を確認
             let startH, endH;
 
             if (shipment?.pickup_time && shipment.pickup_time !== '00:00') {
