@@ -383,79 +383,143 @@ def match_vehicle_drivers(db):
 
     matched = 0
 
-    # シートごとの解析設定
-    # (シート名, ドライバー名行, 車番行, ドライバー名の形式)
-    sheet_configs = [
-        # 1課: Row5 = "164 島田" (番号+名前), Row6 = specs
-        ("1課", 5, 6, "combined"),
-        # 2課: Row4 = 名前のみ, Row6 = 番号のみ
-        ("2課", 4, 6, "separate"),
-        # 3課: Row4 = 名前のみ, Row6 = プレート
-        ("3課", 4, 6, "separate_plate"),
-        # 4課: Row5 = 名前のみ, Row7 = 番号のみ
-        ("4課", 5, 7, "separate"),
-        # 5課: Row5 = 名前のみ, Row7 = 番号のみ
-        ("5課", 5, 7, "separate"),
-    ]
+    # ================================================================
+    # 各課のデータ形式（配車表Excelの実データに基づく）
+    # ================================================================
+    # 1課: Row5="164 島田"(社内番号+名前), Row6="2900G(12本)"(ナンバー末尾+車格)
+    #       → Row6の先頭数字でplate_mapマッチ + Row5のドライバー名
+    # 2課: Row5="2ｔ標準箱"(車種), Row6="6200.0"(ナンバー末尾)
+    #       → Row6の数字でplate_mapマッチ, Row4にドライバー名
+    # 3課: Row5="7tユニ"(車種), Row6="春日部102 を7000"(フルナンバー)
+    #       → Row6末尾数字でplate_mapマッチ, Row4にドライバー名
+    # 4課: Row5="中村"(ドライバー名), Row6="4ｔワイドＷG(格納)"(車種)
+    #       → ドライバー名から逆引きで車両特定
+    # 5課: Row5="佐藤（武）"(ドライバー名), Row6="3tﾜｲﾄﾞﾁﾙﾄﾞ"(車種)
+    #       → ドライバー名から逆引きで車両特定
+    # ================================================================
 
-    for sheet_name, driver_row, num_row, fmt in sheet_configs:
+    skip_labels = {"未配車", "修理手配中", "架装手配中", "フリー", "未確定",
+                   "荷物情報（受けてない）", "空車情報（変更・キャンセル分）",
+                   "未配車 ", "予備車", "ﾄﾞﾗﾑ車両", "修理手配中", "架装手配中"}
+
+    def clean_driver_name(name):
+        """ドライバー名をクリーンアップ"""
+        if not name:
+            return None
+        name = re.sub(r'[\(（].*?[\)）]', '', name).strip()
+        # 数字のみはスキップ
+        if re.match(r'^\d+$', name):
+            return None
+        if name in skip_labels or not name:
+            return None
+        return name
+
+    def extract_plate_num(text):
+        """テキストからナンバー末尾（3-4桁の数字）を抽出"""
+        if not text:
+            return None
+        text = str(text).strip()
+        # ".0" を除去（Excel数値）
+        text = re.sub(r'\.0$', '', text)
+        # パターン1: 数字のみ（"6200", "886"）
+        m = re.match(r'^(\d{3,4})$', text)
+        if m:
+            return m.group(1)
+        # パターン2: "2900G(12本)" → 先頭の数字
+        m = re.match(r'^(\d{3,4})', text)
+        if m:
+            return m.group(1)
+        # パターン3: "春日部102 を7000" → 末尾の数字
+        nums = re.findall(r'\d+', text)
+        if nums:
+            return nums[-1]
+        return None
+
+    for sheet_name in ["1課", "2課", "3課", "4課", "5課"]:
         if sheet_name not in wb.sheetnames:
             continue
         ws = wb[sheet_name]
         print(f"  配車表 [{sheet_name}] 解析中...")
 
+        sheet_matched = 0
         for col in range(3, ws.max_column + 1):
-            driver_cell = ws.cell(driver_row, col).value
-            num_cell = ws.cell(num_row, col).value
+            r4 = str(ws.cell(4, col).value).strip() if ws.cell(4, col).value else ""
+            r5 = str(ws.cell(5, col).value).strip() if ws.cell(5, col).value else ""
+            r6 = str(ws.cell(6, col).value).strip() if ws.cell(6, col).value else ""
 
-            if not driver_cell:
+            if not r5:
                 continue
-
-            driver_cell = str(driver_cell).strip()
-            num_str = str(num_cell).strip() if num_cell else ""
+            # スキップ対象ラベル
+            if r5 in skip_labels:
+                continue
 
             driver_name = None
             vehicle_num = None
+            vehicle = None
+            driver = None
 
-            if fmt == "combined":
-                # "164 島田" → 番号と名前を分離
-                parts = driver_cell.split()
+            if sheet_name == "1課":
+                # Row5="164 島田" → ドライバー名, Row6="2900G(12本)" → ナンバー末尾
+                parts = r5.split()
                 if len(parts) >= 2:
-                    vehicle_num = parts[0]
-                    driver_name = parts[1]
-                elif driver_cell:
-                    # 数字のみの場合はスキップ
-                    if not driver_cell.isdigit():
-                        driver_name = driver_cell
-            elif fmt == "separate":
-                driver_name = driver_cell
-                # num_cell は数値（末尾番号）
-                if num_str and re.match(r'^\d+', num_str):
-                    vehicle_num = re.match(r'^\d+', num_str).group()
-            elif fmt == "separate_plate":
-                driver_name = driver_cell
-                # num_cell はフルプレート（春日部...）
-                if num_str:
-                    nums = re.findall(r'\d+', num_str)
-                    if nums:
-                        vehicle_num = nums[-1]
+                    driver_name = clean_driver_name(parts[1])
+                elif not r5[0].isdigit():
+                    driver_name = clean_driver_name(r5)
+                vehicle_num = extract_plate_num(r6)
 
-            if not driver_name or not vehicle_num:
-                continue
+            elif sheet_name == "2課":
+                # Row5="2ｔ標準箱"(車種), Row6="6200.0"(ナンバー末尾), Row4=ドライバー名
+                driver_name = clean_driver_name(r4) if r4 else None
+                vehicle_num = extract_plate_num(r6)
 
-            # 名前にカッコがある場合はカッコ前を取る: "松本(裕）" → "松本"
-            driver_name = re.sub(r'[\(（].*?[\)）]', '', driver_name).strip()
-            # "未配車" 等はスキップ
-            if driver_name in ("未配車", "修理手配中", "架装手配中", "フリー"):
-                continue
+            elif sheet_name == "3課":
+                # Row5="7tユニ"(車種), Row6="春日部102 を7000"(フルナンバー), Row4=ドライバー名
+                driver_name = clean_driver_name(r4) if r4 else None
+                vehicle_num = extract_plate_num(r6)
 
-            # マッチング
-            vehicle = plate_map.get(vehicle_num)
-            driver = driver_map.get(driver_name)
+            elif sheet_name in ("4課", "5課"):
+                # Row5="中村"(ドライバー名), Row6="4ｔワイドＷG(格納)"(車種), Row7=ナンバー末尾
+                driver_name = clean_driver_name(r5)
+                r7 = str(ws.cell(7, col).value).strip() if ws.cell(7, col).value else ""
+                vehicle_num = extract_plate_num(r7)
+
+            # --- マッチング ---
+            if vehicle_num:
+                vehicle = plate_map.get(vehicle_num)
+            if driver_name:
+                driver = driver_map.get(driver_name)
+
+            # 課の情報をセット
+            if vehicle:
+                vehicle.department = sheet_name
+            if driver:
+                driver.department = sheet_name
 
             if vehicle and driver:
                 vehicle.default_driver_id = driver.id
+                sheet_matched += 1
                 matched += 1
+            elif vehicle and not driver:
+                # 車両のみマッチ（ドライバー不明）→ 課だけセット済み
+                pass
+            elif driver and not vehicle:
+                # ドライバーのみマッチ（4課・5課等）→ 逆引きで車両にもdepartmentセット
+                for v in vehicles:
+                    if v.default_driver_id == driver.id:
+                        v.department = sheet_name
+                        sheet_matched += 1
+                        matched += 1
+                        break
+
+        print(f"    → {sheet_name}: {sheet_matched} 件マッチ")
+
+    # 最終パス: departmentが設定されたドライバーの担当車両にも課をセット
+    for v in vehicles:
+        if not v.department and v.default_driver_id:
+            for d in drivers:
+                if d.id == v.default_driver_id and d.department:
+                    v.department = d.department
+                    break
 
     db.flush()
     print(f"  車両-ドライバー紐付け: {matched} 件")

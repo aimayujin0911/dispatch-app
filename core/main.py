@@ -155,6 +155,9 @@ def seed_on_startup():
             ("shipments", "pickup_lng", "FLOAT"),
             ("shipments", "delivery_lat", "FLOAT"),
             ("shipments", "delivery_lng", "FLOAT"),
+            # 課（部署）カラム
+            ("vehicles", "department", "VARCHAR(10) DEFAULT ''"),
+            ("drivers", "department", "VARCHAR(10) DEFAULT ''"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -292,6 +295,13 @@ def seed_on_startup():
 # uploads ディレクトリ作成
 os.makedirs(os.path.join(os.path.dirname(__file__), "uploads"), exist_ok=True)
 
+# テナント固有の静的ファイルをマウント（/static より先にマウントして優先させる）
+_tenant_id = os.environ.get("TENANT_ID", "")
+if _tenant_id:
+    _tenant_static = os.path.join(os.path.dirname(__file__), "..", "tenants", _tenant_id, "static")
+    if os.path.isdir(_tenant_static):
+        app.mount("/static/tenant", StaticFiles(directory=_tenant_static), name="tenant_static")
+
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -338,14 +348,14 @@ async def index(request: Request):
     host = request.headers.get("host", "")
     # ?app=1 パラメータがあれば認証済みユーザーとしてアプリ表示
     if request.query_params.get("app") == "1":
-        return templates.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse("index.html", {"request": request, "tenant_id": _tenant_id})
     # サブドメインがある場合はメインアプリ表示
     # 例: demo.hakoprofor.jp → アプリ、hakoprofor.jp → LP
     # テスト環境: unsoubako.com → LP、hakopro-dev の onrender.com → LP
     lp_hosts = ("hakoprofor.jp", "www.hakoprofor.jp", "unsoubako.com", "www.unsoubako.com", "hakopro-dev.onrender.com")
     if host in lp_hosts:
         return templates.TemplateResponse("lp.html", {"request": request})
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "tenant_id": _tenant_id})
 
 
 # サブアプリ（別ページ）

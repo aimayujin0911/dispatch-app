@@ -17,6 +17,7 @@ class VehicleCreate(BaseModel):
     status: str = "空車"
     first_registration: str = ""
     inspection_expiry: str = ""
+    department: str = ""
     notes: str = ""
 
 
@@ -28,15 +29,19 @@ class VehicleUpdate(BaseModel):
     status: Optional[str] = None
     first_registration: Optional[str] = None
     inspection_expiry: Optional[str] = None
+    department: Optional[str] = None
     notes: Optional[str] = None
+    default_driver_id: Optional[int] = None
 
 
 @router.get("")
-def list_vehicles(type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_vehicles(type: Optional[str] = None, department: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from models import Driver
     query = db.query(Vehicle).filter(Vehicle.tenant_id == current_user.tenant_id)
     if type:
         query = query.filter(Vehicle.type == type)
+    if department:
+        query = query.filter(Vehicle.department == department)
     vehicles = query.order_by(Vehicle.id.desc()).all()
     # default_driver_nameを付与
     driver_ids = [v.default_driver_id for v in vehicles if v.default_driver_id]

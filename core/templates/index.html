@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=79">
+    <link rel="stylesheet" href="/static/css/style.css?v=80">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    {% if tenant_id == 'transia' %}<link rel="stylesheet" href="/static/tenant/css/transia-matrix.css?v=2">{% endif %}
 </head>
 <body style="visibility:hidden">
     <nav class="sidebar collapsed" id="sidebar">
@@ -539,7 +540,8 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=83"></script>
+    <script src="/static/js/app.js?v=84"></script>
+    {% if tenant_id == 'transia' %}<script src="/static/tenant/js/transia-matrix.js?v=2"></script>{% endif %}
     <script src="/static/js/tenant-switcher.js?v=3"></script>
 </body>
 </html>

@@ -79,6 +79,7 @@ class ShipmentCreate(BaseModel):
     frequency_type: str = "単発"
     frequency_days: str = ""
     status: str = "未配車"
+    department: str = ""
     waiting_time: int = 0
     loading_time: int = 0
     unloading_time: int = 0
@@ -106,6 +107,7 @@ class ShipmentUpdate(BaseModel):
     frequency_type: Optional[str] = None
     frequency_days: Optional[str] = None
     status: Optional[str] = None
+    department: Optional[str] = None
     invoice_status: Optional[str] = None
     invoice_date: Optional[date] = None
     waiting_time: Optional[int] = None

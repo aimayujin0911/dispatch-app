@@ -1,0 +1,487 @@
+/**
+ * トランシア テナント固有スタイル
+ * マトリクスビュー + 課フィルタ
+ */
+
+/* 課フィルタドロップダウン */
+.transia-dept-filter {
+    min-width: 80px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    font-weight: 600;
+}
+
+/* ===== マトリクスビュー ===== */
+/* 2パネルレイアウト: 左=固定日付列、右=スクロール可能テーブル */
+.matrix-layout {
+    display: flex;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+/* 左パネル: 日付列（横スクロールしない） */
+.matrix-date-panel {
+    flex-shrink: 0;
+    border-right: 2px solid #cbd5e1;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+/* 左パネル: divベースの日付列（テーブルのサブピクセルズレを回避） */
+.matrix-date-panel .matrix-corner-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #1e293b;
+    color: #fff;
+    width: 56px;
+    min-width: 56px;
+    font-size: 0.72rem;
+    padding: 6px 4px;
+    text-align: center;
+    font-weight: 600;
+    /* 右パネルのRow1(42px)+Row2(21px)=63px に一致 */
+    height: 63px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #0f172a;
+}
+.matrix-date-body {
+    flex: 1;
+    overflow: hidden; /* JSでscrollTopを同期 */
+    position: relative;
+}
+/* 右パネル: メインテーブル（横スクロール可能） */
+.matrix-wrapper {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    background: #fff;
+    /* 高さはJSで動的に設定 */
+}
+.matrix-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.matrix-table thead {
+    z-index: 10;
+}
+.matrix-header-row1 th {
+    background: #ea580c;
+    color: #fff;
+    padding: 6px 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #c2410c;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+/* Vehicle column headers — 4 rows: number, driver, type, chassis */
+.matrix-vehicle-col-header {
+    background: #ea580c;
+    color: #fff;
+    padding: 4px 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #c2410c;
+    white-space: nowrap;
+    min-width: 110px;
+    width: 110px;
+    vertical-align: middle;
+}
+.matrix-vehicle-col-header .mvh-number {
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #fff;
+    line-height: 1.3;
+}
+.matrix-vehicle-col-header .mvh-driver-name {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.3;
+}
+.matrix-vehicle-col-header .mvh-info {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.3;
+}
+.matrix-vehicle-col-header .mvh-chassis {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.3;
+    font-family: monospace;
+}
+/* ドライバー行ヘッダー（Row2） */
+.matrix-header-row1 th {
+    position: sticky;
+    top: 0;
+    z-index: 11;
+}
+.matrix-header-row2 th {
+    position: sticky;
+    top: 42px;
+    z-index: 10;
+}
+.matrix-driver-cell {
+    background: #f97316;
+    color: #fff;
+    padding: 2px 4px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #ea580c;
+    white-space: nowrap;
+    min-width: 110px;
+    width: 110px;
+    cursor: pointer;
+    user-select: none;
+}
+.matrix-driver-cell:hover {
+    background: #ea580c;
+}
+/* ドライバー選択ドロップダウン */
+.matrix-driver-dropdown {
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999;
+    max-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.matrix-driver-search {
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.8rem;
+    outline: none;
+    flex-shrink: 0;
+}
+.matrix-driver-search:focus {
+    border-bottom-color: #ea580c;
+}
+.matrix-driver-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 0;
+}
+.matrix-driver-dropdown-item {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    color: #1e293b;
+}
+.matrix-driver-dropdown-item:hover {
+    background: #f1f5f9;
+}
+.matrix-driver-dropdown-item.selected {
+    background: #fed7aa;
+    font-weight: 600;
+}
+/* Corner header — 左パネルのdate-tableで使用 */
+/* (スタイルは .matrix-date-table .matrix-corner-header に定義済み) */
+.matrix-date-label {
+    background: #fff;
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+    padding: 4px 6px;
+    font-weight: 700;
+    font-size: 0.76rem;
+    color: #1e293b;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #e2e8f0;
+    box-sizing: border-box;
+    /* 高さはJSで右テーブル行に合わせて設定 */
+}
+.matrix-date-num {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.matrix-date-dow {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
+}
+.matrix-today-label {
+    background: #fef3c7 !important;
+    color: #92400e;
+}
+.matrix-saturday-label {
+    background: #fef7f0 !important;
+    color: #9a3412;
+}
+.matrix-saturday-label .matrix-date-dow {
+    color: #9a3412;
+}
+.matrix-sunday-label {
+    background: #fef7f0 !important;
+    color: #c2410c;
+}
+.matrix-sunday-label .matrix-date-dow {
+    color: #c2410c;
+}
+.matrix-table td {
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+    font-size: 0.65rem;
+    box-sizing: border-box;
+}
+/* Transposed cell (date-row × vehicle-col) */
+.matrix-cell-t {
+    min-height: 132px;
+    height: 132px;
+    min-width: 110px;
+    width: 110px;
+    vertical-align: top;
+    padding: 0 !important;
+}
+/* Row background colors */
+.matrix-today-cell {
+    background: #fef3c7;
+}
+.matrix-saturday-cell {
+    background: #fef7f0;
+}
+.matrix-sunday-cell {
+    background: #fef7f0;
+}
+/* 交互背景色 — 偶数行に薄いグレー（土日・今日を除く） */
+.matrix-date-row:nth-child(even) .matrix-cell-t:not(.matrix-today-cell):not(.matrix-saturday-cell):not(.matrix-sunday-cell) {
+    background: #f8fafc;
+}
+/* 左パネルの日付も交互色 */
+.matrix-date-label:nth-child(even):not(.matrix-today-label):not(.matrix-saturday-label):not(.matrix-sunday-label) {
+    background: #f8fafc;
+}
+/* Slots container — 6 equal divisions per date row */
+.matrix-slots, .matrix-slots-empty {
+    display: flex;
+    flex-direction: column;
+    height: 132px;
+}
+.matrix-slots-empty {
+    display: flex;
+    flex-direction: column;
+    height: 132px;
+}
+.matrix-slot {
+    flex: 1;
+    min-height: 22px;
+    height: 22px;
+    padding: 0 2px;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: background 0.12s;
+}
+.matrix-slot-border {
+    border-top: 1px dashed #cbd5e1;
+}
+.matrix-slot:hover {
+    background: rgba(234, 88, 12, 0.06);
+}
+/* "+" indicator on empty slots */
+.matrix-slot-empty:hover::after {
+    content: '+';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #ea580c;
+    opacity: 0.6;
+    pointer-events: none;
+}
+.matrix-slot-empty {
+    position: relative;
+}
+.matrix-empty-cell {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.matrix-empty-cell:hover {
+    background: #fff7ed !important;
+}
+.matrix-drop-target {
+    background: #fed7aa !important;
+    outline: 2px dashed #ea580c;
+    outline-offset: -2px;
+}
+.matrix-dispatch-item {
+    padding: 1px 2px;
+    border-radius: 2px;
+    border-left: 2px solid #94a3b8;
+    background: #f8fafc;
+    font-size: 0.55rem;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    line-height: 1.2;
+    overflow: hidden;
+}
+.matrix-dispatch-item:hover {
+    background: #e2e8f0;
+}
+.matrix-dispatch-item[draggable="true"] {
+    cursor: grab;
+}
+.matrix-dispatch-item[draggable="true"]:active {
+    cursor: grabbing;
+}
+.matrix-dispatch-route {
+    color: #334155;
+    font-size: 0.55rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+.matrix-dispatch-area {
+    color: #64748b;
+    font-size: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.matrix-dispatch-extra {
+    color: #94a3b8;
+    font-size: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* 車両ツールチップ */
+.matrix-vehicle-tooltip {
+    position: fixed;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    padding: 12px 16px;
+    min-width: 200px;
+    font-size: 0.78rem;
+}
+.mvt-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+}
+.mvt-row {
+    margin-bottom: 3px;
+    color: #334155;
+}
+.mvt-label {
+    font-weight: 600;
+    color: #64748b;
+    margin-right: 4px;
+}
+
+/* ===== モバイル: マトリクスビュー調整 ===== */
+@media (max-width: 768px) {
+    .matrix-wrapper {
+        flex: 1 1 0;
+        max-height: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .matrix-table {
+        font-size: 0.55rem;
+    }
+    .matrix-vehicle-col-header {
+        min-width: 80px;
+        width: 80px;
+        padding: 2px 2px;
+        font-size: 0.58rem;
+    }
+    .matrix-vehicle-col-header .mvh-number {
+        font-size: 0.68rem;
+    }
+    .matrix-vehicle-col-header .mvh-driver-name {
+        font-size: 0.52rem;
+    }
+    .matrix-vehicle-col-header .mvh-info {
+        font-size: 0.45rem;
+    }
+    .matrix-vehicle-col-header .mvh-chassis {
+        font-size: 0.45rem;
+    }
+    .matrix-driver-cell {
+        min-width: 80px;
+        width: 80px;
+        font-size: 0.52rem;
+    }
+    .matrix-cell-t {
+        min-width: 80px;
+        width: 80px;
+        min-height: 100px;
+        height: 100px;
+    }
+    .matrix-slots, .matrix-slots-empty {
+        height: 100px;
+    }
+    .matrix-slot {
+        min-height: 16px;
+        height: 16px;
+    }
+    .matrix-date-label {
+        width: 42px;
+        min-width: 42px;
+        max-width: 42px;
+        padding: 2px 3px;
+        font-size: 0.62rem;
+        height: 100px;
+    }
+    .matrix-date-num {
+        font-size: 0.8rem;
+    }
+    .matrix-date-dow {
+        font-size: 0.52rem;
+    }
+    .matrix-corner-header {
+        width: 42px;
+        min-width: 42px;
+        max-width: 42px;
+        font-size: 0.6rem;
+    }
+    .matrix-header-row1 th {
+        padding: 3px 2px;
+        font-size: 0.6rem;
+    }
+    .matrix-dispatch-item {
+        font-size: 0.48rem;
+        padding: 0 1px;
+    }
+    .matrix-dispatch-route {
+        font-size: 0.48rem;
+    }
+    .matrix-dispatch-area {
+        font-size: 0.42rem;
+    }
+    .matrix-dispatch-extra {
+        font-size: 0.42rem;
+    }
+}

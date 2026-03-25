@@ -327,6 +327,7 @@ class Vehicle(Base):
     first_registration = Column(String(10), default="")
     inspection_expiry = Column(String(10), default="")
     default_driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)  # 固定ドライバー
+    department = Column(String(10), default="")  # 1課, 2課, 3課, 4課, 5課
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
@@ -351,6 +352,7 @@ class Driver(Base):
     paid_leave_balance = Column(Float, default=10.0)
     work_start = Column(String(5), default="08:00")
     work_end = Column(String(5), default="17:00")
+    department = Column(String(10), default="")  # 1課, 2課, 3課, 4課, 5課
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
 
@@ -391,6 +393,7 @@ class Shipment(Base):
     waiting_time = Column(Integer, default=0)
     loading_time = Column(Integer, default=0)
     unloading_time = Column(Integer, default=0)
+    department = Column(String(50), nullable=True, default="")
     notes = Column(Text, default="")
     # 座標キャッシュ（ジオコーディング結果）
     pickup_lat = Column(Float, nullable=True)
