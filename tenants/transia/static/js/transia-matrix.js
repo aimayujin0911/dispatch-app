@@ -841,7 +841,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
 async function openMatrixSlotModal(dateStr, slotIdx, vehicleId, dispatchId) {
     if (justDragged) { justDragged = false; return; }
     const period = MATRIX_PERIODS[slotIdx];
-    const slotLabel = `${period.label} (${String(period.startH).padStart(2,'0')}:00-${period.endH === 24 ? '24:00' : String(period.endH).padStart(2,'0')+':00'})`;
+    const slotLabel = `${String(period.startH).padStart(2,'0')}:00-${period.endH === 24 ? '24:00' : String(period.endH).padStart(2,'0')+':00'}`;
 
     const [vehicles, clients] = await Promise.all([
         cachedApiGet('/vehicles'),
