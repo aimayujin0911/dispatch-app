@@ -158,6 +158,7 @@ def seed_on_startup():
             # 課（部署）カラム
             ("vehicles", "department", "VARCHAR(10) DEFAULT ''"),
             ("drivers", "department", "VARCHAR(10) DEFAULT ''"),
+            ("shipments", "department", "VARCHAR(50) DEFAULT ''"),
         ]
         for table, col, coltype in migrate_cols:
             try:
@@ -296,11 +297,20 @@ def seed_on_startup():
 os.makedirs(os.path.join(os.path.dirname(__file__), "uploads"), exist_ok=True)
 
 # テナント固有の静的ファイルをマウント（/static より先にマウントして優先させる）
+# TENANT_ID環境変数がある場合はそのテナントのみ、なければ全テナントを個別マウント
 _tenant_id = os.environ.get("TENANT_ID", "")
+_tenants_dir = os.path.join(os.path.dirname(__file__), "..", "tenants")
 if _tenant_id:
-    _tenant_static = os.path.join(os.path.dirname(__file__), "..", "tenants", _tenant_id, "static")
+    _tenant_static = os.path.join(_tenants_dir, _tenant_id, "static")
     if os.path.isdir(_tenant_static):
         app.mount("/static/tenant", StaticFiles(directory=_tenant_static), name="tenant_static")
+        app.mount(f"/static/tenants/{_tenant_id}", StaticFiles(directory=_tenant_static), name=f"tenant_static_{_tenant_id}")
+# マルチテナント: 各テナントの静的ファイルを /static/tenants/{tenant_id}/ でマウント
+if os.path.isdir(_tenants_dir):
+    for _t in os.listdir(_tenants_dir):
+        _ts = os.path.join(_tenants_dir, _t, "static")
+        if os.path.isdir(_ts) and not _t.startswith("_") and _t != _tenant_id:
+            app.mount(f"/static/tenants/{_t}", StaticFiles(directory=_ts), name=f"tenant_static_{_t}")
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")

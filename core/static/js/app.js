@@ -633,24 +633,22 @@ async function loadDispatchCalendar() {
     const calContainer = document.getElementById('dispatch-calendar');
 
     // ===== マトリクスビュー（テナント実装） =====
-    if (!isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix') {
-        if (window._tenantRenderMatrixView) {
-            // マトリクス再描画前にスクロール位置を保存（月変更以外の再描画で復元するため）
-            if (window._matrixScrollReset) {
-                window._matrixSavedScrollTop = 0;
-                window._matrixSavedScrollLeft = 0;
-                window._matrixScrollReset = false;
-            } else {
-                window._matrixSavedScrollTop = savedMatrixScrollTop;
-                window._matrixSavedScrollLeft = savedMatrixScrollLeft;
-            }
-            const matrixBase = [
-                ...vehicles.filter(v => v.status !== '整備中'),
-                ...vehicles.filter(v => v.status === '整備中'),
-            ];
-            const matrixVehicles = window._tenantFilterVehicles ? window._tenantFilterVehicles(matrixBase) : matrixBase;
-            await window._tenantRenderMatrixView(calContainer, dispatches, vehicles, shipments, partners, matrixVehicles, baseDate);
+    if (!isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView) {
+        // マトリクス再描画前にスクロール位置を保存（月変更以外の再描画で復元するため）
+        if (window._matrixScrollReset) {
+            window._matrixSavedScrollTop = 0;
+            window._matrixSavedScrollLeft = 0;
+            window._matrixScrollReset = false;
+        } else {
+            window._matrixSavedScrollTop = savedMatrixScrollTop;
+            window._matrixSavedScrollLeft = savedMatrixScrollLeft;
         }
+        const matrixBase = [
+            ...vehicles.filter(v => v.status !== '整備中'),
+            ...vehicles.filter(v => v.status === '整備中'),
+        ];
+        const matrixVehicles = window._tenantFilterVehicles ? window._tenantFilterVehicles(matrixBase) : matrixBase;
+        await window._tenantRenderMatrixView(calContainer, dispatches, vehicles, shipments, partners, matrixVehicles, baseDate);
         return; // マトリクスでは後続のガント処理をスキップ
     } else
     // ===== モバイル: 縦ガントモード =====
