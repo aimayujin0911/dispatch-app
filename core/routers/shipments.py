@@ -117,7 +117,13 @@ class ShipmentUpdate(BaseModel):
 
 
 @router.get("")
-def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_shipments(
+    year: int = 0, month: int = 0,
+    status: Optional[str] = None,
+    limit: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     q = db.query(Shipment).filter(Shipment.tenant_id == current_user.tenant_id)
     if year and month:
         from datetime import date as d
@@ -130,7 +136,12 @@ def list_shipments(year: int = 0, month: int = 0, db: Session = Depends(get_db),
             ((Shipment.delivery_date >= start) & (Shipment.delivery_date < end)) |
             ((Shipment.pickup_date >= start) & (Shipment.pickup_date < end))
         )
-    return q.order_by(Shipment.pickup_date.desc()).all()
+    if status:
+        q = q.filter(Shipment.status == status)
+    q = q.order_by(Shipment.pickup_date.desc())
+    if limit > 0:
+        q = q.limit(limit)
+    return q.all()
 
 
 @router.post("")

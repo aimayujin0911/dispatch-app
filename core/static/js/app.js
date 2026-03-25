@@ -577,12 +577,13 @@ async function loadDispatchCalendar() {
     const [dispatches, vehicles, shipments, partners] = await Promise.all([
         isMatrixMode ? Promise.resolve([]) : apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         cachedApiGet('/vehicles'),
-        cachedApiGet('/shipments'),
+        // マトリクスモードでは案件全件は不要（未配車パネルで別途取得）
+        isMatrixMode ? Promise.resolve([]) : cachedApiGet('/shipments'),
         cachedApiGet('/partners'),
     ]);
     // キャッシュ更新（配車は日付依存なので都度更新）
     _cache['/vehicles'] = { data: vehicles, ts: Date.now() };
-    _cache['/shipments'] = { data: shipments, ts: Date.now() };
+    if (!isMatrixMode) _cache['/shipments'] = { data: shipments, ts: Date.now() };
     _cache['/partners'] = { data: partners, ts: Date.now() };
     if (!isMatrixMode) _cache['_lastDispatches'] = { data: dispatches, ts: Date.now() };
 

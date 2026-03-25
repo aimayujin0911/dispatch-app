@@ -254,28 +254,28 @@ async function selectDriver(vehicleId, driverId, cell, driverName) {
 
 // ===== マトリクス未配車パネル =====
 
-async function renderMatrixUnassignedPanel(shipments, dispatches) {
+async function renderMatrixUnassignedPanel(ignoredShipments, dispatches) {
     // デフォルトは今日の日付
     if (!window._matrixUnassignedDate) window._matrixUnassignedDate = fmt(new Date());
     const dateStr = window._matrixUnassignedDate;
 
-    // 未配車案件: その日付に該当するshipmentで、dispatchesに紐づいていないもの
-    // ステータスが完了・取消のものは除外
-    const excludeStatuses = ['完了', '取消', 'キャンセル'];
+    // 未配車案件をAPIから効率的に取得（ステータス=未配車のみ、上限200件）
+    let shipments;
+    if (_cache['_unassignedShipments']?.ts > Date.now() - 30000) {
+        shipments = _cache['_unassignedShipments'].data;
+    } else {
+        shipments = await apiGet('/shipments?status=未配車&limit=200');
+        _cache['_unassignedShipments'] = { data: shipments, ts: Date.now() };
+    }
+
+    // dispatches内で既に配車済みのshipment_idを除外
+    const dispatchedIds = new Set(dispatches.filter(d => d.date === dateStr).map(d => d.shipment_id));
     const unassigned = shipments.filter(s => {
-        if (excludeStatuses.includes(s.status)) return false;
-        // 全件表示モードの場合は日付フィルタをスキップ
-        if (showAllUnassigned) {
-            const hasDispatch = dispatches.some(d => d.shipment_id === s.id && d.date === dateStr);
-            return !hasDispatch;
-        }
-        // shipmentの日付がその日に該当するか
+        if (showAllUnassigned) return !dispatchedIds.has(s.id);
         if (!isShipmentForDate(s, dateStr)) return false;
-        // dispatches内にこのshipment_id + dateの組み合わせがないか確認
-        const hasDispatch = dispatches.some(d => d.shipment_id === s.id && d.date === dateStr);
-        return !hasDispatch;
+        return !dispatchedIds.has(s.id);
     });
-    const totalAvailable = shipments.filter(s => !excludeStatuses.includes(s.status)).length;
+    const totalAvailable = shipments.length;
 
     const panel = document.getElementById('unassigned-panel');
     if (!panel) return;
@@ -364,12 +364,10 @@ function updateMatrixUnassignedDate(dateStr) {
 // マトリクス未配車パネルのみ再描画（テーブル全体の再描画は不要）
 async function refreshMatrixUnassignedPanel() {
     const dateStr = window._matrixUnassignedDate || fmt(new Date());
-    // 選択日を含む範囲の配車データを取得
-    const [shipments, dispatches] = await Promise.all([
-        cachedApiGet('/shipments'),
-        apiGet(`/dispatches?date_from=${dateStr}&date_to=${dateStr}`),
-    ]);
-    renderMatrixUnassignedPanel(shipments, dispatches);
+    // 未配車キャッシュをクリアして最新を取得
+    delete _cache['_unassignedShipments'];
+    const dispatches = await apiGet(`/dispatches?date_from=${dateStr}&date_to=${dateStr}`);
+    renderMatrixUnassignedPanel([], dispatches);
 }
 
 // ===== 車両詳細ツールチップ =====
@@ -526,9 +524,12 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
             const ld = window._matrixLazyData;
             const existingDispatches = ld?.dispatchIndex?.[targetVehicleId + '-' + targetDateStr] || [];
 
-            // 案件情報を取得
-            const shipments = await cachedApiGet('/shipments');
-            const shipment = shipments.find(s => s.id === shipmentId);
+            // 案件情報を未配車キャッシュまたは個別APIから取得
+            const unassignedCache = _cache['_unassignedShipments']?.data || [];
+            let shipment = unassignedCache.find(s => s.id === shipmentId);
+            if (!shipment) {
+                try { shipment = await apiGet('/shipments/' + shipmentId); } catch(e) { shipment = null; }
+            }
 
             // 日付チェック: 案件に指定日がある場合、配車先の日付と一致するか確認
             if (shipment) {
