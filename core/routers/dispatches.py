@@ -123,8 +123,7 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
 
 @router.post("")
 def create_dispatch(data: DispatchCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if not data.driver_id and not data.partner_id:
-        raise HTTPException(status_code=400, detail="ドライバーまたは協力会社を選択してください")
+    # ドライバー/協力会社未設定でも配車作成を許可（マトリクスD&D等で後から割当）
 
     dispatch_data = {
         "date": data.date,
