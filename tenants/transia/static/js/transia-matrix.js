@@ -306,9 +306,14 @@ async function renderMatrixUnassignedPanel(shipments, dispatches) {
         </div>
     </div>`;
 
+    // 表示件数制限（パフォーマンス対策）
+    const MAX_DISPLAY = 50;
+    const displayItems = unassigned.slice(0, MAX_DISPLAY);
+    const hasMore = unassigned.length > MAX_DISPLAY;
+
     if (unassigned.length > 0) {
         html += `<div class="unassigned-list">`;
-        unassigned.forEach(s => {
+        displayItems.forEach(s => {
             const freqLabel = s.frequency_type === '単発' ? '' : s.frequency_type === '毎日' ? ' 🔁毎日' : ` 🔁${s.frequency_days}`;
             const cargoDesc = s.cargo_description ? `<span style="font-size:0.78rem;color:#6b7280">${s.cargo_description}</span>` : '';
             const weightDesc = s.weight > 0 ? `<span style="font-size:0.78rem;color:#6b7280">${s.weight}kg</span>` : '';
@@ -329,6 +334,9 @@ async function renderMatrixUnassignedPanel(shipments, dispatches) {
                 </div>
             </div>`;
         });
+        if (hasMore) {
+            html += `<div style="text-align:center;padding:8px"><span style="color:var(--text-light);font-size:0.8rem">他 ${unassigned.length - MAX_DISPLAY}件... 案件管理で全件表示</span></div>`;
+        }
         html += `</div>`;
     } else {
         html += `<p style="color:var(--text-light);font-size:0.85rem">この日の未配車案件はありません ✅</p>`;
@@ -442,19 +450,20 @@ function matrixUnassignedDragEnd(e) {
 
 function matrixDragOver(e) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const cell = e.target.closest('.matrix-cell, .matrix-empty-cell');
+    // 未配車案件(copy)と既存配車移動(move)の両方に対応
+    e.dataTransfer.dropEffect = (window._matrixDragData && window._matrixDragData.isUnassigned) ? 'copy' : 'move';
+    const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
     if (cell) cell.classList.add('matrix-drop-target');
 }
 
 function matrixDragLeave(e) {
-    const cell = e.target.closest('.matrix-cell, .matrix-empty-cell');
+    const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
     if (cell) cell.classList.remove('matrix-drop-target');
 }
 
 async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
     e.preventDefault();
-    const cell = e.target.closest('.matrix-cell, .matrix-empty-cell');
+    const cell = e.target.closest('.matrix-cell-t, .matrix-cell, .matrix-empty-cell');
     if (cell) cell.classList.remove('matrix-drop-target');
     if (!window._matrixDragData) return;
 
@@ -719,9 +728,10 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
     tableHtml += `</tbody></table></div>`;
     dateColHtml += `</div></div>`;
 
-    // 2パネルレイアウトで組み立て
+    // 2パネルレイアウトで組み立て（未配車パネル用divも追加）
     const layoutHtml = `<div class="matrix-layout">${dateColHtml}${tableHtml}</div>`;
-    calContainer.innerHTML = controlsHtml + layoutHtml;
+    const unassignedHtml = `<div id="unassigned-panel" style="padding:8px 0"></div>`;
+    calContainer.innerHTML = controlsHtml + layoutHtml + unassignedHtml;
 
     // matrix-wrapperの高さ・スクロール設定をレイアウト完了後に実行
     const wrapper = calContainer.querySelector('.matrix-wrapper');
@@ -791,6 +801,9 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             // 左パネルのスクロールも同期
             if (dateBody) dateBody.scrollTop = wrapper.scrollTop;
         });
+
+        // 未配車パネルを描画
+        renderMatrixUnassignedPanel(shipments, dispatches);
     }
 }
 
@@ -938,9 +951,4 @@ async function deleteDispatchFromSlotModal(dispatchId) {
 // core の loadDispatchCalendar() から呼ばれる
 window._tenantRenderMatrixView = async function(calContainer, dispatches, vehicles, shipments, partners, matrixVehicles, baseDate) {
     await renderMatrixView(calContainer, dispatches, vehicles, shipments, partners, matrixVehicles, baseDate);
-    // マトリクスビュー用: 日付選択式の未配車パネルを描画
-    const unassignedDateStr = window._matrixUnassignedDate || fmt(new Date());
-    window._matrixUnassignedDate = unassignedDateStr;
-    const unassignedDispatches = await apiGet(`/dispatches?date_from=${unassignedDateStr}&date_to=${unassignedDateStr}`);
-    renderMatrixUnassignedPanel(shipments, unassignedDispatches);
 };
