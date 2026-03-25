@@ -477,10 +477,12 @@ async function matrixDrop(e, targetVehicleId, targetDateStr, targetPeriodIdx) {
     if (cell) cell.classList.remove('matrix-drop-target');
     if (!window._matrixDragData) return;
 
-    // 新しい時間帯に合わせてstart_time/end_timeを算出
+    // 新しい時間帯に合わせてstart_time/end_timeを算出（デフォルト2スロット=8時間）
     const p = MATRIX_PERIODS[targetPeriodIdx];
+    const nextP = MATRIX_PERIODS[Math.min(targetPeriodIdx + 1, 5)];
+    const defaultEndH = (targetPeriodIdx < 5) ? nextP.endH : p.endH;
     const newStart = String(p.startH).padStart(2, '0') + ':00';
-    const newEnd = String(p.endH === 24 ? 23 : p.endH).padStart(2, '0') + (p.endH === 24 ? ':59' : ':00');
+    const newEnd = String(defaultEndH === 24 ? 23 : defaultEndH).padStart(2, '0') + (defaultEndH === 24 ? ':59' : ':00');
 
     // 未配車案件のドロップ → 新規配車作成
     if (window._matrixDragData.isUnassigned) {
@@ -734,38 +736,51 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                 slots[getTimePeriodIndex(dayDispatches[di].start_time)].push(dayDispatches[di]);
             }
 
-            tableParts.push(`<td class="${cellCls}" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${vId},'${dayStr}',2)"><div class="matrix-slots">`);
+            // セル: スロット背景（D&Dターゲット）+ 絶対配置の配車アイテム
+            tableParts.push(`<td class="${cellCls}" style="position:relative" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="matrixDrop(event,${vId},'${dayStr}',2)"><div class="matrix-slots">`);
 
+            // 6スロットの背景枠（D&Dドロップターゲット）
             for (let pIdx = 0; pIdx < 6; pIdx++) {
-                const slotArr = slots[pIdx];
                 const slotCls = pIdx > 0 ? ' matrix-slot-border' : '';
-                const emptyCls = slotArr.length === 0 ? ' matrix-slot-empty' : '';
-                tableParts.push(`<div class="matrix-slot${slotCls}${emptyCls}" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${vId})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${vId},'${dayStr}',${pIdx})">`);
+                tableParts.push(`<div class="matrix-slot${slotCls} matrix-slot-empty" onclick="if(!event.target.closest('.matrix-dispatch-item'))openMatrixSlotModal('${dayStr}',${pIdx},${vId})" ondragover="matrixDragOver(event)" ondragleave="matrixDragLeave(event)" ondrop="event.stopPropagation();matrixDrop(event,${vId},'${dayStr}',${pIdx})"></div>`);
+            }
 
-                for (let si = 0; si < slotArr.length; si++) {
-                    const d = slotArr[si];
-                    const ddc = getDriverColor(d.driver_id);
-                    const borderColor = ddc ? ddc.border : '#94a3b8';
-                    const bgColor = ddc ? ddc.bg : '#f8fafc';
-                    // Line 1: route (pickup～delivery)
-                    const pickup = (d.pickup_address || '').split(/[　 ]/)[0] || '';
-                    const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
-                    const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
-                    const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
-                    const routeLabel = pickupShort && deliveryShort ? pickupShort + '～' + deliveryShort : (pickupShort || deliveryShort || '');
-                    // Line 2: area/cargo — shipmentMapでO(1)検索（.find()を除去）
-                    const shipment = shipmentMap[d.shipment_id];
-                    const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
-                    // Line 3: additional info
-                    const extraLabel = d.client_name || (shipment ? shipment.client_name : '') || '';
+            // 配車アイテムをスロット位置ベースで絶対配置（ざっくり前後関係）
+            const CELL_H = 132; // セル高さ（px）
+            const SLOT_H = CELL_H / 6; // 1スロット = 22px
+            for (let di = 0; di < dayDispatches.length; di++) {
+                const d = dayDispatches[di];
+                const pIdx = getTimePeriodIndex(d.start_time);
+                const endPIdx = getTimePeriodIndex(d.end_time || d.start_time);
+                // スロット数（デフォルト2、end_timeに応じて拡縮）
+                const spanSlots = Math.max(1, endPIdx - pIdx + 1);
+                const topPx = Math.round(pIdx * SLOT_H);
+                const heightPx = Math.round(spanSlots * SLOT_H) - 1; // 1px gap
 
-                    tableParts.push(`<div class="matrix-dispatch-item" draggable="true" ondragstart="matrixDragStart(event,${d.id},${vId},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${pIdx},${vId},${d.id})" title="${d.driver_name || ''}\n${d.start_time}-${d.end_time}\n${d.pickup_address || ''}→${d.delivery_address || ''}"><div class="matrix-dispatch-route">${routeLabel}</div>`);
-                    if (areaLabel) tableParts.push(`<div class="matrix-dispatch-area">${areaLabel}</div>`);
-                    if (extraLabel) tableParts.push(`<div class="matrix-dispatch-extra">${extraLabel}</div>`);
-                    tableParts.push('</div>');
-                }
+                const ddc = getDriverColor(d.driver_id);
+                const borderColor = ddc ? ddc.border : '#94a3b8';
+                const bgColor = ddc ? ddc.bg : '#f8fafc';
+                const pickup = (d.pickup_address || '').split(/[　 ]/)[0] || '';
+                const delivery = (d.delivery_address || '').split(/[　 ]/)[0] || '';
+                const pickupShort = pickup.length > 4 ? pickup.substring(0, 4) : pickup;
+                const deliveryShort = delivery.length > 4 ? delivery.substring(0, 4) : delivery;
+                const routeLabel = pickupShort && deliveryShort ? pickupShort + '～' + deliveryShort : (pickupShort || deliveryShort || '');
+                const shipment = shipmentMap[d.shipment_id];
+                const areaLabel = (d.delivery_address || '').includes('方面') ? (d.delivery_address || '').split(/[　 ]/).find(s => s.includes('方面')) || '' : (shipment?.cargo_description || d.cargo_type || '');
+                const extraLabel = d.client_name || (shipment ? shipment.client_name : '') || '';
+                const timeLabel = `${startH}時-${endH}時`;
+                const pIdx = getTimePeriodIndex(d.start_time);
+
+                tableParts.push(`<div class="matrix-dispatch-item matrix-dispatch-abs" draggable="true" data-dispatch-id="${d.id}" data-vehicle-id="${vId}" data-date="${dayStr}" ondragstart="matrixDragStart(event,${d.id},${vId},'${dayStr}',${pIdx})" ondragend="matrixDragEnd(event)" style="top:${topPx}px;height:${heightPx}px;border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${pIdx},${vId},${d.id})" title="${d.driver_name || ''}\n${timeLabel}\n${d.pickup_address || ''}→${d.delivery_address || ''}">`);
+                tableParts.push(`<div class="matrix-dispatch-route">${routeLabel}</div>`);
+                if (heightPx > 20 && areaLabel) tableParts.push(`<div class="matrix-dispatch-area">${areaLabel}</div>`);
+                if (heightPx > 35 && extraLabel) tableParts.push(`<div class="matrix-dispatch-extra">${extraLabel}</div>`);
+                if (heightPx > 48) tableParts.push(`<div class="matrix-dispatch-time">${timeLabel}</div>`);
+                // リサイズハンドル
+                tableParts.push(`<div class="matrix-resize-handle" onmousedown="matrixResizeStart(event,${d.id},${vId},'${dayStr}')"></div>`);
                 tableParts.push('</div>');
             }
+
             tableParts.push('</div></td>');
         }
         tableParts.push('</tr>');
@@ -924,7 +939,7 @@ async function openMatrixSlotModal(dateStr, slotIdx, vehicleId, dispatchId) {
         <input type="hidden" id="f-ms-dispatch-id" value="${dispatchId || ''}">
         <div class="form-actions">
             <button class="btn" onclick="closeModal()">キャンセル</button>
-            ${isEdit ? `<button class="btn btn-danger" onclick="deleteDispatchFromSlotModal(${dispatchId})" style="margin-right:auto">削除</button>` : ''}
+            ${isEdit ? `<button class="btn" onclick="unassignDispatch(${dispatchId})" style="margin-right:auto;background:#64748b;color:#fff">未配車に戻す</button><button class="btn btn-danger" onclick="deleteDispatchFromSlotModal(${dispatchId})">削除</button>` : ''}
             <button class="btn btn-primary" onclick="saveMatrixSlotDispatch()">保存</button>
         </div>`;
     showModal();
@@ -1001,6 +1016,77 @@ async function deleteDispatchFromSlotModal(dispatchId) {
     await apiDelete(`/dispatches/${dispatchId}`);
     closeModal();
     loadDispatchCalendar();
+}
+
+// ===== 未配車に戻す =====
+async function unassignDispatch(dispatchId) {
+    if (!confirm('この配車を未配車に戻しますか？\n（配車データは削除され、案件は未配車一覧に戻ります）')) return;
+    await apiDelete(`/dispatches/${dispatchId}`);
+    closeModal();
+    invalidateCache();
+    loadDispatchCalendar();
+}
+
+// ===== リサイズ機能: 配車アイテムの下辺ドラッグで時間変更 =====
+let _resizeData = null;
+
+function matrixResizeStart(e, dispatchId, vehicleId, dateStr) {
+    e.preventDefault();
+    e.stopPropagation();
+    const item = e.target.closest('.matrix-dispatch-abs');
+    if (!item) return;
+    const cell = item.closest('.matrix-cell-t');
+    const cellRect = cell.getBoundingClientRect();
+    const CELL_H = 132;
+
+    _resizeData = {
+        dispatchId, vehicleId, dateStr,
+        item, cellRect, CELL_H,
+        startY: e.clientY,
+        origHeight: item.offsetHeight,
+        origTop: parseInt(item.style.top) || 0
+    };
+
+    document.addEventListener('mousemove', matrixResizeMove);
+    document.addEventListener('mouseup', matrixResizeEnd);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+}
+
+function matrixResizeMove(e) {
+    if (!_resizeData) return;
+    const dy = e.clientY - _resizeData.startY;
+    const newHeight = Math.max(11, _resizeData.origHeight + dy);
+    // 4時間単位(22px)にスナップ
+    const SLOT_H = _resizeData.CELL_H / 6;
+    const snapped = Math.round(newHeight / SLOT_H) * SLOT_H;
+    _resizeData.item.style.height = Math.max(SLOT_H, snapped) + 'px';
+
+    // ツールチップで時間表示
+    const startH = Math.round((_resizeData.origTop / _resizeData.CELL_H) * 24);
+    const endH = Math.min(24, Math.round(((_resizeData.origTop + Math.max(SLOT_H, snapped)) / _resizeData.CELL_H) * 24));
+    _resizeData.item.title = `${startH}時〜${endH}時`;
+    _resizeData.newEndH = endH;
+}
+
+async function matrixResizeEnd(e) {
+    document.removeEventListener('mousemove', matrixResizeMove);
+    document.removeEventListener('mouseup', matrixResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (!_resizeData || _resizeData.newEndH === undefined) { _resizeData = null; return; }
+
+    const endH = _resizeData.newEndH;
+    const newEnd = String(endH === 24 ? 23 : endH).padStart(2, '0') + (endH === 24 ? ':59' : ':00');
+    try {
+        await apiPut('/dispatches/' + _resizeData.dispatchId, { end_time: newEnd });
+        invalidateCache();
+        loadDispatchCalendar();
+    } catch (err) {
+        alert('リサイズ失敗: ' + (err.message || err));
+        loadDispatchCalendar();
+    }
+    _resizeData = null;
 }
 
 // ===== テナントフック: マトリクスビューのエントリポイント =====

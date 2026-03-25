@@ -348,6 +348,38 @@
     line-height: 1.2;
     overflow: hidden;
 }
+/* 絶対配置の配車アイテム（セルいっぱい表示） */
+.matrix-dispatch-abs {
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    z-index: 2;
+    border-radius: 3px;
+    border-left-width: 3px;
+    padding: 2px 3px;
+    font-size: 0.6rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+.matrix-dispatch-time {
+    font-size: 0.5rem;
+    color: #64748b;
+    margin-top: 1px;
+}
+/* リサイズハンドル */
+.matrix-resize-handle {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    cursor: ns-resize;
+    background: transparent;
+}
+.matrix-resize-handle:hover {
+    background: rgba(234, 88, 12, 0.3);
+    border-radius: 0 0 3px 3px;
+}
 .matrix-dispatch-item:hover {
     background: #e2e8f0;
 }
