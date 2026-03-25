@@ -269,16 +269,21 @@ async function renderMatrixUnassignedPanel(ignoredShipments, dispatches) {
         _cache['_unassignedShipments'] = { data: shipments, ts: Date.now() };
     }
 
-    // dispatches内で既に配車済みのshipment_idを除外
-    const dispatchedIds = new Set(dispatches.filter(d => d.date === dateStr).map(d => d.shipment_id));
-    const unassigned = shipments.filter(s => {
-        if (showAllUnassigned) return !dispatchedIds.has(s.id);
-        if (!isShipmentForDate(s, dateStr)) return false;
-        return !dispatchedIds.has(s.id);
-    });
+    // 全件モード: 全案件を表示（ステータス=未配車のものはAPI側でフィルタ済み）
+    // 日付モード: その日付に該当する案件のみ、配車済みを除外
+    let unassigned;
+    if (showAllUnassigned) {
+        unassigned = shipments; // API側でstatus=未配車フィルタ済み
+    } else {
+        const dispatchedIds = new Set(dispatches.filter(d => d.date === dateStr).map(d => d.shipment_id));
+        unassigned = shipments.filter(s => {
+            if (!isShipmentForDate(s, dateStr)) return false;
+            return !dispatchedIds.has(s.id);
+        });
+    }
     const totalAvailable = shipments.length;
 
-    const panel = document.getElementById('unassigned-panel');
+    const panel = document.getElementById('matrix-unassigned-panel');
     if (!panel) return;
 
     // 日付セレクター + 未配車一覧を生成
@@ -956,7 +961,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
 
     // 2パネルレイアウトで組み立て（未配車パネル用divも追加）
     const layoutHtml = `<div class="matrix-layout">${dateColHtml}${tableHtml}</div>`;
-    const unassignedHtml = `<div id="unassigned-panel" style="padding:8px 0"></div>`;
+    const unassignedHtml = `<div id="matrix-unassigned-panel" style="padding:8px 0"></div>`;
     calContainer.innerHTML = controlsHtml + layoutHtml + unassignedHtml;
 
     // matrix-wrapperの高さ・スクロール設定をレイアウト完了後に実行
