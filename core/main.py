@@ -353,19 +353,34 @@ async def landing_page(request: Request):
     return templates.TemplateResponse("lp.html", {"request": request})
 
 
+def _resolve_tenant_id(request: Request) -> str:
+    """サブドメインまたは環境変数からテナントIDを解決"""
+    if _tenant_id:
+        return _tenant_id
+    host = request.headers.get("host", "").split(":")[0]
+    # サブドメインからテナントID抽出: {tenant}.unsoubako.com, {tenant}.hakoprofor.jp
+    for domain in ("unsoubako.com", "hakoprofor.jp"):
+        if host.endswith(f".{domain}"):
+            sub = host[: -(len(domain) + 1)]
+            if sub and sub not in ("www", "demo"):
+                return sub
+    return ""
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     host = request.headers.get("host", "")
     # ?app=1 パラメータがあれば認証済みユーザーとしてアプリ表示
+    tenant = _resolve_tenant_id(request)
     if request.query_params.get("app") == "1":
-        return templates.TemplateResponse("index.html", {"request": request, "tenant_id": _tenant_id})
+        return templates.TemplateResponse("index.html", {"request": request, "tenant_id": tenant})
     # サブドメインがある場合はメインアプリ表示
     # 例: demo.hakoprofor.jp → アプリ、hakoprofor.jp → LP
     # テスト環境: unsoubako.com → LP、hakopro-dev の onrender.com → LP
     lp_hosts = ("hakoprofor.jp", "www.hakoprofor.jp", "unsoubako.com", "www.unsoubako.com", "hakopro-dev.onrender.com")
     if host in lp_hosts:
         return templates.TemplateResponse("lp.html", {"request": request})
-    return templates.TemplateResponse("index.html", {"request": request, "tenant_id": _tenant_id})
+    return templates.TemplateResponse("index.html", {"request": request, "tenant_id": tenant})
 
 
 # サブアプリ（別ページ）
