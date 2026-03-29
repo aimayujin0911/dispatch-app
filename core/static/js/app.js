@@ -558,7 +558,6 @@ let HOUR_COUNT = HOUR_END - HOUR_START;
 let selectedDayIndex = 0;
 let _mFilterTypes = []; // 選択中の車種（複数）
 let _mFilterCaps = [];  // 選択中の積載量（複数）
-let _dispatchViewMode = 'gantt'; // 'gantt' | 'matrix'
 
 async function loadDispatchCalendar() {
     // スクロール位置を保存
@@ -569,12 +568,8 @@ async function loadDispatchCalendar() {
     const baseDate = new Date(calendarDate);
     baseDate.setHours(0, 0, 0, 0);
 
-    // マトリクス表示時は1ヶ月分、ガント表示時は週単位でAPI取得
-    const dispatchParam = _dispatchViewMode === 'matrix'
-        ? `month_start=${fmt(baseDate)}`
-        : `week_start=${fmt(baseDate)}`;
     const [dispatches, vehicles, shipments, partners] = await Promise.all([
-        apiGet(`/dispatches?${dispatchParam}`),
+        apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         cachedApiGet('/vehicles'),
         cachedApiGet('/shipments'),
         cachedApiGet('/partners'),
@@ -633,32 +628,12 @@ async function loadDispatchCalendar() {
 
     const calContainer = document.getElementById('dispatch-calendar');
 
-    // ===== マトリクスモード: PC/スマホ共通 =====
-    if (_dispatchViewMode === 'matrix') {
-        const matrixDays = [];
-        for (let i = 0; i < 31; i++) { const md = new Date(baseDate); md.setDate(md.getDate() + i); matrixDays.push(md); }
-        const matrixDayStrs = matrixDays.map(d => fmt(d));
-        calContainer.innerHTML = buildDesktopMatrixControls(vehicleTypes, capacities, filterType, filterCap, baseDate)
-            + buildMatrixView(matrixDays, matrixDayStrs, dayNames, dispatches, filteredVehicles, [], partners);
-    } else
     // ===== モバイル: 縦ガントモード =====
     if (isMobile()) {
         const hasUndo = (_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr);
         const undoFn = _lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch';
         const hasDispatches = dayDispatches.filter(d => !d.partner_id).length > 0;
         const filterActive = _mFilterTypes.length > 0 || _mFilterCaps.length > 0;
-
-        // 協力会社配車を集計（コントロールHTMLより先に必要）
-        const partnerDispatches = dayDispatches2.filter(d => d.partner_id || d.is_partner);
-        const partnerMap = {};
-        partnerDispatches.forEach(d => {
-            const pName = d.partner_name || '不明';
-            if (!partnerMap[pName]) partnerMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
-            partnerMap[pName].dispatches.push(d);
-        });
-        const partnerEntries = Object.values(partnerMap);
-
-        const partnerCount = partnerDispatches.length;
         const mobileControlsHtml = `
             <div class="m-cal-controls">
                 <div class="m-cal-row">
@@ -679,7 +654,6 @@ async function loadDispatchCalendar() {
                     <select id="cal-hour-end" class="m-cal-select" onchange="changeHourRange()" style="max-width:58px">
                         ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
                     </select>
-                    <button class="m-cal-btn m-cal-matrix-btn" onclick="toggleDispatchView()">マトリクス表示</button>
                 </div>
             </div>`;
 
@@ -687,18 +661,10 @@ async function loadDispatchCalendar() {
         const totalMin = HOUR_COUNT * 60;
         const rowH = 40; // 1時間あたりの高さ(px)
         const screenW = window.innerWidth;
-        const screenH = window.innerHeight;
-        const isLandscape = screenW > screenH;
-        const timeColW = screenW <= 380 ? 30 : 36;
-        // 画面幅に応じて可視列数を動的計算
-        const visibleCols = isLandscape
-            ? Math.min(filteredVehicles.length, 6)
-            : screenW <= 380 ? Math.min(filteredVehicles.length, 3)
-            : Math.min(filteredVehicles.length, 4);
-        const colW = Math.max(Math.floor((screenW - timeColW) / visibleCols), 60);
-
-        const totalCols = filteredVehicles.length + partnerEntries.length;
-
+        const timeColW = 36;
+        // 画面幅に4列収まるように列幅計算。5台以上は横スクロール
+        const visibleCols = Math.min(filteredVehicles.length, 4);
+        const colW = Math.floor((screenW - timeColW) / visibleCols);
         // D&D用にグリッド情報をグローバル保存
         window._mGridInfo = { timeColW, colW, rowH, vehicles: filteredVehicles, hourStart: HOUR_START };
         // ヘッダー（固定、スクロールしない）
@@ -710,25 +676,18 @@ async function loadDispatchCalendar() {
             const pgIcon = v.has_power_gate ? 'PG' : '';
             headerHtml += `<div class="vg-vehicle-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;" onclick="showMobileVehicleDetail(${v.id})">${shortNum}<br><span style="font-size:0.45rem;opacity:0.7">${v.type} ${v.capacity}t ${tzIcon}${pgIcon}</span></div>`;
         });
-        // 協力会社ヘッダー
-        partnerEntries.forEach(pe => {
-            headerHtml += `<div class="vg-vehicle-header vg-partner-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;background:#92400e;">${pe.name}<br><span style="font-size:0.45rem;opacity:0.7">協力会社</span></div>`;
-        });
         headerHtml += `</div>`;
 
         // 時間セル（スクロール可能エリア）
         let vgHtml = `<div class="vertical-gantt-wrapper">
-            <div class="vertical-gantt" style="position:relative;grid-template-columns:${timeColW}px repeat(${totalCols}, ${colW}px);grid-template-rows:repeat(${HOUR_COUNT}, ${rowH}px)">`;
+            <div class="vertical-gantt" style="position:relative;grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:repeat(${HOUR_COUNT}, ${rowH}px)">`;
 
-        // 時間行×車両列（自社車両＋協力会社列）
+        // 時間行×車両列
         for (let h = HOUR_START; h < HOUR_START + HOUR_COUNT; h++) {
             const hLabel = h >= 24 ? `翌${String(h - 24).padStart(2, '0')}` : String(h).padStart(2, '0');
             vgHtml += `<div class="vg-time-label">${hLabel}</div>`;
             filteredVehicles.forEach(v => {
                 vgHtml += `<div class="vg-cell" data-vehicle-id="${v.id}" data-hour="${h}"></div>`;
-            });
-            partnerEntries.forEach(pe => {
-                vgHtml += `<div class="vg-cell vg-partner-cell" data-partner-id="${pe.id}" data-hour="${h}"></div>`;
             });
         }
         // バーを配置（position:absolute でグリッド内に重ねる）
@@ -788,39 +747,6 @@ async function loadDispatchCalendar() {
             });
         });
 
-        // 協力会社バー
-        partnerEntries.forEach((pe, pi) => {
-            const colIndex = filteredVehicles.length + pi;
-            pe.dispatches.forEach(d => {
-                const startMin = timeToMinutes(d.start_time);
-                const endMin = timeToMinutes(d.end_time);
-                const topPx = (startMin - HOUR_START * 60) / 60 * rowH;
-                const heightPx = (endMin - startMin) / 60 * rowH;
-                const leftPx = timeColW + colIndex * colW + 2;
-                const barW = colW - 6;
-                const pickup = (d.pickup_address || '').substring(0, 6);
-                const delivery = (d.delivery_address || '').substring(0, 6);
-                barsHtml += `<div class="vg-bar vg-partner-bar" data-id="${d.id}" style="background:#fef3c7;color:#92400e;border-left:3px solid #f59e0b;left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${pe.name}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
-                    <span class="vg-bar-driver" style="background:#fffbeb;color:#92400e;border:1px solid #f59e0b">${pe.name}</span>
-                    ${heightPx >= 40 ? `<span class="vg-bar-addr">${pickup}→${delivery}</span>` : ''}
-                    ${heightPx >= 55 ? `<span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>` : ''}
-                </div>`;
-            });
-        });
-
-        // 現在時刻インジケーター（モバイル）
-        if (activeDayStr === fmt(new Date())) {
-            const now = new Date();
-            const nowMin = now.getHours() * 60 + now.getMinutes();
-            const nowTopPx = (nowMin - HOUR_START * 60) / 60 * rowH;
-            if (nowTopPx >= 0 && nowTopPx <= HOUR_COUNT * rowH) {
-                const gridW = timeColW + totalCols * colW;
-                barsHtml += `<div class="vg-now-line" style="position:absolute;top:${nowTopPx}px;left:${timeColW}px;width:${gridW - timeColW}px;height:2px;background:#ef4444;z-index:8;pointer-events:none">
-                    <span style="position:absolute;left:0;top:-8px;background:#ef4444;color:#fff;font-size:0.55rem;padding:0 4px;border-radius:3px;font-weight:600;white-space:nowrap">${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}</span>
-                </div>`;
-            }
-        }
-
         vgHtml += barsHtml + `</div></div>`;
 
         calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
@@ -873,7 +799,6 @@ async function loadDispatchCalendar() {
                     <option value="">全車格</option>
                     ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                 </select>
-                <button class="btn btn-sm" onclick="toggleDispatchView()" style="background:#f59e0b;color:#fff;font-weight:600">${_dispatchViewMode === 'gantt' ? 'マトリクス表示' : 'ガント表示'}</button>
             </div>
         </div>
         <div class="cal-legend" style="display:flex;gap:10px;padding:2px 8px;font-size:0.7rem;color:#64748b;align-items:center;flex-wrap:wrap">
@@ -3091,126 +3016,6 @@ function changeHourRange() {
     HOUR_START = newStart;
     HOUR_END = newEnd;
     HOUR_COUNT = HOUR_END - HOUR_START;
-    loadDispatchCalendar();
-}
-
-// ===== マトリクス表示切替 =====
-function toggleDispatchView() {
-    _dispatchViewMode = _dispatchViewMode === 'gantt' ? 'matrix' : 'gantt';
-    loadDispatchCalendar();
-}
-
-// デスクトップ用マトリクスコントロール
-function buildDesktopMatrixControls(vehicleTypes, capacities, filterType, filterCap, baseDate) {
-    return `<div class="cal-controls" style="gap:8px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
-            <button class="btn btn-sm" onclick="changeMonth(-1)">◀ 前月</button>
-            <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今月</button>
-            <button class="btn btn-sm" onclick="changeMonth(1)">翌月 ▶</button>
-            <span style="font-size:1.1rem;font-weight:700;margin:0 4px;white-space:nowrap">${baseDate.getFullYear()}年${baseDate.getMonth()+1}月</span>
-            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()" title="日付を選択" style="width:140px">
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
-            <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
-            <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
-                <option value="">全車種</option>
-                ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
-            <select id="cal-filter-cap" class="select" onchange="loadDispatchCalendar()">
-                <option value="">全車格</option>
-                ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
-            </select>
-            <button class="btn btn-sm" onclick="toggleDispatchView()" style="background:#64748b;color:#fff;font-weight:600">ガント表示</button>
-        </div>
-    </div>`;
-}
-
-// 統一マトリクスビュー: 日付(行)×車両(列) - PC寄せデザイン
-function buildMatrixView(days, dayStrs, dayNames, dispatches, vehicles, partnerEntries, partners) {
-    // 協力会社をまとめる（partnerEntriesが空ならdispatchesから集計）
-    let pEntries = partnerEntries;
-    if (pEntries.length === 0) {
-        const pDisp = dispatches.filter(d => d.partner_id || d.is_partner);
-        const pMap = {};
-        pDisp.forEach(d => {
-            const pName = d.partner_name || '不明';
-            if (!pMap[pName]) pMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
-            pMap[pName].dispatches.push(d);
-        });
-        pEntries = Object.values(pMap);
-    }
-
-    const allCols = [...vehicles.map(v => ({ type: 'vehicle', data: v })), ...pEntries.map(p => ({ type: 'partner', data: p }))];
-    const totalCols = allCols.length;
-
-    let html = `<div class="matrix-wrapper"><table class="matrix-table">`;
-
-    // ヘッダー: 日付列 + 車両列
-    html += `<thead><tr><th class="matrix-th-date">日付</th>`;
-    allCols.forEach(col => {
-        if (col.type === 'vehicle') {
-            const v = col.data;
-            const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
-            const isMaint = v.status === '整備中';
-            html += `<th class="matrix-th-vehicle${isMaint ? ' matrix-th-maint' : ''}">${shortNum}<br><span class="matrix-th-vinfo">${v.type} ${v.capacity}t</span></th>`;
-        } else {
-            html += `<th class="matrix-th-vehicle matrix-th-partner">${col.data.name}<br><span class="matrix-th-vinfo">協力</span></th>`;
-        }
-    });
-    html += `</tr></thead><tbody>`;
-
-    // 日付行
-    days.forEach((d, di) => {
-        const dayStr = dayStrs[di];
-        const isT = isToday(d);
-        const dow = dayNames[d.getDay()];
-        const isSun = d.getDay() === 0;
-        const isSat = d.getDay() === 6;
-        const rowCls = isT ? 'matrix-row-today' : isSun ? 'matrix-row-sun' : isSat ? 'matrix-row-sat' : '';
-
-        html += `<tr class="${rowCls}">`;
-        html += `<td class="matrix-date-cell${isT ? ' matrix-today' : ''}"><span class="matrix-date-num">${d.getDate()}</span><span class="matrix-date-dow${isSun ? ' sun' : ''}${isSat ? ' sat' : ''}">${dow}</span></td>`;
-
-        allCols.forEach(col => {
-            let cellDisp;
-            if (col.type === 'vehicle') {
-                cellDisp = dispatches.filter(dp => dp.vehicle_id === col.data.id && (dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr)));
-            } else {
-                cellDisp = col.data.dispatches.filter(dp => dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr));
-            }
-            const vehicleId = col.type === 'vehicle' ? col.data.id : null;
-            const partnerId = col.type === 'partner' ? col.data.id : null;
-
-            if (cellDisp.length === 0) {
-                const onclick = vehicleId
-                    ? `onclick="selectedDayIndex=${di % CAL_DAYS};openQuickDispatchModal('${dayStr}','08:00','17:00',${vehicleId})"`
-                    : (partnerId ? `onclick="selectedDayIndex=${di % CAL_DAYS};openQuickDispatchModal('${dayStr}','08:00','17:00',null,null,${partnerId})"` : '');
-                html += `<td class="matrix-cell matrix-cell-empty" ${onclick}></td>`;
-            } else {
-                let inner = '';
-                cellDisp.forEach(dp => {
-                    const dc = getDriverColor(dp.driver_id);
-                    const driverName = dp.driver_name || '';
-                    const pickup = (dp.pickup_address || '').substring(0, 4);
-                    const delivery = (dp.delivery_address || '').substring(0, 4);
-                    inner += `<div class="matrix-dispatch" style="border-left:3px solid ${dc.border};background:${dc.bg}" onclick="event.stopPropagation();showDispatchDetail(${dp.id})">
-                        <span class="matrix-d-driver" style="color:${dc.text}">${driverName}</span>
-                        <span class="matrix-d-route">${pickup}→${delivery}</span>
-                    </div>`;
-                });
-                html += `<td class="matrix-cell">${inner}</td>`;
-            }
-        });
-        html += `</tr>`;
-    });
-
-    html += `</tbody></table></div>`;
-    return html;
-}
-
-// 月送り
-function changeMonth(dir) {
-    calendarDate.setMonth(calendarDate.getMonth() + dir);
     loadDispatchCalendar();
 }
 

@@ -1,0 +1,233 @@
+/* トランシアテナント固有CSS: マトリクス配車表 */
+
+/* マトリクステーブルラッパー */
+.matrix-wrapper {
+    overflow: auto;
+    max-height: calc(100vh - 140px);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin: 4px 8px;
+    background: #fff;
+    -webkit-overflow-scrolling: touch;
+}
+
+.matrix-table {
+    border-collapse: collapse;
+    min-width: 100%;
+    font-size: 0.75rem;
+}
+
+.matrix-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+/* 日付列ヘッダー */
+.matrix-th-date {
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    background: #1e293b;
+    color: #fff;
+    padding: 6px 8px;
+    font-weight: 700;
+    min-width: 64px;
+    text-align: center;
+    border: 1px solid #334155;
+}
+
+/* 車両ヘッダー */
+.matrix-th-vehicle {
+    background: #1e293b;
+    color: #fff;
+    padding: 6px 4px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 80px;
+    max-width: 100px;
+    border: 1px solid #334155;
+    font-size: 0.7rem;
+    white-space: nowrap;
+}
+
+.matrix-th-vinfo {
+    font-size: 0.55rem;
+    opacity: 0.7;
+    font-weight: 400;
+}
+
+.matrix-th-maint {
+    background: #7f1d1d !important;
+}
+
+.matrix-th-partner {
+    background: #78350f !important;
+}
+
+/* 日付セル（左固定） */
+.matrix-date-cell {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #f8fafc;
+    padding: 4px 6px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 64px;
+    border: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.matrix-date-num {
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.matrix-date-dow {
+    font-size: 0.6rem;
+    margin-left: 2px;
+    color: #64748b;
+}
+
+.matrix-date-dow.sun { color: #dc2626; }
+.matrix-date-dow.sat { color: #2563eb; }
+
+/* データセル */
+.matrix-cell {
+    border: 1px solid #e2e8f0;
+    padding: 2px;
+    vertical-align: top;
+    min-height: 36px;
+    min-width: 80px;
+    max-width: 100px;
+}
+
+.matrix-cell-empty {
+    cursor: pointer;
+}
+
+.matrix-cell-empty:hover {
+    background: #f0f9ff;
+}
+
+/* 配車エントリ */
+.matrix-dispatch {
+    padding: 2px 3px;
+    margin-bottom: 1px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    line-height: 1.2;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.matrix-dispatch:hover {
+    opacity: 0.85;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.matrix-d-driver {
+    font-weight: 600;
+    font-size: 0.6rem;
+    display: block;
+}
+
+.matrix-d-route {
+    font-size: 0.55rem;
+    color: #475569;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 今日の行 */
+.matrix-row-today {
+    background: #fffbeb;
+}
+
+.matrix-row-today .matrix-date-cell {
+    background: #fef3c7 !important;
+}
+
+.matrix-today {
+    background: #fef3c7 !important;
+    border-left: 3px solid #f59e0b !important;
+}
+
+/* 日曜・土曜 */
+.matrix-row-sun {
+    background: #fef2f2;
+}
+
+.matrix-row-sun .matrix-date-cell {
+    background: #fee2e2 !important;
+    color: #dc2626;
+}
+
+.matrix-row-sat {
+    background: #eff6ff;
+}
+
+.matrix-row-sat .matrix-date-cell {
+    background: #dbeafe !important;
+    color: #2563eb;
+}
+
+/* マトリクスボタン（モバイル） */
+.m-cal-matrix-btn {
+    background: #f59e0b !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    font-size: 0.6rem !important;
+    border-radius: 4px !important;
+    padding: 2px 8px !important;
+    border: none !important;
+}
+
+/* モバイル調整 */
+@media (max-width: 768px) {
+    .matrix-wrapper {
+        margin: 2px 4px;
+        max-height: calc(100vh - 120px);
+        border-radius: 4px;
+    }
+
+    .matrix-th-date {
+        min-width: 48px;
+        padding: 4px 3px;
+        font-size: 0.65rem;
+    }
+
+    .matrix-th-vehicle {
+        min-width: 60px;
+        max-width: 70px;
+        padding: 4px 2px;
+        font-size: 0.6rem;
+    }
+
+    .matrix-date-cell {
+        min-width: 48px;
+        padding: 3px 3px;
+    }
+
+    .matrix-cell {
+        min-width: 60px;
+        max-width: 70px;
+        padding: 1px;
+    }
+
+    .matrix-dispatch {
+        font-size: 0.5rem;
+        padding: 1px 2px;
+    }
+
+    .matrix-d-driver {
+        font-size: 0.5rem;
+    }
+
+    .matrix-d-route {
+        font-size: 0.45rem;
+    }
+}

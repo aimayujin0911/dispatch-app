@@ -277,6 +277,14 @@ def seed_on_startup():
 # uploads ディレクトリ作成
 os.makedirs(os.path.join(os.path.dirname(__file__), "uploads"), exist_ok=True)
 
+# テナント固有の静的ファイル配信（/static/tenants/{tenant_id}/...）
+_tenants_dir = os.path.join(PROJECT_ROOT, "tenants")
+if os.path.isdir(_tenants_dir):
+    for _tid in os.listdir(_tenants_dir):
+        _tenant_static = os.path.join(_tenants_dir, _tid, "static")
+        if os.path.isdir(_tenant_static):
+            app.mount(f"/static/tenants/{_tid}", StaticFiles(directory=_tenant_static), name=f"tenant_static_{_tid}")
+
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "uploads")), name="uploads")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))

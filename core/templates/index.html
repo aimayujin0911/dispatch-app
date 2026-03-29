@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ハコプロFor - 配車管理システム</title>
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
-    <link rel="stylesheet" href="/static/css/style.css?v=77">
+    <link rel="stylesheet" href="/static/css/style.css?v=74">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body style="visibility:hidden">
@@ -539,7 +539,35 @@
     </script>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js?v=82"></script>
+    <script src="/static/js/app.js?v=77"></script>
     <script src="/static/js/tenant-switcher.js?v=3"></script>
+    <script>
+    // テナント固有スクリプト/CSSの動的ロード
+    (function() {
+        function loadTenantAssets() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const tid = payload.active_tenant || payload.tenant_id;
+                if (!tid) return;
+                // CSS
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = `/static/tenants/${tid}/css/tenant.css?v=1`;
+                document.head.appendChild(link);
+                // JS
+                const script = document.createElement('script');
+                script.src = `/static/tenants/${tid}/js/tenant.js?v=1`;
+                document.body.appendChild(script);
+            } catch(e) {}
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadTenantAssets);
+        } else {
+            loadTenantAssets();
+        }
+    })();
+    </script>
 </body>
 </html>
