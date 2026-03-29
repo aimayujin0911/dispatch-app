@@ -633,6 +633,14 @@ async function loadDispatchCalendar() {
 
     const calContainer = document.getElementById('dispatch-calendar');
 
+    // ===== マトリクスモード: PC/スマホ共通 =====
+    if (_dispatchViewMode === 'matrix') {
+        const matrixDays = [];
+        for (let i = 0; i < 31; i++) { const md = new Date(baseDate); md.setDate(md.getDate() + i); matrixDays.push(md); }
+        const matrixDayStrs = matrixDays.map(d => fmt(d));
+        calContainer.innerHTML = buildDesktopMatrixControls(vehicleTypes, capacities, filterType, filterCap, baseDate)
+            + buildMatrixView(matrixDays, matrixDayStrs, dayNames, dispatches, filteredVehicles, [], partners);
+    } else
     // ===== モバイル: 縦ガントモード =====
     if (isMobile()) {
         const hasUndo = (_lastAutoDispatchIds.length > 0 && _lastAutoDispatchDay === activeDayStr) || (_lastResetData.length > 0 && _lastResetDay === activeDayStr);
@@ -651,20 +659,7 @@ async function loadDispatchCalendar() {
         const partnerEntries = Object.values(partnerMap);
 
         const partnerCount = partnerDispatches.length;
-        const isMatrix = _dispatchViewMode === 'matrix';
-        const mobileControlsHtml = isMatrix ? `
-            <div class="m-cal-controls">
-                <div class="m-cal-row">
-                    <button class="m-cal-btn" onclick="changeMonth(-1)">◀ 前月</button>
-                    <span style="font-size:0.8rem;font-weight:700;flex:1;text-align:center">${baseDate.getFullYear()}年${baseDate.getMonth()+1}月</span>
-                    <button class="m-cal-btn" onclick="changeMonth(1)">翌月 ▶</button>
-                    <button class="m-cal-btn" onclick="calendarDate=new Date();loadDispatchCalendar()">今月</button>
-                </div>
-                <div class="m-cal-row" style="margin-top:2px;gap:4px">
-                    <button class="m-cal-btn" onclick="showMobileFilterModal()" style="font-size:0.65rem;${filterActive ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
-                    <button class="m-cal-btn m-cal-matrix-btn" onclick="toggleDispatchView()">ガント表示</button>
-                </div>
-            </div>` : `
+        const mobileControlsHtml = `
             <div class="m-cal-controls">
                 <div class="m-cal-row">
                     <button class="m-cal-btn" onclick="changeDays(-1)">◀</button>
@@ -828,44 +823,23 @@ async function loadDispatchCalendar() {
 
         vgHtml += barsHtml + `</div></div>`;
 
-        // ===== マトリクスモード: 日付(行)×車両(列)の一覧表 =====
-        if (_dispatchViewMode === 'matrix') {
-            // 1ヶ月分の日付を生成
-            const matrixDays = [];
-            for (let i = 0; i < 31; i++) {
-                const md = new Date(baseDate);
-                md.setDate(md.getDate() + i);
-                matrixDays.push(md);
-            }
-            const matrixDayStrs = matrixDays.map(d => fmt(d));
-            const matrixHtml = buildMatrixView(matrixDays, matrixDayStrs, dayNames, dispatches, filteredVehicles, partnerEntries, partners);
-            calContainer.innerHTML = mobileControlsHtml + matrixHtml;
-        } else {
-            calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
+        calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
 
-            // スクロール位置復元 + ヘッダー横スクロール同期
-            const vWrapper = document.querySelector('.vertical-gantt-wrapper');
-            const vHeader = document.querySelector('.vg-header-row');
-            if (vWrapper) {
-                vWrapper.scrollTop = savedScrollTop;
-                vWrapper.scrollLeft = savedScrollLeft;
-                if (vHeader) vHeader.scrollLeft = savedScrollLeft;
-                vWrapper.addEventListener('scroll', () => {
-                    if (vHeader) vHeader.scrollLeft = vWrapper.scrollLeft;
-                });
-            }
+        // スクロール位置復元 + ヘッダー横スクロール同期
+        const vWrapper = document.querySelector('.vertical-gantt-wrapper');
+        const vHeader = document.querySelector('.vg-header-row');
+        if (vWrapper) {
+            vWrapper.scrollTop = savedScrollTop;
+            vWrapper.scrollLeft = savedScrollLeft;
+            if (vHeader) vHeader.scrollLeft = savedScrollLeft;
+            vWrapper.addEventListener('scroll', () => {
+                if (vHeader) vHeader.scrollLeft = vWrapper.scrollLeft;
+            });
         }
 
         // 未配車パネルはデスクトップと同じ処理（この後で実行される）
         // モバイル時はガント後のインジケーターは省略
         // 未配車パネル処理に進む
-    } else if (_dispatchViewMode === 'matrix') {
-    // ===== デスクトップ: マトリクス表示 =====
-    const matrixDays = [];
-    for (let i = 0; i < 31; i++) { const md = new Date(baseDate); md.setDate(md.getDate() + i); matrixDays.push(md); }
-    const matrixDayStrs = matrixDays.map(d => fmt(d));
-    calContainer.innerHTML = buildDesktopMatrixControls(vehicleTypes, capacities, filterType, filterCap, baseDate)
-        + buildMatrixView(matrixDays, matrixDayStrs, dayNames, dispatches, filteredVehicles, [], partners);
     } else {
     // ===== デスクトップ: 通常の横ガント =====
     calContainer.innerHTML = `
