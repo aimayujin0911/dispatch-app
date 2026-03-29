@@ -573,7 +573,7 @@ async function loadDispatchCalendar() {
     baseDate.setHours(0, 0, 0, 0);
 
     // マトリクスビューでは月範囲の配車を別途取得するため、週の配車取得をスキップ
-    const isMatrixMode = !isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView;
+    const isMatrixMode = localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView;
     const [dispatches, vehicles, shipments, partners] = await Promise.all([
         isMatrixMode ? Promise.resolve([]) : apiGet(`/dispatches?week_start=${fmt(baseDate)}`),
         cachedApiGet('/vehicles'),
@@ -636,7 +636,7 @@ async function loadDispatchCalendar() {
     const calContainer = document.getElementById('dispatch-calendar');
 
     // ===== マトリクスビュー（テナント実装） =====
-    if (!isMobile() && localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView) {
+    if (localStorage.getItem('dispatchViewMode') === 'matrix' && window._tenantRenderMatrixView) {
         // マトリクス再描画前にスクロール位置を保存（月変更以外の再描画で復元するため）
         if (window._matrixScrollReset) {
             window._matrixSavedScrollTop = 0;

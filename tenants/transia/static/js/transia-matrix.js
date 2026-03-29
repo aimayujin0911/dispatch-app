@@ -22,6 +22,12 @@ window._matrixScrollReset = false;    // 月変更時のスクロールリセッ
 window._matrixSavedScrollTop = 0;     // スクロール位置保存
 window._matrixSavedScrollLeft = 0;    // スクロール位置保存
 
+// モバイル判定でセル高さを切り替え（CSS側の値と一致させる）
+function getMatrixCellH() {
+    if (!isMobile()) return 132;
+    return window.innerWidth <= 480 ? 90 : 100;
+}
+
 // 時間帯定義: 1マス=2時間、8時開始（8-20時の業務時間帯）
 const MATRIX_PERIODS = [
     { startH: 8, endH: 10 },
@@ -326,7 +332,8 @@ async function renderMatrixUnassignedPanel(ignoredShipments, dispatches) {
             const timeStr = s.pickup_time || s.delivery_time
                 ? `<span style="color:#1d4ed8;font-weight:700;white-space:nowrap">${s.pickup_time || '?'}→${s.delivery_time || '?'}</span>`
                 : (s.time_note ? `<span style="color:#6b7280;white-space:nowrap">${s.time_note}</span>` : '');
-            html += `<div class="unassigned-item" draggable="true" ondragstart="matrixUnassignedDragStart(event,${s.id})" ondragend="matrixUnassignedDragEnd(event)" onclick="openQuickDispatchModal('${dateStr}','08:00','17:00', null, ${s.id})">
+            const _dragAttr = isMobile() ? '' : ` draggable="true" ondragstart="matrixUnassignedDragStart(event,${s.id})" ondragend="matrixUnassignedDragEnd(event)"`;
+            html += `<div class="unassigned-item"${_dragAttr} onclick="openQuickDispatchModal('${dateStr}','08:00','17:00', null, ${s.id})">
                 <div style="display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;overflow:hidden">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
                         <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name || s.client_name}${freqLabel}</strong>
@@ -814,6 +821,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             </div>
         </div>`;
 
+    const _isMob = isMobile();
     // ===== テーブル構築（配列ベースで高速化） =====
     // 左: 固定の日付列、右: 横スクロール可能な車両×日付テーブル
     const dateParts = ['<div class="matrix-date-panel"><div class="matrix-corner-header">日付</div><div class="matrix-date-body">'];
@@ -913,7 +921,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
 
             // 配車アイテムを動的スロット位置で絶対配置
             // 各配車は ceil(duration/2h) スロットを占有、時刻順に上から配置
-            const CELL_H = 132;
+            const CELL_H = getMatrixCellH();
             const SLOT_H = CELL_H / 6;
             let slotCursor = 0; // 次に使えるスロット位置
             for (let di = 0; di < dayDispatches.length; di++) {
@@ -940,7 +948,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
                 const eH = parseInt((d.end_time || '20:00').split(':')[0]) || 20;
                 const timeLabel = sH + '時-' + eH + '時';
 
-                tableParts.push(`<div class="matrix-dispatch-item matrix-dispatch-abs" draggable="true" data-dispatch-id="${d.id}" data-vehicle-id="${vId}" data-date="${dayStr}" ondragstart="matrixDragStart(event,${d.id},${vId},'${dayStr}',${dStartIdx})" ondragend="matrixDragEnd(event)" style="top:${topPx}px;height:${heightPx}px;border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${dStartIdx},${vId},${d.id})" title="${d.driver_name || ''}\n${timeLabel}\n${d.pickup_address || ''}→${d.delivery_address || ''}">`);
+                tableParts.push(`<div class="matrix-dispatch-item matrix-dispatch-abs"${_isMob ? '' : ' draggable="true"'} data-dispatch-id="${d.id}" data-vehicle-id="${vId}" data-date="${dayStr}"${_isMob ? '' : ` ondragstart="matrixDragStart(event,${d.id},${vId},'${dayStr}',${dStartIdx})" ondragend="matrixDragEnd(event)"`} style="top:${topPx}px;height:${heightPx}px;border-left-color:${borderColor};background:${bgColor}" onclick="event.stopPropagation();openMatrixSlotModal('${dayStr}',${dStartIdx},${vId},${d.id})" title="${d.driver_name || ''}\n${timeLabel}\n${d.pickup_address || ''}→${d.delivery_address || ''}">`);
                 tableParts.push(`<div class="matrix-dispatch-route">${routeLabel}</div>`);
                 if (heightPx > 20 && areaLabel) tableParts.push(`<div class="matrix-dispatch-area">${areaLabel}</div>`);
                 if (heightPx > 35 && extraLabel) tableParts.push(`<div class="matrix-dispatch-extra">${extraLabel}</div>`);
@@ -980,7 +988,7 @@ async function renderMatrixView(calContainer, dispatches, allVehicles, shipments
             const layoutEl = calContainer.querySelector('.matrix-layout');
             if (!layoutEl) return;
             const layoutTop = layoutEl.getBoundingClientRect().top;
-            const reserveBottom = 100;
+            const reserveBottom = isMobile() ? 60 : 100; // モバイル: 下ナビ分を考慮
             const availableHeight = window.innerHeight - layoutTop - reserveBottom;
             const h = Math.max(300, availableHeight) + 'px';
             wrapper.style.maxHeight = h;
@@ -1062,7 +1070,7 @@ function _matrixFillRow(row, dayIdx) {
     const { filteredVehicles, matrixDayStrs, dispatchIndex, shipmentMap } = ld;
     const dayStr = matrixDayStrs[dayIdx];
     const cells = row.querySelectorAll('.matrix-cell-t');
-    const CELL_H = 132, SLOT_H = CELL_H / 6;
+    const CELL_H = getMatrixCellH(), SLOT_H = CELL_H / 6;
 
     for (let vi = 0; vi < Math.min(cells.length, filteredVehicles.length); vi++) {
         const v = filteredVehicles[vi];
@@ -1112,10 +1120,12 @@ function _matrixFillRow(row, dayIdx) {
 
             const itemEl = document.createElement('div');
             itemEl.className = 'matrix-dispatch-item matrix-dispatch-abs';
-            itemEl.draggable = true;
             itemEl.style.cssText = `top:${topPx}px;height:${heightPx}px;border-left-color:${borderColor};background:${bgColor}`;
-            itemEl.setAttribute('ondragstart', `matrixDragStart(event,${d.id},${vId},'${dayStr}',${dStartIdx})`);
-            itemEl.setAttribute('ondragend', 'matrixDragEnd(event)');
+            if (!isMobile()) {
+                itemEl.draggable = true;
+                itemEl.setAttribute('ondragstart', `matrixDragStart(event,${d.id},${vId},'${dayStr}',${dStartIdx})`);
+                itemEl.setAttribute('ondragend', 'matrixDragEnd(event)');
+            }
             itemEl.setAttribute('onclick', `event.stopPropagation();openMatrixSlotModal('${dayStr}',${dStartIdx},${vId},${d.id})`);
             itemEl.title = `${d.driver_name || ''}\n${timeLabel}\n${d.pickup_address || ''}→${d.delivery_address || ''}`;
             let inner = `<div class="matrix-dispatch-route">${routeLabel}</div>`;
@@ -1296,7 +1306,7 @@ function matrixResizeStart(e, dispatchId, vehicleId, dateStr) {
     if (!item) return;
     const cell = item.closest('.matrix-cell-t');
     const cellRect = cell.getBoundingClientRect();
-    const CELL_H = 132;
+    const CELL_H = getMatrixCellH();
 
     _resizeData = {
         dispatchId, vehicleId, dateStr,

@@ -524,6 +524,84 @@
     .matrix-dispatch-extra {
         font-size: 0.42rem;
     }
+    /* モバイル: マトリクスレイアウト全体 */
+    .matrix-layout {
+        border-radius: 4px;
+    }
+    /* モバイル: 未配車パネル */
+    #matrix-unassigned-panel h3 {
+        font-size: 0.85rem;
+    }
+    #matrix-unassigned-panel .input-date {
+        width: 120px !important;
+        font-size: 0.75rem;
+    }
+    #matrix-unassigned-panel .btn {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+    .unassigned-item {
+        padding: 6px 8px;
+        font-size: 0.75rem;
+    }
+    /* モバイル: 配車アイテムのタップ操作ヒント */
+    .matrix-dispatch-item {
+        cursor: pointer;
+    }
+    /* モバイル: リサイズハンドル非表示（タッチでは使いにくい） */
+    .matrix-resize-handle {
+        display: none;
+    }
+    /* モバイル: 車両ツールチップ非表示（hover不可） */
+    .matrix-vehicle-tooltip {
+        display: none !important;
+    }
+}
+
+/* 超小型画面向け追加調整 */
+@media (max-width: 480px) {
+    .matrix-vehicle-col-header {
+        min-width: 68px;
+        width: 68px;
+        font-size: 0.52rem;
+    }
+    .matrix-vehicle-col-header .mvh-number {
+        font-size: 0.6rem;
+    }
+    .matrix-driver-cell {
+        min-width: 68px;
+        width: 68px;
+        font-size: 0.48rem;
+    }
+    .matrix-cell-t {
+        min-width: 68px;
+        width: 68px;
+        min-height: 90px;
+        height: 90px;
+    }
+    .matrix-slots, .matrix-slots-empty {
+        height: 90px;
+    }
+    .matrix-slot {
+        min-height: 15px;
+        height: 15px;
+    }
+    .matrix-date-label {
+        width: 36px;
+        min-width: 36px;
+        max-width: 36px;
+        height: 90px;
+        font-size: 0.55rem;
+    }
+    .matrix-date-num {
+        font-size: 0.7rem;
+    }
+    .matrix-corner-header {
+        width: 36px;
+        min-width: 36px;
+        max-width: 36px;
+        font-size: 0.5rem;
+    }
 }
 
 /* 楽観的UI更新: 保存中の仮配車アイテム点滅アニメーション */
