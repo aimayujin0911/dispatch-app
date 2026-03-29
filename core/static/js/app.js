@@ -634,6 +634,17 @@ async function loadDispatchCalendar() {
         const undoFn = _lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch';
         const hasDispatches = dayDispatches.filter(d => !d.partner_id).length > 0;
         const filterActive = _mFilterTypes.length > 0 || _mFilterCaps.length > 0;
+
+        // 協力会社配車を集計（コントロールHTMLより先に必要）
+        const partnerDispatches = dayDispatches2.filter(d => d.partner_id || d.is_partner);
+        const partnerMap = {};
+        partnerDispatches.forEach(d => {
+            const pName = d.partner_name || '不明';
+            if (!partnerMap[pName]) partnerMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
+            partnerMap[pName].dispatches.push(d);
+        });
+        const partnerEntries = Object.values(partnerMap);
+
         const partnerCount = partnerDispatches.length;
         const mobileControlsHtml = `
             <div class="m-cal-controls">
@@ -673,15 +684,6 @@ async function loadDispatchCalendar() {
             : Math.min(filteredVehicles.length, 4);
         const colW = Math.max(Math.floor((screenW - timeColW) / visibleCols), 60);
 
-        // 協力会社配車を集計
-        const partnerDispatches = dayDispatches2.filter(d => d.partner_id || d.is_partner);
-        const partnerMap = {};
-        partnerDispatches.forEach(d => {
-            const pName = d.partner_name || '不明';
-            if (!partnerMap[pName]) partnerMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
-            partnerMap[pName].dispatches.push(d);
-        });
-        const partnerEntries = Object.values(partnerMap);
         const totalCols = filteredVehicles.length + partnerEntries.length;
 
         // D&D用にグリッド情報をグローバル保存
