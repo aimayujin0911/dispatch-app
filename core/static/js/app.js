@@ -560,6 +560,11 @@ let _mFilterTypes = []; // 選択中の車種（複数）
 let _mFilterCaps = [];  // 選択中の積載量（複数）
 
 async function loadDispatchCalendar() {
+    // テナント固有フック（定義されていればそちらに委譲）
+    if (typeof window._tenantDispatchHook === 'function') {
+        const handled = await window._tenantDispatchHook();
+        if (handled) return;
+    }
     // スクロール位置を保存
     const wrapper = document.querySelector('.gantt-wrapper');
     const savedScrollTop = wrapper ? wrapper.scrollTop : 0;

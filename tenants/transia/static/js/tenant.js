@@ -1,38 +1,21 @@
 /**
  * トランシアテナント固有JS: マトリクス配車表機能
- * core/static/js/app.js の loadDispatchCalendar をフックして
- * マトリクス表示モードを追加する
+ * core の _tenantDispatchHook を利用してマトリクス表示を追加
  */
 
 // マトリクス表示モード状態
 window._dispatchViewMode = 'gantt'; // 'gantt' | 'matrix'
 
-// 元の loadDispatchCalendar を保存
-const _originalLoadDispatchCalendar = window.loadDispatchCalendar;
-
-// マトリクス表示切替
-window.toggleDispatchView = function() {
-    window._dispatchViewMode = window._dispatchViewMode === 'gantt' ? 'matrix' : 'gantt';
-    loadDispatchCalendar();
-};
-
-// 月送り
-window.changeMonth = function(dir) {
-    calendarDate.setMonth(calendarDate.getMonth() + dir);
-    loadDispatchCalendar();
-};
-
-// loadDispatchCalendar をオーバーライド
-window.loadDispatchCalendar = async function() {
+// テナント配車フック: マトリクスモード時にtrue返却で元のガント描画をスキップ
+window._tenantDispatchHook = async function() {
     if (window._dispatchViewMode !== 'matrix') {
-        // ガントモード: オリジナルを実行後、トグルボタンを注入
-        await _originalLoadDispatchCalendar();
-        _injectMatrixToggleButton();
-        return;
+        // ガントモード: フック処理しない（元の描画後にボタン注入）
+        // 少し遅延して元の描画完了を待つ
+        setTimeout(_injectMatrixToggleButton, 100);
+        return false;
     }
 
     // ===== マトリクスモード =====
-    const scrollTop = document.getElementById('dispatch-calendar')?.scrollTop || 0;
     const baseDate = new Date(calendarDate);
     baseDate.setHours(0, 0, 0, 0);
 
@@ -67,9 +50,19 @@ window.loadDispatchCalendar = async function() {
     calContainer.innerHTML = _buildMatrixControls(vehicleTypes, capacities, filterType, filterCap, baseDate)
         + _buildMatrixView(matrixDays, matrixDayStrs, dayNames, dispatches, filteredVehicles, partners);
 
-    // スクロール復元
-    const wrapper = calContainer.querySelector('.matrix-wrapper');
-    if (wrapper) wrapper.scrollTop = scrollTop;
+    return true; // 元の描画をスキップ
+};
+
+// マトリクス表示切替
+window.toggleDispatchView = function() {
+    window._dispatchViewMode = window._dispatchViewMode === 'gantt' ? 'matrix' : 'gantt';
+    loadDispatchCalendar();
+};
+
+// 月送り
+window.changeMonth = function(dir) {
+    calendarDate.setMonth(calendarDate.getMonth() + dir);
+    loadDispatchCalendar();
 };
 
 // マトリクスモードのコントロールバー
