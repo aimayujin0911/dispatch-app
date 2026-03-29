@@ -558,6 +558,7 @@ let HOUR_COUNT = HOUR_END - HOUR_START;
 let selectedDayIndex = 0;
 let _mFilterTypes = []; // 選択中の車種（複数）
 let _mFilterCaps = [];  // 選択中の積載量（複数）
+let _dispatchViewMode = 'gantt'; // 'gantt' | 'matrix'
 
 async function loadDispatchCalendar() {
     // スクロール位置を保存
@@ -658,8 +659,7 @@ async function loadDispatchCalendar() {
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px;gap:4px">
-                    <span class="m-cal-date-display">${activeDateLabel}</span>
-                    <button class="m-cal-btn" onclick="showMobileFilterModal()" style="font-size:0.65rem;${filterActive ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台${partnerCount > 0 ? '+協力' + partnerEntries.length : ''}）</button>
+                    <button class="m-cal-btn" onclick="showMobileFilterModal()" style="font-size:0.65rem;${filterActive ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
                     <select id="cal-hour-start" class="m-cal-select" onchange="changeHourRange()" style="max-width:58px">
                         ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
                     </select>
@@ -667,6 +667,7 @@ async function loadDispatchCalendar() {
                     <select id="cal-hour-end" class="m-cal-select" onchange="changeHourRange()" style="max-width:58px">
                         ${Array.from({length:24}, (_,i) => i+1).map(h => `<option value="${h}" ${HOUR_END === h ? 'selected' : ''}>${h === 24 ? '24:00' : String(h).padStart(2,'0')+':00'}</option>`).join('')}
                     </select>
+                    <button class="m-cal-btn m-cal-matrix-btn" onclick="toggleDispatchView()">${_dispatchViewMode === 'gantt' ? 'マトリクス表示' : 'ガント表示'}</button>
                 </div>
             </div>`;
 
@@ -810,23 +811,32 @@ async function loadDispatchCalendar() {
 
         vgHtml += barsHtml + `</div></div>`;
 
-        calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
+        // ===== マトリクスモード: 車両×日付の一覧表 =====
+        if (_dispatchViewMode === 'matrix') {
+            const matrixHtml = buildMobileMatrixView(days, dayStrs, dayNames, dispatches, filteredVehicles, partnerEntries, shipments);
+            calContainer.innerHTML = mobileControlsHtml + matrixHtml;
+        } else {
+            calContainer.innerHTML = mobileControlsHtml + headerHtml + vgHtml;
 
-        // スクロール位置復元 + ヘッダー横スクロール同期
-        const vWrapper = document.querySelector('.vertical-gantt-wrapper');
-        const vHeader = document.querySelector('.vg-header-row');
-        if (vWrapper) {
-            vWrapper.scrollTop = savedScrollTop;
-            vWrapper.scrollLeft = savedScrollLeft;
-            if (vHeader) vHeader.scrollLeft = savedScrollLeft;
-            vWrapper.addEventListener('scroll', () => {
-                if (vHeader) vHeader.scrollLeft = vWrapper.scrollLeft;
-            });
+            // スクロール位置復元 + ヘッダー横スクロール同期
+            const vWrapper = document.querySelector('.vertical-gantt-wrapper');
+            const vHeader = document.querySelector('.vg-header-row');
+            if (vWrapper) {
+                vWrapper.scrollTop = savedScrollTop;
+                vWrapper.scrollLeft = savedScrollLeft;
+                if (vHeader) vHeader.scrollLeft = savedScrollLeft;
+                vWrapper.addEventListener('scroll', () => {
+                    if (vHeader) vHeader.scrollLeft = vWrapper.scrollLeft;
+                });
+            }
         }
 
         // 未配車パネルはデスクトップと同じ処理（この後で実行される）
         // モバイル時はガント後のインジケーターは省略
         // 未配車パネル処理に進む
+    } else if (_dispatchViewMode === 'matrix') {
+    // ===== デスクトップ: マトリクス表示 =====
+    calContainer.innerHTML = buildDesktopMatrixView(days, dayStrs, dayNames, dispatches, filteredVehicles, partners, shipments, vehicleTypes, capacities, filterType, filterCap, baseDate, activeDayStr);
     } else {
     // ===== デスクトップ: 通常の横ガント =====
     calContainer.innerHTML = `
@@ -860,6 +870,7 @@ async function loadDispatchCalendar() {
                     <option value="">全車格</option>
                     ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
                 </select>
+                <button class="btn btn-sm" onclick="toggleDispatchView()" style="background:#f59e0b;color:#fff;font-weight:600">${_dispatchViewMode === 'gantt' ? 'マトリクス表示' : 'ガント表示'}</button>
             </div>
         </div>
         <div class="cal-legend" style="display:flex;gap:10px;padding:2px 8px;font-size:0.7rem;color:#64748b;align-items:center;flex-wrap:wrap">
@@ -3078,6 +3089,163 @@ function changeHourRange() {
     HOUR_END = newEnd;
     HOUR_COUNT = HOUR_END - HOUR_START;
     loadDispatchCalendar();
+}
+
+// ===== マトリクス表示切替 =====
+function toggleDispatchView() {
+    _dispatchViewMode = _dispatchViewMode === 'gantt' ? 'matrix' : 'gantt';
+    loadDispatchCalendar();
+}
+
+// モバイル用マトリクスビュー: 車両(行)×日付(列)
+function buildMobileMatrixView(days, dayStrs, dayNames, dispatches, vehicles, partnerEntries, shipments) {
+    const screenW = window.innerWidth;
+    const vehColW = 70;
+    const dayCols = days.length;
+    const dayColW = Math.max(Math.floor((screenW - vehColW) / dayCols), 80);
+
+    // ヘッダー: 車両列 + 日付列
+    let html = `<div class="matrix-wrapper"><table class="matrix-table">`;
+    html += `<thead><tr><th class="matrix-th-vehicle">車両</th>`;
+    days.forEach((d, i) => {
+        const isT = isToday(d);
+        const dow = dayNames[d.getDay()];
+        const isSun = d.getDay() === 0;
+        const isSat = d.getDay() === 6;
+        html += `<th class="matrix-th-day${isT ? ' matrix-today' : ''}${isSun ? ' matrix-sun' : ''}${isSat ? ' matrix-sat' : ''}" style="min-width:${dayColW}px">${(d.getMonth()+1)}/${d.getDate()}<br><span class="matrix-dow">${dow}</span></th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    // 車両行
+    vehicles.forEach(v => {
+        const isMaint = v.status === '整備中';
+        html += `<tr class="${isMaint ? 'matrix-row-maint' : ''}">`;
+        const shortNum = v.number.split(' ').slice(-1)[0] || v.number;
+        html += `<td class="matrix-vehicle">${shortNum}<br><span class="matrix-vehicle-info">${v.type} ${v.capacity}t</span></td>`;
+        days.forEach((d, di) => {
+            const dayStr = dayStrs[di];
+            const vDisp = dispatches.filter(dp => dp.vehicle_id === v.id && (dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr)));
+            html += buildMatrixCell(vDisp, dayStr, di, v.id);
+        });
+        html += `</tr>`;
+    });
+
+    // 協力会社行
+    if (partnerEntries.length > 0) {
+        html += `<tr class="matrix-partner-divider"><td colspan="${dayCols + 1}">🤝 協力会社</td></tr>`;
+        partnerEntries.forEach(pe => {
+            html += `<tr class="matrix-row-partner">`;
+            html += `<td class="matrix-vehicle matrix-vehicle-partner">${pe.name}</td>`;
+            days.forEach((d, di) => {
+                const dayStr = dayStrs[di];
+                const pDisp = pe.dispatches.filter(dp => dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr));
+                html += buildMatrixCell(pDisp, dayStr, di, null, pe.id);
+            });
+            html += `</tr>`;
+        });
+    }
+
+    html += `</tbody></table></div>`;
+    return html;
+}
+
+// デスクトップ用マトリクスビュー
+function buildDesktopMatrixView(days, dayStrs, dayNames, dispatches, vehicles, partners, shipments, vehicleTypes, capacities, filterType, filterCap, baseDate, activeDayStr) {
+    let html = `<div class="cal-controls" style="gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+            <button class="btn btn-sm" onclick="changeDays(-1)" title="前日">◀ 前週</button>
+            <button class="btn btn-sm" onclick="calendarDate=new Date();selectedDayIndex=0;loadDispatchCalendar()">今日</button>
+            <button class="btn btn-sm" onclick="changeDays(1)" title="翌日">翌週 ▶</button>
+            <input type="date" class="input-date" value="${fmt(baseDate)}" onchange="calendarDate=new Date(this.value+'T00:00:00');selectedDayIndex=0;loadDispatchCalendar()" title="日付を選択" style="width:140px">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+            <button class="btn btn-sm" onclick="printDispatchTable()" title="印刷">🖨</button>
+            <select id="cal-filter-type" class="select" onchange="loadDispatchCalendar()" style="margin-left:auto">
+                <option value="">全車種</option>
+                ${vehicleTypes.map(t => `<option value="${t}" ${filterType === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+            <select id="cal-filter-cap" class="select" onchange="loadDispatchCalendar()">
+                <option value="">全車格</option>
+                ${capacities.map(c => `<option value="${c}" ${filterCap == c ? 'selected' : ''}>${c}t</option>`).join('')}
+            </select>
+            <button class="btn btn-sm" onclick="toggleDispatchView()" style="background:#64748b;color:#fff;font-weight:600">ガント表示</button>
+        </div>
+    </div>`;
+
+    html += `<div class="matrix-wrapper"><table class="matrix-table matrix-desktop">`;
+    html += `<thead><tr><th class="matrix-th-vehicle" style="min-width:140px">車両</th>`;
+    days.forEach((d, i) => {
+        const isT = isToday(d);
+        const dow = dayNames[d.getDay()];
+        const isSun = d.getDay() === 0;
+        const isSat = d.getDay() === 6;
+        html += `<th class="matrix-th-day${isT ? ' matrix-today' : ''}${isSun ? ' matrix-sun' : ''}${isSat ? ' matrix-sat' : ''}">${(d.getMonth()+1)}/${d.getDate()}(${dow})</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    vehicles.forEach(v => {
+        const isMaint = v.status === '整備中';
+        html += `<tr class="${isMaint ? 'matrix-row-maint' : ''}">`;
+        const tzBadge = v.temperature_zone && v.temperature_zone !== '常温' ? ` ❄${v.temperature_zone}` : '';
+        const pgBadge = v.has_power_gate ? ' PG' : '';
+        html += `<td class="matrix-vehicle">${v.number}<br><span class="matrix-vehicle-info">${v.type} ${v.capacity}t${tzBadge}${pgBadge}</span></td>`;
+        days.forEach((d, di) => {
+            const dayStr = dayStrs[di];
+            const vDisp = dispatches.filter(dp => dp.vehicle_id === v.id && (dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr)));
+            html += buildMatrixCell(vDisp, dayStr, di, v.id);
+        });
+        html += `</tr>`;
+    });
+
+    // 協力会社
+    const partnerDispatches = dispatches.filter(d => d.partner_id || d.is_partner);
+    const partnerMap = {};
+    partnerDispatches.forEach(d => {
+        const pName = d.partner_name || '不明';
+        if (!partnerMap[pName]) partnerMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
+        partnerMap[pName].dispatches.push(d);
+    });
+    const pEntries = Object.values(partnerMap);
+    if (pEntries.length > 0) {
+        html += `<tr class="matrix-partner-divider"><td colspan="${days.length + 1}">🤝 協力会社</td></tr>`;
+        pEntries.forEach(pe => {
+            html += `<tr class="matrix-row-partner">`;
+            html += `<td class="matrix-vehicle matrix-vehicle-partner">${pe.name}</td>`;
+            days.forEach((d, di) => {
+                const dayStr = dayStrs[di];
+                const pDisp = pe.dispatches.filter(dp => dp.date === dayStr || (dp.end_date && dp.date <= dayStr && dp.end_date >= dayStr));
+                html += buildMatrixCell(pDisp, dayStr, di, null, pe.id);
+            });
+            html += `</tr>`;
+        });
+    }
+
+    html += `</tbody></table></div>`;
+    return html;
+}
+
+// マトリクスセル（1車両×1日）
+function buildMatrixCell(dispatches, dayStr, dayIndex, vehicleId, partnerId) {
+    if (dispatches.length === 0) {
+        const onclick = vehicleId
+            ? `onclick="selectedDayIndex=${dayIndex};openQuickDispatchModal('${dayStr}','08:00','17:00',${vehicleId})"`
+            : (partnerId ? `onclick="selectedDayIndex=${dayIndex};openQuickDispatchModal('${dayStr}','08:00','17:00',null,null,${partnerId})"` : '');
+        return `<td class="matrix-cell matrix-cell-empty" ${onclick}></td>`;
+    }
+    let inner = '';
+    dispatches.forEach(d => {
+        const dc = getDriverColor(d.driver_id);
+        const driverName = d.driver_name || '';
+        const pickup = (d.pickup_address || '').substring(0, 5);
+        const delivery = (d.delivery_address || '').substring(0, 5);
+        const time = `${d.start_time || ''}~${d.end_time || ''}`;
+        inner += `<div class="matrix-dispatch" style="border-left:3px solid ${dc.border};background:${dc.bg}" onclick="event.stopPropagation();showDispatchDetail(${d.id})">
+            <span class="matrix-d-driver" style="color:${dc.text}">${driverName}</span>
+            <span class="matrix-d-time">${time}</span>
+            <span class="matrix-d-route">${pickup}→${delivery}</span>
+        </div>`;
+    });
+    return `<td class="matrix-cell">${inner}</td>`;
 }
 
 function isToday(d) {
