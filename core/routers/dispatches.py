@@ -42,7 +42,7 @@ class DispatchUpdate(BaseModel):
 
 
 @router.get("")
-def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str] = None, month_start: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy import or_
     query = db.query(Dispatch).options(
         joinedload(Dispatch.vehicle),
@@ -56,6 +56,16 @@ def list_dispatches(target_date: Optional[str] = None, week_start: Optional[str]
             or_(
                 Dispatch.date == td,
                 (Dispatch.end_date != None) & (Dispatch.date <= td) & (Dispatch.end_date >= td)
+            )
+        )
+    elif month_start:
+        from datetime import timedelta
+        start = date.fromisoformat(month_start)
+        end = start + timedelta(days=30)
+        query = query.filter(
+            or_(
+                (Dispatch.date >= start) & (Dispatch.date <= end),
+                (Dispatch.end_date != None) & (Dispatch.date <= end) & (Dispatch.end_date >= start)
             )
         )
     elif week_start:
