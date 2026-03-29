@@ -634,6 +634,7 @@ async function loadDispatchCalendar() {
         const undoFn = _lastResetData.length > 0 && _lastResetDay === activeDayStr ? 'undoReset' : 'undoAutoDispatch';
         const hasDispatches = dayDispatches.filter(d => !d.partner_id).length > 0;
         const filterActive = _mFilterTypes.length > 0 || _mFilterCaps.length > 0;
+        const partnerCount = partnerDispatches.length;
         const mobileControlsHtml = `
             <div class="m-cal-controls">
                 <div class="m-cal-row">
@@ -646,7 +647,8 @@ async function loadDispatchCalendar() {
                     ${hasUndo ? `<button class="m-cal-btn" onclick="${undoFn}()">↩</button>` : ''}
                 </div>
                 <div class="m-cal-row" style="margin-top:2px;gap:4px">
-                    <button class="m-cal-btn" onclick="showMobileFilterModal()" style="font-size:0.65rem;${filterActive ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台）</button>
+                    <span class="m-cal-date-display">${activeDateLabel}</span>
+                    <button class="m-cal-btn" onclick="showMobileFilterModal()" style="font-size:0.65rem;${filterActive ? 'color:#ea580c;font-weight:700' : ''}">絞り込み（${filteredVehicles.length}台${partnerCount > 0 ? '+協力' + partnerEntries.length : ''}）</button>
                     <select id="cal-hour-start" class="m-cal-select" onchange="changeHourRange()" style="max-width:58px">
                         ${Array.from({length:24}, (_,h) => `<option value="${h}" ${HOUR_START === h ? 'selected' : ''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
                     </select>
@@ -661,10 +663,27 @@ async function loadDispatchCalendar() {
         const totalMin = HOUR_COUNT * 60;
         const rowH = 40; // 1時間あたりの高さ(px)
         const screenW = window.innerWidth;
-        const timeColW = 36;
-        // 画面幅に4列収まるように列幅計算。5台以上は横スクロール
-        const visibleCols = Math.min(filteredVehicles.length, 4);
-        const colW = Math.floor((screenW - timeColW) / visibleCols);
+        const screenH = window.innerHeight;
+        const isLandscape = screenW > screenH;
+        const timeColW = screenW <= 380 ? 30 : 36;
+        // 画面幅に応じて可視列数を動的計算
+        const visibleCols = isLandscape
+            ? Math.min(filteredVehicles.length, 6)
+            : screenW <= 380 ? Math.min(filteredVehicles.length, 3)
+            : Math.min(filteredVehicles.length, 4);
+        const colW = Math.max(Math.floor((screenW - timeColW) / visibleCols), 60);
+
+        // 協力会社配車を集計
+        const partnerDispatches = dayDispatches2.filter(d => d.partner_id || d.is_partner);
+        const partnerMap = {};
+        partnerDispatches.forEach(d => {
+            const pName = d.partner_name || '不明';
+            if (!partnerMap[pName]) partnerMap[pName] = { name: pName, id: d.partner_id, dispatches: [] };
+            partnerMap[pName].dispatches.push(d);
+        });
+        const partnerEntries = Object.values(partnerMap);
+        const totalCols = filteredVehicles.length + partnerEntries.length;
+
         // D&D用にグリッド情報をグローバル保存
         window._mGridInfo = { timeColW, colW, rowH, vehicles: filteredVehicles, hourStart: HOUR_START };
         // ヘッダー（固定、スクロールしない）
@@ -676,18 +695,25 @@ async function loadDispatchCalendar() {
             const pgIcon = v.has_power_gate ? 'PG' : '';
             headerHtml += `<div class="vg-vehicle-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;" onclick="showMobileVehicleDetail(${v.id})">${shortNum}<br><span style="font-size:0.45rem;opacity:0.7">${v.type} ${v.capacity}t ${tzIcon}${pgIcon}</span></div>`;
         });
+        // 協力会社ヘッダー
+        partnerEntries.forEach(pe => {
+            headerHtml += `<div class="vg-vehicle-header vg-partner-header" style="width:${colW}px;min-width:${colW}px;flex-shrink:0;background:#92400e;">${pe.name}<br><span style="font-size:0.45rem;opacity:0.7">協力会社</span></div>`;
+        });
         headerHtml += `</div>`;
 
         // 時間セル（スクロール可能エリア）
         let vgHtml = `<div class="vertical-gantt-wrapper">
-            <div class="vertical-gantt" style="position:relative;grid-template-columns:${timeColW}px repeat(${filteredVehicles.length}, ${colW}px);grid-template-rows:repeat(${HOUR_COUNT}, ${rowH}px)">`;
+            <div class="vertical-gantt" style="position:relative;grid-template-columns:${timeColW}px repeat(${totalCols}, ${colW}px);grid-template-rows:repeat(${HOUR_COUNT}, ${rowH}px)">`;
 
-        // 時間行×車両列
+        // 時間行×車両列（自社車両＋協力会社列）
         for (let h = HOUR_START; h < HOUR_START + HOUR_COUNT; h++) {
             const hLabel = h >= 24 ? `翌${String(h - 24).padStart(2, '0')}` : String(h).padStart(2, '0');
             vgHtml += `<div class="vg-time-label">${hLabel}</div>`;
             filteredVehicles.forEach(v => {
                 vgHtml += `<div class="vg-cell" data-vehicle-id="${v.id}" data-hour="${h}"></div>`;
+            });
+            partnerEntries.forEach(pe => {
+                vgHtml += `<div class="vg-cell vg-partner-cell" data-partner-id="${pe.id}" data-hour="${h}"></div>`;
             });
         }
         // バーを配置（position:absolute でグリッド内に重ねる）
@@ -746,6 +772,39 @@ async function loadDispatchCalendar() {
                 </div>`;
             });
         });
+
+        // 協力会社バー
+        partnerEntries.forEach((pe, pi) => {
+            const colIndex = filteredVehicles.length + pi;
+            pe.dispatches.forEach(d => {
+                const startMin = timeToMinutes(d.start_time);
+                const endMin = timeToMinutes(d.end_time);
+                const topPx = (startMin - HOUR_START * 60) / 60 * rowH;
+                const heightPx = (endMin - startMin) / 60 * rowH;
+                const leftPx = timeColW + colIndex * colW + 2;
+                const barW = colW - 6;
+                const pickup = (d.pickup_address || '').substring(0, 6);
+                const delivery = (d.delivery_address || '').substring(0, 6);
+                barsHtml += `<div class="vg-bar vg-partner-bar" data-id="${d.id}" style="background:#fef3c7;color:#92400e;border-left:3px solid #f59e0b;left:${leftPx}px;width:${barW}px;top:${topPx}px;height:${Math.max(heightPx, 20)}px;" onclick="showDispatchDetail(${d.id})" ontouchstart="mTouchStart(event,${d.id})" ontouchend="mTouchEnd(event,${d.id})" title="${pe.name}\n${d.start_time}-${d.end_time}\n${d.pickup_address}→${d.delivery_address}">
+                    <span class="vg-bar-driver" style="background:#fffbeb;color:#92400e;border:1px solid #f59e0b">${pe.name}</span>
+                    ${heightPx >= 40 ? `<span class="vg-bar-addr">${pickup}→${delivery}</span>` : ''}
+                    ${heightPx >= 55 ? `<span class="vg-bar-addr" style="font-size:0.45rem">${d.start_time}-${d.end_time}</span>` : ''}
+                </div>`;
+            });
+        });
+
+        // 現在時刻インジケーター（モバイル）
+        if (activeDayStr === fmt(new Date())) {
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const nowTopPx = (nowMin - HOUR_START * 60) / 60 * rowH;
+            if (nowTopPx >= 0 && nowTopPx <= HOUR_COUNT * rowH) {
+                const gridW = timeColW + totalCols * colW;
+                barsHtml += `<div class="vg-now-line" style="position:absolute;top:${nowTopPx}px;left:${timeColW}px;width:${gridW - timeColW}px;height:2px;background:#ef4444;z-index:8;pointer-events:none">
+                    <span style="position:absolute;left:0;top:-8px;background:#ef4444;color:#fff;font-size:0.55rem;padding:0 4px;border-radius:3px;font-weight:600;white-space:nowrap">${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}</span>
+                </div>`;
+            }
+        }
 
         vgHtml += barsHtml + `</div></div>`;
 
